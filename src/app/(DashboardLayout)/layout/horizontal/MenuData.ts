@@ -12,12 +12,7 @@ const Menuitems = [
     icon: "solar:layers-line-duotone",
     href: '',
     children: [
-      {
-        id: uniqueId(),
-        title: "Sample Page",
-        icon: 'solar:widget-add-line-duotone',
-        href: "/",
-      },
+     
       {
         id: uniqueId(),
         title: "Analytics",
@@ -32,7 +27,7 @@ const Menuitems = [
       },
       {
         id: uniqueId(),
-        title: "Front Pages",
+        title: "SuperAdmin",
         icon: "solar:home-angle-linear",
         href: "",
         children: [
@@ -73,12 +68,7 @@ const Menuitems = [
           },
         ],
       },
-      {
-        title: "Landingpage",
-        icon: "solar:bill-list-line-duotone",
-        id: uniqueId(),
-        href: "/landingpage",
-      },
+      
     ],
   },
   {

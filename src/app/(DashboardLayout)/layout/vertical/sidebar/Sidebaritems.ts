@@ -42,18 +42,12 @@ const SidebarContent: MenuItem[] = [
             url: "/dashboards/analytics",
           },
           {
-            name: "CRM",
-            icon: "solar:layers-line-duotone",
-            id: uniqueId(),
-            url: "/dashboards/crm",
-          },
-          {
-            name: "Front Pages",
+            name: "SuperAdmin",
             id: uniqueId(),
             icon: "solar:home-angle-linear",
             children: [
               {
-                name: "Homepage",
+                name: "Admin",
                 id: uniqueId(),
                 url: "/frontend-pages/homepage",
               },
@@ -90,11 +84,13 @@ const SidebarContent: MenuItem[] = [
             ],
           },
           {
-            name: "Landingpage",
-            icon: "solar:bill-list-line-duotone",
+            name: "CRM",
+            icon: "solar:layers-line-duotone",
             id: uniqueId(),
-            url: "/landingpage",
+            url: "/dashboards/crm",
           },
+         
+        
         ],
       },
       {
@@ -144,18 +140,28 @@ const SidebarContent: MenuItem[] = [
             ],
           },
           {
-            name: "Blogs",
+            name: "Projects",
             id: uniqueId(),
             icon: "solar:widget-add-line-duotone",
             children: [
               {
                 id: uniqueId(),
-                name: "Blog Post",
+                name: "Add Project",
                 url: "/apps/blog/post",
               },
               {
                 id: uniqueId(),
-                name: "Blog Detail",
+                name: "List Project",
+                url: "/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow",
+              },
+              {
+                id: uniqueId(),
+                name: "Add Roles",
+                url: "/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow",
+              },
+              {
+                id: uniqueId(),
+                name: "List Roles",
                 url: "/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow",
               },
             ],
