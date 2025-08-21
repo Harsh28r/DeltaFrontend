@@ -3,7 +3,7 @@
 import React, { useContext, useEffect } from "react";
 import { Sidebar } from "flowbite-react";
 import { IconSidebar } from "./IconSidebar";
-import SidebarContent from "./Sidebaritems";
+import { useSidebarData } from "./Sidebaritems";
 import NavItems from "./NavItems";
 import NavCollapse from "./NavCollapse";
 import SimpleBar from "simplebar-react";
@@ -14,7 +14,9 @@ import { CustomizerContext } from "@/app/context/CustomizerContext";
 const SidebarLayout = () => {
   const { selectedIconId, setSelectedIconId } =
     useContext(CustomizerContext) || {};
-  const selectedContent = SidebarContent.find(
+  const { sidebarData, isLoading } = useSidebarData();
+  
+  const selectedContent = sidebarData.find(
     (data) => data.id === selectedIconId
   );
 
@@ -41,11 +43,32 @@ const SidebarLayout = () => {
   }
 
   useEffect(() => {
-    const result = findActiveUrl(SidebarContent, pathname);
-    if (result) {
-      setSelectedIconId(result);
+    if (sidebarData && !isLoading) {
+      const result = findActiveUrl(sidebarData, pathname);
+      if (result) {
+        setSelectedIconId(result);
+      }
     }
-  }, [pathname, setSelectedIconId]);
+  }, [pathname, setSelectedIconId, sidebarData, isLoading]);
+
+  if (isLoading) {
+    return (
+      <div className="xl:block hidden">
+        <div className="minisidebar-icon border-e border-ld bg-white dark:bg-darkgray fixed start-0 z-[1]">
+          <IconSidebar />
+          <SideProfile />
+        </div>
+        <Sidebar
+          className="fixed menu-sidebar pt-8 bg-white dark:bg-darkgray ps-4 rtl:pe-4 rtl:ps-0"
+          aria-label="Sidebar with multi-level dropdown example"
+        >
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </Sidebar>
+      </div>
+    );
+  }
 
   return (
     <>

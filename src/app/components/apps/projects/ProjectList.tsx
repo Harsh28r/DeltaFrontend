@@ -2,6 +2,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import CardBox from "@/app/components/shared/CardBox";
 import Image from "next/image";
+import { API_ENDPOINTS } from "@/lib/config";
 
 type Project = {
   _id: string;
@@ -49,7 +50,7 @@ const ProjectList: React.FC = () => {
       setError(null);
       try {
         if (!token) throw new Error("No token found. Please sign in first.");
-        const res = await fetch("http://localhost:5000/api/projects", {
+        const res = await fetch(API_ENDPOINTS.PROJECTS, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
@@ -144,5 +145,3 @@ const ProjectList: React.FC = () => {
 };
 
 export default ProjectList;
-
-

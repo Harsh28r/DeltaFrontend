@@ -1,6 +1,7 @@
 "use client";
 import React, { useState } from "react";
 import { Alert, Button, Label, TextInput } from "flowbite-react";
+import { API_ENDPOINTS } from "@/lib/config";
 
 type ProjectForm = {
   name: string;
@@ -62,7 +63,7 @@ const ProjectAddForm = () => {
       const sanitizedToken = token.replace(/^"|"$/g, "").trim();
       
       // Only send logo if it has a value
-      const formData = {
+      const projectData = {
         name: form.name,
         location: form.location,
         developBy: form.developBy,
@@ -76,13 +77,13 @@ const ProjectAddForm = () => {
         );
       } catch {}
       
-      const response = await fetch("http://localhost:5000/api/projects", {
+      const response = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${sanitizedToken}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(projectData),
         credentials: "include",
         mode: "cors",
       });

@@ -2,10 +2,14 @@
 import { Button, Checkbox, Label, TextInput } from "flowbite-react";
 import Link from "next/link";
 import React from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useAuth } from "@/app/context/AuthContext";
+import { API_ENDPOINTS } from "@/lib/config";
 
 const AuthLogin = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const { login } = useAuth();
   const [email, setEmail] = React.useState("");
   const [password, setPassword] = React.useState("");
   const [remember, setRemember] = React.useState(false);
@@ -20,12 +24,12 @@ const AuthLogin = () => {
       if (!email || !password) {
         throw new Error("Please enter email and password");
       }
-      const res = await fetch("http://localhost:5000/api/superadmin/admin-login", {
+      const res = await fetch(API_ENDPOINTS.ADMIN_LOGIN, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        // Backend expects { email, adminPass } for superadmin login
-        body: JSON.stringify({ email, adminPass: password }),
-        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
       });
       const data = await res.json().catch(() => ({} as any));
 
@@ -39,19 +43,13 @@ const AuthLogin = () => {
         throw new Error(msg);
       }
 
-      if (token) {
-        try {
-          if (remember) {
-            localStorage.setItem("auth_token", token);
-            if (user) localStorage.setItem("auth_user", JSON.stringify(user));
-          } else {
-            sessionStorage.setItem("auth_token", token);
-            if (user) sessionStorage.setItem("auth_user", JSON.stringify(user));
-          }
-        } catch {}
+      if (token && user) {
+        // Use the authentication context to handle login
+        login(token, user, remember);
       }
 
-      const redirectPath = (data && (data.redirect as string)) || "/";
+      // Check for redirect parameter or use default
+      const redirectPath = searchParams.get('redirect') || (data && (data.redirect as string)) || "/";
       router.push(redirectPath);
     } catch (err: any) {
       setError(err?.message || "Something went wrong");

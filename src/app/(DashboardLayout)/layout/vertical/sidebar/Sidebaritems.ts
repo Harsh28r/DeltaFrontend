@@ -1,3 +1,8 @@
+"use client";
+import React, { useState, useEffect } from "react";
+import { useAuth } from "@/app/context/AuthContext";
+import { API_ENDPOINTS } from "@/lib/config";
+
 export interface ChildItem {
   id?: number | string;
   name?: string;
@@ -21,7 +26,627 @@ export interface MenuItem {
 
 import { uniqueId } from "lodash";
 
-const SidebarContent: MenuItem[] = [
+// Hook to get dynamic sidebar data with roles
+export const useSidebarData = () => {
+  const { token } = useAuth();
+  const [roles, setRoles] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Fetch roles from backend
+  useEffect(() => {
+    if (token) {
+      fetchRoles();
+    }
+  }, [token]);
+
+  const fetchRoles = async () => {
+    try {
+      setIsLoading(true);
+      const response = await fetch(API_ENDPOINTS.ROLES, {
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+      const data = await response.json();
+      
+      if (response.ok) {
+        setRoles(data.roles || data);
+      } else {
+        console.error("Failed to fetch roles:", data.message);
+      }
+    } catch (error) {
+      console.error("Error fetching roles:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Create dynamic role items for SuperAdmin
+  const getDynamicRoleItems = () => {
+    return roles.map(role => ({
+      name: role.name,
+      id: `role-${role._id}`,
+      icon: "solar:shield-user-outline",
+      url: `/apps/role-modules/${role._id}`,
+    }));
+  };
+
+  const sidebarData: MenuItem[] = [
+    {
+      id: 1,
+      name: "Dashboard",
+      items: [
+        {
+          heading: "Dashboards",
+          children: [
+            {
+              name: "CRM",
+              icon: "solar:layers-line-duotone",
+              id: uniqueId(),
+              url: "/dashboards/crm",
+            },
+           
+            {
+              name: "SuperAdmin",
+              id: uniqueId(),
+              icon: "solar:home-angle-linear",
+              children: [
+               
+                
+                // Dynamic role items will be inserted here
+                ...getDynamicRoleItems(),
+              ],
+            },
+            
+          ],
+        },
+        {
+          heading: "Apps",
+          children: [
+            {
+              id: uniqueId(),
+              name: "Contacts",
+              icon: "solar:phone-line-duotone",
+              url: "/apps/contacts",
+            },
+            {
+              name: "Ecommerce",
+              id: uniqueId(),
+              icon: "solar:cart-3-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "Shop",
+                  url: "/apps/ecommerce/shop",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Details",
+                  url: "/apps/ecommerce/detail/1",
+                },
+                {
+                  id: uniqueId(),
+                  name: "List",
+                  url: "/apps/ecommerce/list",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Checkout",
+                  url: "/apps/ecommerce/checkout",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Add Product",
+                  url: "/apps/ecommerce/addproduct",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Edit Product",
+                  url: "/apps/ecommerce/editproduct",
+                },
+              ],
+            },
+            {
+              name: "Projects",
+              id: uniqueId(),
+              icon: "solar:widget-add-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "Add Project",
+                  url: "/apps/projects",
+                },
+                {
+                  id: uniqueId(),
+                  name: "List Project",
+                  url: "/apps/projects/list",
+                },
+              ],
+            },
+            {
+              name: "Roles",
+              id: uniqueId(),
+              icon: "solar:shield-user-outline",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "List Roles",
+                  url: "/apps/roles",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Add Role",
+                  url: "/apps/roles/add",
+                },
+              ],
+            },
+           
+            {
+              name: "User Profile",
+              id: uniqueId(),
+              icon: "solar:shield-user-outline",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "Profile",
+                  url: "/apps/user-profile/profile",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Followers",
+                  url: "/apps/user-profile/followers",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Friends",
+                  url: "/apps/user-profile/friends",
+                },
+              ],
+            },
+            // {
+            //   id: uniqueId(),
+            //   name: "Gallery",
+            //   icon: "solar:gallery-line-duotone",
+            //   url: "/apps/gallery",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Pricing",
+            //   icon: "solar:tag-price-line-duotone",
+            //   url: "/apps/pricing",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "FAQ",
+            //   icon: "solar:question-circle-line-duotone",
+            //   url: "/apps/faq",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Timeline",
+            //   icon: "solar:clock-circle-line-duotone",
+            //   url: "/apps/timeline",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Treeview",
+            //   icon: "solar:tree-line-duotone",
+            //   url: "/apps/treeview",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Invoice",
+            //   icon: "solar:file-text-line-duotone",
+            //   url: "/apps/invoice",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Testimonials",
+            //   icon: "solar:chat-round-dots-line-duotone",
+            //   url: "/apps/testimonials",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "404",
+            //   icon: "solar:file-line-duotone",
+            //   url: "/apps/404",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Coming Soon",
+            //   icon: "solar:clock-circle-line-duotone",
+            //   url: "/apps/coming-soon",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Maintenance",
+            //   icon: "solar:settings-line-duotone",
+            //   url: "/apps/maintenance",
+            // },
+            // {
+            //   id: uniqueId(),
+            //   name: "Starter",
+            //   icon: "solar:rocket-line-duotone",
+            //   url: "/apps/starter",
+            // },
+          ],
+        },
+        // {
+        //   heading: "Pages",
+        //   children: [
+        //     {
+        //       id: uniqueId(),
+        //       name: "Help Center",
+        //       icon: "solar:question-circle-line-duotone",
+        //       url: "/pages/help-center",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Landing",
+        //       icon: "solar:rocket-line-duotone",
+        //       url: "/pages/landing",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Pricing",
+        //       icon: "solar:tag-price-line-duotone",
+        //       url: "/pages/pricing",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "404",
+        //       icon: "solar:file-line-duotone",
+        //       url: "/pages/404",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Coming Soon",
+        //       icon: "solar:clock-circle-line-duotone",
+        //       url: "/pages/coming-soon",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Maintenance",
+        //       icon: "solar:settings-line-duotone",
+        //       url: "/pages/maintenance",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Starter",
+        //       icon: "solar:rocket-line-duotone",
+        //       url: "/pages/starter",
+        //     },
+        //   ],
+        // },
+        // {
+        //   heading: "Authentication",
+        //   children: [
+        //     {
+        //       id: uniqueId(),
+        //       name: "Sign In",
+        //       icon: "solar:login-2-line-duotone",
+        //       url: "/auth/auth1/login",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Sign Up",
+        //       icon: "solar:user-plus-line-duotone",
+        //       url: "/auth/auth1/register",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Forgot Password",
+        //       icon: "solar:lock-password-line-duotone",
+        //       url: "/auth/auth1/forgot-password",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Reset Password",
+        //       icon: "solar:lock-password-line-duotone",
+        //       url: "/auth/auth1/reset-password",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Two Factor",
+        //       icon: "solar:shield-keyhole-line-duotone",
+        //       url: "/auth/auth1/two-factor",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Lock Screen",
+        //       icon: "solar:lock-line-duotone",
+        //       url: "/auth/auth1/lock-screen",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Logout",
+        //       icon: "solar:logout-2-line-duotone",
+        //       url: "/auth/auth1/logout",
+        //     },
+        //   ],
+        // },
+        // {
+        //   heading: "Layouts",
+        //   children: [
+        //     {
+        //       id: uniqueId(),
+        //       name: "Default",
+        //       icon: "solar:widget-add-line-duotone",
+        //       url: "/layouts/default",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Sidebar",
+        //       icon: "solar:sidebar-line-duotone",
+        //       url: "/layouts/sidebar",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Header",
+        //       icon: "solar:header-line-duotone",
+        //       url: "/layouts/header",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Footer",
+        //       icon: "solar:footer-line-duotone",
+        //       url: "/layouts/footer",
+        //     },
+        //   ],
+        // },
+        // {
+        //   heading: "Components",
+        //   children: [
+        //     {
+        //       id: uniqueId(),
+        //       name: "Alerts",
+        //       icon: "solar:bell-line-duotone",
+        //       url: "/components/alerts",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Badges",
+        //       icon: "solar:badge-line-duotone",
+        //       url: "/components/badges",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Breadcrumbs",
+        //       icon: "solar:breadcrumb-line-duotone",
+        //       url: "/components/breadcrumbs",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Buttons",
+        //       icon: "solar:button-line-duotone",
+        //       url: "/components/buttons",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Cards",
+        //       icon: "solar:card-line-duotone",
+        //       url: "/components/cards",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Carousel",
+        //       icon: "solar:carousel-line-duotone",
+        //       url: "/components/carousel",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Collapse",
+        //       icon: "solar:collapse-line-duotone",
+        //       url: "/components/collapse",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Dropdowns",
+        //       icon: "solar:dropdown-line-duotone",
+        //       url: "/components/dropdowns",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Forms",
+        //       icon: "solar:form-line-duotone",
+        //       url: "/components/forms",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "List Group",
+        //       icon: "solar:list-line-duotone",
+        //       url: "/components/list-group",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Modal",
+        //       icon: "solar:modal-line-duotone",
+        //       url: "/components/modal",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Navbar",
+        //       icon: "solar:navbar-line-duotone",
+        //       url: "/components/navbar",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Offcanvas",
+        //       icon: "solar:offcanvas-line-duotone",
+        //       url: "/components/offcanvas",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Pagination",
+        //       icon: "solar:pagination-line-duotone",
+        //       url: "/components/pagination",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Popovers",
+        //       icon: "solar:popover-line-duotone",
+        //       url: "/components/popovers",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Progress",
+        //       icon: "solar:progress-line-duotone",
+        //       url: "/components/progress",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Spinners",
+        //       icon: "solar:spinner-line-duotone",
+        //       url: "/components/spinners",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Tables",
+        //       icon: "solar:table-line-duotone",
+        //       url: "/components/tables",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Tabs",
+        //       icon: "solar:tabs-line-duotone",
+        //       url: "/components/tabs",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Tooltips",
+        //       icon: "solar:tooltip-line-duotone",
+        //       url: "/components/tooltips",
+        //     },
+        //   ],
+        // },
+        // {
+        //   heading: "Utilities",
+        //   children: [
+        //     {
+        //       id: uniqueId(),
+        //       name: "Background",
+        //       icon: "solar:background-line-duotone",
+        //       url: "/utilities/background",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Borders",
+        //       icon: "solar:border-line-duotone",
+        //       url: "/utilities/borders",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Colors",
+        //       icon: "solar:color-line-duotone",
+        //       url: "/utilities/colors",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Display",
+        //       icon: "solar:display-line-duotone",
+        //       url: "/utilities/display",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Flex",
+        //       icon: "solar:flex-line-duotone",
+        //       url: "/utilities/flex",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Float",
+        //       icon: "solar:float-line-duotone",
+        //       url: "/utilities/float",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Grid",
+        //       icon: "solar:grid-line-duotone",
+        //       url: "/utilities/grid",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Position",
+        //       icon: "solar:position-line-duotone",
+        //       url: "/utilities/position",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Shadows",
+        //       icon: "solar:shadow-line-duotone",
+        //       url: "/utilities/shadows",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Sizing",
+        //       icon: "solar:sizing-line-duotone",
+        //       url: "/utilities/sizing",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Spacing",
+        //       icon: "solar:spacing-line-duotone",
+        //       url: "/utilities/spacing",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Text",
+        //       icon: "solar:text-line-duotone",
+        //       url: "/utilities/text",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Vertical Align",
+        //       icon: "solar:vertical-align-line-duotone",
+        //       url: "/utilities/vertical-align",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Visibility",
+        //       icon: "solar:visibility-line-duotone",
+        //       url: "/utilities/visibility",
+        //     },
+        //   ],
+        // },
+        // {
+        //   heading: "Extras",
+        //   children: [
+        //     {
+        //       id: uniqueId(),
+        //       name: "Charts",
+        //       icon: "solar:chart-line-duotone",
+        //       url: "/extras/charts",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Icons",
+        //       icon: "solar:icon-line-duotone",
+        //       url: "/extras/icons",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Maps",
+        //       icon: "solar:map-line-duotone",
+        //       url: "/extras/maps",
+        //     },
+        //     {
+        //       id: uniqueId(),
+        //       name: "Tables",
+        //       icon: "solar:table-line-duotone",
+        //       url: "/extras/tables",
+        //     },
+        //   ],
+        // },
+      ],
+    },
+  ];
+
+  return { sidebarData, isLoading };
+};
+
+// Static sidebar data for components that don't need dynamic functionality
+export const staticSidebarData: MenuItem[] = [
   {
     id: 1,
     name: "Dashboard",
@@ -89,8 +714,6 @@ const SidebarContent: MenuItem[] = [
             id: uniqueId(),
             url: "/dashboards/crm",
           },
-         
-        
         ],
       },
       {
@@ -147,22 +770,29 @@ const SidebarContent: MenuItem[] = [
               {
                 id: uniqueId(),
                 name: "Add Project",
-                url: "/apps/blog/post",
+                url: "/apps/projects",
               },
               {
                 id: uniqueId(),
                 name: "List Project",
-                url: "/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow",
+                url: "/apps/projects/list",
               },
-              {
-                id: uniqueId(),
-                name: "Add Roles",
-                url: "/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow",
-              },
+            ],
+          },
+          {
+            name: "Roles",
+            id: uniqueId(),
+            icon: "solar:shield-user-outline",
+            children: [
               {
                 id: uniqueId(),
                 name: "List Roles",
-                url: "/apps/blog/detail/streaming-video-way-before-it-was-cool-go-dark-tomorrow",
+                url: "/apps/roles",
+              },
+              {
+                id: uniqueId(),
+                name: "Add Role",
+                url: "/apps/roles/add",
               },
             ],
           },
@@ -192,1021 +822,445 @@ const SidebarContent: MenuItem[] = [
                 name: "Friends",
                 url: "/apps/user-profile/friends",
               },
-              {
-                id: uniqueId(),
-                name: "Gallery",
-                url: "/apps/user-profile/gallery",
-              },
             ],
           },
-
-          {
-            name: "Invoice",
-            id: uniqueId(),
-            icon: "solar:bill-check-outline",
-            children: [
-              {
-                id: uniqueId(),
-                name: "List",
-                url: "/apps/invoice/list",
-              },
-              {
-                id: uniqueId(),
-                name: "Details",
-                url: "/apps/invoice/detail/PineappleInc",
-              },
-              {
-                id: uniqueId(),
-                name: "Create",
-                url: "/apps/invoice/create",
-              },
-              {
-                id: uniqueId(),
-                name: "Edit",
-                url: "/apps/invoice/edit/PineappleInc",
-              },
-            ],
-          },
-
           {
             id: uniqueId(),
-            name: "Notes",
-            icon: "solar:document-text-outline",
-            url: "/apps/notes",
+            name: "Gallery",
+            icon: "solar:gallery-line-duotone",
+            url: "/apps/gallery",
           },
           {
             id: uniqueId(),
-            name: "Calendar",
-            icon: "solar:calendar-mark-line-duotone",
-            url: "/apps/calendar",
+            name: "Pricing",
+            icon: "solar:tag-price-line-duotone",
+            url: "/apps/pricing",
           },
           {
             id: uniqueId(),
-            name: "Email",
-            icon: "solar:letter-linear",
-            url: "/apps/email",
-          },
-          {
-            id: uniqueId(),
-            name: "Tickets",
-            icon: "solar:ticker-star-outline",
-            url: "/apps/tickets",
-          },
-          {
-            id: uniqueId(),
-            name: "Kanban",
-            icon: "solar:notebook-linear",
-            url: "/apps/kanban",
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 2,
-    name: "Pages",
-    items: [
-      {
-        heading: "Pages",
-        children: [
-          {
-            name: "Account Setting",
-            icon: "solar:settings-minimalistic-line-duotone",
-            id: uniqueId(),
-            url: "/theme-pages/account-settings",
-          },
-          {
             name: "FAQ",
             icon: "solar:question-circle-line-duotone",
-            id: uniqueId(),
-            url: "/theme-pages/faq",
-          },
-          {
-            name: "Pricing",
-            icon: "solar:dollar-minimalistic-linear",
-            id: uniqueId(),
-            url: "/theme-pages/pricing",
-          },
-         
-          {
-            name: "Roll Base Access",
-            icon: "solar:accessibility-broken",
-            id: uniqueId(),
-            url: "/theme-pages/casl",
-          },
-        ],
-      },
-      {
-        heading: "Widgets",
-        children: [
-          {
-            id: uniqueId(),
-            name: "Cards",
-            icon: "solar:cardholder-line-duotone",
-            url: "/widgets/cards",
-          },
-          {
-            id: uniqueId(),
-            name: "Banners",
-            icon: "solar:align-vertical-spacing-line-duotone",
-            url: "/widgets/banners",
-          },
-          {
-            id: uniqueId(),
-            name: "Charts",
-            icon: "solar:chart-square-line-duotone",
-            url: "/widgets/charts",
-          },
-        ],
-      },
-      {
-        heading: "Icons",
-        children: [
-          {
-            id: uniqueId(),
-            name: "Solar Icons",
-            icon: "solar:sticker-smile-circle-outline",
-            url: "/icons/solar",
-          },
-          {
-            id: uniqueId(),
-            name: "Tabler Icons",
-            icon: "solar:sticker-smile-circle-outline",
-            url: "/icons/tabler",
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 3,
-    name: "Ui components",
-    items: [
-      {
-        heading: "UI",
-        children: [
-          {
-            id: uniqueId(),
-            name: "Accordian",
-            icon: "solar:waterdrops-line-duotone",
-            url: "/ui-components/accrodian",
-          },
-          {
-            id: uniqueId(),
-            name: "Badge",
-            icon: "solar:tag-horizontal-line-duotone",
-            url: "/ui-components/badge",
-          },
-          {
-            id: uniqueId(),
-            name: "Button",
-            icon: "solar:airbuds-case-minimalistic-line-duotone",
-            url: "/ui-components/buttons",
-          },
-          {
-            id: uniqueId(),
-            name: "Dropdowns",
-            icon: "solar:airbuds-case-line-duotone",
-            url: "/ui-components/dropdown",
-          },
-          {
-            id: uniqueId(),
-            name: "Modals",
-            icon: "solar:bolt-line-duotone",
-            url: "/ui-components/modals",
-          },
-          {
-            id: uniqueId(),
-            name: "Tab",
-            icon: "solar:box-minimalistic-line-duotone",
-            url: "/ui-components/tab",
-          },
-          {
-            id: uniqueId(),
-            name: "Tooltip",
-            icon: "solar:feed-line-duotone",
-            url: "/ui-components/tooltip",
-          },
-          {
-            id: uniqueId(),
-            name: "Alert",
-            icon: "solar:flag-line-duotone",
-            url: "/ui-components/alert",
-          },
-          {
-            id: uniqueId(),
-            name: "Progressbar",
-            icon: "solar:programming-line-duotone",
-            url: "/ui-components/progressbar",
-          },
-          {
-            id: uniqueId(),
-            name: "Pagination",
-            icon: "solar:waterdrops-line-duotone",
-            url: "/ui-components/pagination",
-          },
-          {
-            id: uniqueId(),
-            name: "Breadcrumbs",
-            icon: "solar:slider-minimalistic-horizontal-line-duotone",
-            url: "/ui-components/breadcrumb",
-          },
-          {
-            id: uniqueId(),
-            name: "Drawer",
-            icon: "solar:laptop-minimalistic-line-duotone",
-            url: "/ui-components/drawer",
-          },
-          {
-            id: uniqueId(),
-            name: "Lists",
-            icon: "solar:checklist-bold-duotone",
-            url: "/ui-components/listgroup",
-          },
-          {
-            id: uniqueId(),
-            name: "Carousel",
-            icon: "solar:align-horizonta-spacing-line-duotone",
-            url: "/ui-components/carousel",
-          },
-          {
-            id: uniqueId(),
-            name: "Spinner",
-            icon: "solar:soundwave-bold-duotone",
-            url: "/ui-components/spinner",
-          },
-          {
-            id: uniqueId(),
-            name: "Avatar",
-            icon: "solar:user-line-duotone",
-            url: "/ui-components/avatar",
-          },
-          {
-            id: uniqueId(),
-            name: "Banner",
-            icon: "solar:banknote-linear",
-            url: "/ui-components/banner",
-          },
-          {
-            id: uniqueId(),
-            name: "Button Group",
-            icon: "solar:users-group-two-rounded-outline",
-            url: "/ui-components/button-group",
-          },
-          {
-            id: uniqueId(),
-            name: "Card",
-            icon: "solar:card-line-duotone",
-            url: "/ui-components/card",
-          },
-          {
-            id: uniqueId(),
-            name: "Datepicker",
-            icon: "solar:calendar-search-linear",
-            url: "/ui-components/datepicker",
-          },
-          {
-            id: uniqueId(),
-            name: "Footer",
-            icon: "solar:wad-of-money-outline",
-            url: "/ui-components/footer",
-          },
-          {
-            id: uniqueId(),
-            name: "KBD",
-            icon: "solar:keyboard-line-duotone",
-            url: "/ui-components/kbd",
-          },
-          {
-            id: uniqueId(),
-            name: "Mega Menu",
-            icon: "solar:clipboard-list-linear",
-            url: "/ui-components/megamenu",
-          },
-          {
-            id: uniqueId(),
-            name: "Navbar",
-            icon: "solar:slider-minimalistic-horizontal-linear",
-            url: "/ui-components/navbar",
-          },
-          {
-            id: uniqueId(),
-            name: "Popover",
-            icon: "solar:chat-line-line-duotone",
-            url: "/ui-components/popover",
-          },
-          {
-            id: uniqueId(),
-            name: "Rating",
-            icon: "solar:stars-linear",
-            url: "/ui-components/rating",
-          },
-          {
-            id: uniqueId(),
-            name: "Sidebar",
-            icon: "solar:siderbar-broken",
-            url: "/ui-components/sidebar",
-          },
-          {
-            id: uniqueId(),
-            name: "Tables",
-            icon: "solar:bedside-table-linear",
-            url: "/ui-components/tables",
+            url: "/apps/faq",
           },
           {
             id: uniqueId(),
             name: "Timeline",
-            icon: "solar:align-horizontal-center-outline",
-            url: "/ui-components/timeline",
+            icon: "solar:clock-circle-line-duotone",
+            url: "/apps/timeline",
           },
           {
             id: uniqueId(),
-            name: "Toast",
-            icon: "solar:check-square-linear",
-            url: "/ui-components/toast",
+            name: "Treeview",
+            icon: "solar:tree-line-duotone",
+            url: "/apps/treeview",
           },
           {
             id: uniqueId(),
-            name: "Typography",
-            icon: "solar:text-bold-duotone",
-            url: "/ui-components/typography",
-          },
-        ],
-      },
-    ],
-  }, //three end
-
-  {
-    id: 4,
-    name: "Tables",
-    items: [
-      {
-        heading: "Tables",
-        children: [
-          {
-            name: "Basic Tables",
-            icon: "solar:tablet-line-duotone",
-            id: uniqueId(),
-            url: "/tables/basic",
+            name: "Invoice",
+            icon: "solar:file-text-line-duotone",
+            url: "/apps/invoice",
           },
           {
-            name: "Striped Rows Table",
-            icon: "solar:tablet-line-duotone",
             id: uniqueId(),
-            url: "/tables/striped-row",
+            name: "Testimonials",
+            icon: "solar:chat-round-dots-line-duotone",
+            url: "/apps/testimonials",
           },
           {
-            name: "Hover Table",
-            icon: "solar:tablet-line-duotone",
             id: uniqueId(),
-            url: "/tables/hover-table",
+            name: "404",
+            icon: "solar:file-line-duotone",
+            url: "/apps/404",
           },
           {
-            name: "Checkbox Table",
-            icon: "solar:tablet-line-duotone",
             id: uniqueId(),
-            url: "/tables/checkbox-table",
+            name: "Coming Soon",
+            icon: "solar:clock-circle-line-duotone",
+            url: "/apps/coming-soon",
+          },
+          {
+            id: uniqueId(),
+            name: "Maintenance",
+            icon: "solar:settings-line-duotone",
+            url: "/apps/maintenance",
+          },
+          {
+            id: uniqueId(),
+            name: "Starter",
+            icon: "solar:rocket-line-duotone",
+            url: "/apps/starter",
           },
         ],
       },
       {
-        heading: "React Tables",
+        heading: "Pages",
         children: [
           {
             id: uniqueId(),
-            name: "Basic",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/basic",
+            name: "Help Center",
+            icon: "solar:question-circle-line-duotone",
+            url: "/pages/help-center",
           },
           {
             id: uniqueId(),
-            name: "Dense",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/dense",
+            name: "Landing",
+            icon: "solar:rocket-line-duotone",
+            url: "/pages/landing",
           },
           {
             id: uniqueId(),
-            name: "Sorting",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/sorting",
+            name: "Pricing",
+            icon: "solar:tag-price-line-duotone",
+            url: "/pages/pricing",
           },
           {
             id: uniqueId(),
-            name: "Filtering",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/filtering",
+            name: "404",
+            icon: "solar:file-line-duotone",
+            url: "/pages/404",
           },
           {
             id: uniqueId(),
-            name: "Pagination",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/pagination",
+            name: "Coming Soon",
+            icon: "solar:clock-circle-line-duotone",
+            url: "/pages/coming-soon",
           },
           {
             id: uniqueId(),
-            name: "Row Selection",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/row-selection",
+            name: "Maintenance",
+            icon: "solar:settings-line-duotone",
+            url: "/pages/maintenance",
           },
           {
             id: uniqueId(),
-            name: "Column Visibility",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/columnvisibility",
-          },
-          {
-            id: uniqueId(),
-            name: "Editable",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/editable",
-          },
-          {
-            id: uniqueId(),
-            name: "Sticky",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/sticky",
-          },
-          {
-            id: uniqueId(),
-            name: "Drag & Drop",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/drag-drop",
-          },
-          {
-            id: uniqueId(),
-            name: "Empty",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/empty",
-          },
-          {
-            id: uniqueId(),
-            name: "Expanding",
-            icon: "solar:round-transfer-vertical-broken",
-            url: "/react-tables/expanding",
+            name: "Starter",
+            icon: "solar:rocket-line-duotone",
+            url: "/pages/starter",
           },
         ],
       },
       {
-        heading: "Shadcn Table",
+        heading: "Authentication",
         children: [
           {
             id: uniqueId(),
-            name: "Basic",
-            icon: "solar:command-line-duotone",
-            url: "/shadcn-tables/basic",
+            name: "Sign In",
+            icon: "solar:login-2-line-duotone",
+            url: "/auth/auth1/login",
+          },
+          {
+            id: uniqueId(),
+            name: "Sign Up",
+            icon: "solar:user-plus-line-duotone",
+            url: "/auth/auth1/register",
+          },
+          {
+            id: uniqueId(),
+            name: "Forgot Password",
+            icon: "solar:lock-password-line-duotone",
+            url: "/auth/auth1/forgot-password",
+          },
+          {
+            id: uniqueId(),
+            name: "Reset Password",
+            icon: "solar:lock-password-line-duotone",
+            url: "/auth/auth1/reset-password",
+          },
+          {
+            id: uniqueId(),
+            name: "Two Factor",
+            icon: "solar:shield-keyhole-line-duotone",
+            url: "/auth/auth1/two-factor",
+          },
+          {
+            id: uniqueId(),
+            name: "Lock Screen",
+            icon: "solar:lock-line-duotone",
+            url: "/auth/auth1/lock-screen",
+          },
+          {
+            id: uniqueId(),
+            name: "Logout",
+            icon: "solar:logout-2-line-duotone",
+            url: "/auth/auth1/logout",
           },
         ],
       },
-    ],
-  },
-
-  {
-    id: 5,
-    name: "Charts",
-    items: [
       {
-        heading: "Charts",
+        heading: "Layouts",
         children: [
           {
-            name: "Line Chart",
-            icon: "solar:chart-square-line-duotone",
             id: uniqueId(),
-            url: "/charts/line",
+            name: "Default",
+            icon: "solar:widget-add-line-duotone",
+            url: "/layouts/default",
           },
           {
-            name: "Area Chart",
-            icon: "solar:graph-new-broken",
             id: uniqueId(),
-            url: "/charts/area",
+            name: "Sidebar",
+            icon: "solar:sidebar-line-duotone",
+            url: "/layouts/sidebar",
           },
           {
-            name: "Gradient Chart",
-            icon: "solar:round-graph-outline",
             id: uniqueId(),
-            url: "/charts/gradient",
+            name: "Header",
+            icon: "solar:header-line-duotone",
+            url: "/layouts/header",
           },
           {
-            name: "Candlestick",
-            icon: "solar:chandelier-outline",
             id: uniqueId(),
-            url: "/charts/candlestick",
-          },
-          {
-            name: "Column",
-            icon: "solar:chart-2-bold-duotone",
-            id: uniqueId(),
-            url: "/charts/column",
-          },
-          {
-            name: "Doughnut & Pie",
-            icon: "solar:pie-chart-2-linear",
-            id: uniqueId(),
-            url: "/charts/doughnut",
-          },
-          {
-            name: "Radialbar & Radar",
-            icon: "solar:graph-line-duotone",
-            id: uniqueId(),
-            url: "/charts/radialbar",
+            name: "Footer",
+            icon: "solar:footer-line-duotone",
+            url: "/layouts/footer",
           },
         ],
       },
-    ],
-  },
-
-  {
-    id: 6,
-    name: "Forms",
-    items: [
       {
-        heading: "Forms",
+        heading: "Components",
         children: [
           {
             id: uniqueId(),
-            name: "Forms Elements",
-            icon: "solar:text-selection-line-duotone",
-            url: "/forms/form-elements",
+            name: "Alerts",
+            icon: "solar:bell-line-duotone",
+            url: "/components/alerts",
           },
           {
             id: uniqueId(),
-            name: "Forms Layouts",
-            icon: "solar:document-text-outline",
-            url: "/forms/form-layouts",
-          },
-          {
-            id: uniqueId(),
-            name: "Forms Horizontal",
-            icon: "solar:slider-horizontal-line-duotone",
-            url: "/forms/form-horizontal",
-          },
-          {
-            id: uniqueId(),
-            name: "Forms Vertical",
-            icon: "solar:slider-vertical-line-duotone",
-            url: "/forms/form-vertical",
-          },
-          {
-            id: uniqueId(),
-            name: "Forms Custom",
-            icon: "solar:document-text-outline",
-            url: "/forms/form-custom",
-          },
-          {
-            id: uniqueId(),
-            name: "Form Validation",
-            icon: "solar:bill-check-linear",
-            url: "/forms/form-validation",
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 7,
-    name: "Shadcn Ui",
-    items: [
-      {
-        heading: "Shadcn Ui",
-        children: [
-          {
-            id: uniqueId(),
-            name: "Badge",
-            icon: "solar:tag-horizontal-line-duotone",
-            url: "/shadcn-ui/badge",
-          },
-          {
-            id: uniqueId(),
-            name: "Button",
-            icon: "solar:airbuds-case-minimalistic-line-duotone",
-            url: "/shadcn-ui/buttons",
-          },
-          {
-            id: uniqueId(),
-            name: "Dropdowns",
-            icon: "solar:airbuds-case-line-duotone",
-            url: "/shadcn-ui/dropdown",
-          },
-          {
-            id: uniqueId(),
-            name: "Dialogs",
-            icon: "solar:bolt-line-duotone",
-            url: "/shadcn-ui/dialogs",
-          },
-          {
-            id: uniqueId(),
-            name: "Alert",
-            icon: "solar:flag-line-duotone",
-            url: "/shadcn-ui/alert",
-          },
-          {
-            id: uniqueId(),
-            name: "Toast",
-            icon: "solar:notification-unread-broken",
-            url: "/shadcn-ui/toast",
+            name: "Badges",
+            icon: "solar:badge-line-duotone",
+            url: "/components/badges",
           },
           {
             id: uniqueId(),
             name: "Breadcrumbs",
-            icon: "solar:slider-minimalistic-horizontal-line-duotone",
-            url: "/shadcn-ui/breadcrumb",
+            icon: "solar:breadcrumb-line-duotone",
+            url: "/components/breadcrumbs",
           },
-
-          {
-            id: uniqueId(),
-            name: "Carousel",
-            icon: "solar:align-horizonta-spacing-line-duotone",
-            url: "/shadcn-ui/carousel",
-          },
-
-          {
-            id: uniqueId(),
-            name: "Card",
-            icon: "solar:card-line-duotone",
-            url: "/shadcn-ui/card",
-          },
-          {
-            id: uniqueId(),
-            name: "Datepicker",
-            icon: "solar:calendar-search-linear",
-            url: "/shadcn-ui/datepicker",
-          },
-          {
-            id: uniqueId(),
-            name: "Combobox",
-            icon: "solar:wad-of-money-outline",
-            url: "/shadcn-ui/combobox",
-          },
-          {
-            id: uniqueId(),
-            name: "Collapsible",
-            icon: "solar:list-up-minimalistic-bold-duotone",
-            url: "/shadcn-ui/collapsible",
-          },
-          {
-            id: uniqueId(),
-            name: "Command",
-            icon: "solar:command-outline",
-            url: "/shadcn-ui/command",
-          },
-          {
-            id: uniqueId(),
-            name: "Skeleton",
-            icon: "solar:soundwave-bold-duotone",
-            url: "/shadcn-ui/skeleton",
-          },
-          {
-            id: uniqueId(),
-            name: "Avatar",
-            icon: "solar:user-line-duotone",
-            url: "/shadcn-ui/avatar",
-          },
-
-          {
-            id: uniqueId(),
-            name: "Tooltip",
-            icon: "solar:feed-line-duotone",
-            url: "/shadcn-ui/tooltip",
-          },
-          {
-            name: "Accordion",
-            icon: "solar:round-alt-arrow-down-outline",
-            id: uniqueId(),
-            url: "/shadcn-ui/accordion",
-          },
-          {
-            id: uniqueId(),
-            name: "Tab",
-            icon: "solar:box-minimalistic-line-duotone",
-            url: "/shadcn-ui/tab",
-          },
-          {
-            id: uniqueId(),
-            name: "Progressbar",
-            icon: "solar:programming-line-duotone",
-            url: "/shadcn-ui/progressbar",
-          },
-          {
-            id: uniqueId(),
-            name: "Drawer",
-            icon: "solar:laptop-minimalistic-line-duotone",
-            url: "/shadcn-ui/drawer",
-          },
-        ],
-      },
-      {
-        heading: "Shadcn Form Elements",
-        children: [
-          {
-            id: uniqueId(),
-            name: "Input",
-            icon: "solar:text-circle-linear",
-            url: "/shadcn-form/input",
-          },
-          {
-            id: uniqueId(),
-            name: "Select",
-            icon: "solar:round-alt-arrow-down-outline",
-            url: "/shadcn-form/select",
-          },
-          {
-            id: uniqueId(),
-            name: "Checkbox",
-            icon: "solar:shield-check-linear",
-            url: "/shadcn-form/checkbox",
-          },
-          {
-            id: uniqueId(),
-            name: "Radio",
-            icon: "solar:record-linear",
-            url: "/shadcn-form/radio",
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 8,
-    name: "Headless",
-    items: [
-      {
-        heading: "Headless Ui Elements",
-        children: [
-          {
-            name: "Dropdown",
-            icon: "solar:round-alt-arrow-down-outline",
-            id: uniqueId(),
-            url: "/headless-ui/dropdown",
-          },
-          {
-            name: "Disclosure",
-            icon: "solar:accumulator-broken",
-            id: uniqueId(),
-            url: "/headless-ui/disclosure",
-          },
-          {
-            name: "Dialog",
-            icon: "solar:smartphone-update-line-duotone",
-            id: uniqueId(),
-            url: "/headless-ui/dialog",
-          },
-          {
-            name: "Popover",
-            icon: "solar:airbuds-case-charge-line-duotone",
-            id: uniqueId(),
-            url: "/headless-ui/popover",
-          },
-          {
-            name: "Tabs",
-            icon: "solar:clapperboard-text-linear",
-            id: uniqueId(),
-            url: "/headless-ui/tabs",
-          },
-          {
-            name: "Transition",
-            icon: "solar:round-transfer-horizontal-line-duotone",
-            id: uniqueId(),
-            url: "/headless-ui/transition",
-          },
-        ],
-      },
-      {
-        heading: "Headless Form Elements",
-        children: [
           {
             id: uniqueId(),
             name: "Buttons",
-            icon: "solar:adhesive-plaster-outline",
-            url: "/headless-form/buttons",
+            icon: "solar:button-line-duotone",
+            url: "/components/buttons",
           },
           {
             id: uniqueId(),
-            name: "Checkbox",
-            icon: "solar:check-circle-linear",
-            url: "/headless-form/checkbox",
+            name: "Cards",
+            icon: "solar:card-line-duotone",
+            url: "/components/cards",
           },
           {
             id: uniqueId(),
-            name: "Combobox",
-            icon: "solar:archive-down-minimlistic-broken",
-            url: "/headless-form/combobox",
+            name: "Carousel",
+            icon: "solar:carousel-line-duotone",
+            url: "/components/carousel",
           },
           {
             id: uniqueId(),
-            name: "Fieldset",
-            icon: "solar:password-minimalistic-input-outline",
-            url: "/headless-form/fieldset",
+            name: "Collapse",
+            icon: "solar:collapse-line-duotone",
+            url: "/components/collapse",
           },
           {
             id: uniqueId(),
-            name: "Input",
-            icon: "solar:text-italic-circle-linear",
-            url: "/headless-form/input",
+            name: "Dropdowns",
+            icon: "solar:dropdown-line-duotone",
+            url: "/components/dropdowns",
           },
           {
             id: uniqueId(),
-            name: "Listbox",
-            icon: "solar:list-check-linear",
-            url: "/headless-form/listbox",
+            name: "Forms",
+            icon: "solar:form-line-duotone",
+            url: "/components/forms",
           },
           {
             id: uniqueId(),
-            name: "Radio Group",
-            icon: "solar:round-graph-linear",
-            url: "/headless-form/radiogroup",
+            name: "List Group",
+            icon: "solar:list-line-duotone",
+            url: "/components/list-group",
           },
           {
             id: uniqueId(),
-            name: "Select",
-            icon: "solar:minimize-square-3-outline",
-            url: "/headless-form/select",
+            name: "Modal",
+            icon: "solar:modal-line-duotone",
+            url: "/components/modal",
           },
           {
             id: uniqueId(),
-            name: "Switch",
-            icon: "solar:branching-paths-down-outline",
-            url: "/headless-form/switch",
+            name: "Navbar",
+            icon: "solar:navbar-line-duotone",
+            url: "/components/navbar",
           },
           {
             id: uniqueId(),
-            name: "Textarea",
-            icon: "solar:text-square-2-linear",
-            url: "/headless-form/textarea",
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 9,
-    name: "Auth",
-    items: [
-      {
-        heading: "Auth",
-        children: [
-          {
-            name: "Error",
-            icon: "solar:bug-minimalistic-line-duotone",
-            id: uniqueId(),
-            url: "/auth/error",
+            name: "Offcanvas",
+            icon: "solar:offcanvas-line-duotone",
+            url: "/components/offcanvas",
           },
           {
-            name: "Side Login",
-            icon: "solar:login-3-line-duotone",
             id: uniqueId(),
-            url: "/auth/auth1/login",
+            name: "Pagination",
+            icon: "solar:pagination-line-duotone",
+            url: "/components/pagination",
           },
           {
-            name: "Boxed Login",
-            icon: "solar:login-3-line-duotone",
             id: uniqueId(),
-            url: "/auth/auth2/login",
+            name: "Popovers",
+            icon: "solar:popover-line-duotone",
+            url: "/components/popovers",
           },
           {
-            name: "Side Register",
-            icon: "solar:user-plus-rounded-line-duotone",
             id: uniqueId(),
-            url: "/auth/auth1/register",
+            name: "Progress",
+            icon: "solar:progress-line-duotone",
+            url: "/components/progress",
           },
           {
-            name: "Boxed Register",
-            icon: "solar:user-plus-rounded-line-duotone",
             id: uniqueId(),
-            url: "/auth/auth2/register",
+            name: "Spinners",
+            icon: "solar:spinner-line-duotone",
+            url: "/components/spinners",
           },
           {
-            name: "Side Forgot Pwd",
-            icon: "solar:password-outline",
             id: uniqueId(),
-            url: "/auth/auth1/forgot-password",
+            name: "Tables",
+            icon: "solar:table-line-duotone",
+            url: "/components/tables",
           },
           {
-            name: "Boxed Forgot Pwd",
-            icon: "solar:password-outline",
             id: uniqueId(),
-            url: "/auth/auth2/forgot-password",
+            name: "Tabs",
+            icon: "solar:tabs-line-duotone",
+            url: "/components/tabs",
           },
           {
-            name: "Side Two Steps",
-            icon: "solar:password-outline",
             id: uniqueId(),
-            url: "/auth/auth1/two-steps",
-          },
-          {
-            name: "Boxed Two Steps",
-            icon: "solar:password-outline",
-            id: uniqueId(),
-            url: "/auth/auth2/two-steps",
-          },
-          {
-            name: "Maintenance",
-            icon: "solar:settings-outline",
-            id: uniqueId(),
-            url: "/auth/maintenance",
-          },
-        ],
-      },
-    ],
-  },
-
-  {
-    id: 10,
-    name: "Menu",
-    items: [
-      {
-        heading: "Multi level",
-        children: [
-          {
-            name: "Menu Level",
-            icon: "solar:widget-add-line-duotone",
-            id: uniqueId(),
-            children: [
-              {
-                id: uniqueId(),
-                name: "Level 1",
-                url: "",
-              },
-              {
-                id: uniqueId(),
-                name: "Level 1.1",
-                icon: "fad:armrecording",
-                url: "",
-                children: [
-                  {
-                    id: uniqueId(),
-                    name: "Level 2",
-                    url: "",
-                  },
-                  {
-                    id: uniqueId(),
-                    name: "Level 2.1",
-                    icon: "fad:armrecording",
-                    url: "",
-                    children: [
-                      {
-                        id: uniqueId(),
-                        name: "Level 3",
-                        url: "",
-                      },
-                      {
-                        id: uniqueId(),
-                        name: "Level 3.1",
-                        url: "",
-                      },
-                    ],
-                  },
-                ],
-              },
-            ],
+            name: "Tooltips",
+            icon: "solar:tooltip-line-duotone",
+            url: "/components/tooltips",
           },
         ],
       },
       {
-        heading: "More Options",
+        heading: "Utilities",
         children: [
           {
             id: uniqueId(),
-            url: "/sample-page",
-            name: "Applications",
-            icon: "solar:check-circle-bold",
-            color: "text-primary",
+            name: "Background",
+            icon: "solar:background-line-duotone",
+            url: "/utilities/background",
           },
           {
             id: uniqueId(),
-            url: "",
-            name: "Form Options",
-            icon: "solar:check-circle-bold",
-            color: "text-secondary",
+            name: "Borders",
+            icon: "solar:border-line-duotone",
+            url: "/utilities/borders",
           },
           {
             id: uniqueId(),
-            url: "",
-            name: "Table Variations",
-            icon: "solar:check-circle-bold",
-            color: "text-info",
+            name: "Colors",
+            icon: "solar:color-line-duotone",
+            url: "/utilities/colors",
           },
           {
             id: uniqueId(),
-            url: "",
-            name: "Charts Selection",
-            icon: "solar:check-circle-bold",
-            color: "text-warning",
-          },
-          {
-            id: uniqueId(),
-            url: "",
-            name: "Widgets",
-            icon: "solar:check-circle-bold",
-            color: "text-success",
-          },
-        ],
-      },
-    ],
-  },
-];
+            name: "Display",
+            icon: "solar:display-line-duotone",
+              url: "/utilities/display",
+            },
+            {
+              id: uniqueId(),
+              name: "Flex",
+              icon: "solar:flex-line-duotone",
+              url: "/utilities/flex",
+            },
+            {
+              id: uniqueId(),
+              name: "Float",
+              icon: "solar:float-line-duotone",
+              url: "/utilities/float",
+            },
+            {
+              id: uniqueId(),
+              name: "Grid",
+              icon: "solar:grid-line-duotone",
+              url: "/utilities/grid",
+            },
+            {
+              id: uniqueId(),
+              name: "Position",
+              icon: "solar:position-line-duotone",
+              url: "/utilities/position",
+            },
+            {
+              id: uniqueId(),
+              name: "Shadows",
+              icon: "solar:shadow-line-duotone",
+              url: "/utilities/shadows",
+            },
+            {
+              id: uniqueId(),
+              name: "Sizing",
+              icon: "solar:sizing-line-duotone",
+              url: "/utilities/sizing",
+            },
+            {
+              id: uniqueId(),
+              name: "Spacing",
+              icon: "solar:spacing-line-duotone",
+              url: "/utilities/spacing",
+            },
+            {
+              id: uniqueId(),
+              name: "Text",
+              icon: "solar:text-line-duotone",
+              url: "/utilities/text",
+            },
+            {
+              id: uniqueId(),
+              name: "Vertical Align",
+              icon: "solar:vertical-align-line-duotone",
+              url: "/utilities/vertical-align",
+            },
+            {
+              id: uniqueId(),
+              name: "Visibility",
+              icon: "solar:visibility-line-duotone",
+              url: "/utilities/visibility",
+            },
+          ],
+        },
+        {
+          heading: "Extras",
+          children: [
+            {
+              id: uniqueId(),
+              name: "Charts",
+              icon: "solar:chart-line-duotone",
+              url: "/extras/charts",
+            },
+            {
+              id: uniqueId(),
+              name: "Icons",
+              icon: "solar:icon-line-duotone",
+              url: "/extras/icons",
+            },
+            {
+              id: uniqueId(),
+              name: "Maps",
+              icon: "solar:map-line-duotone",
+              url: "/extras/maps",
+            },
+            {
+              id: uniqueId(),
+              name: "Tables",
+              icon: "solar:table-line-duotone",
+              url: "/extras/tables",
+            },
+          ],
+        },
+      ],
+    },
+  ];
 
-export default SidebarContent;
+// Default export for backward compatibility
+export default useSidebarData;

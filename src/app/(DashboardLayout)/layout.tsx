@@ -1,9 +1,11 @@
 "use client";
-import React, { useContext } from "react";
+import React, { useContext, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import Sidebar from "./layout/vertical/sidebar/Sidebar";
 import Header from "./layout/vertical/header/Header";
 import { Customizer } from "./layout/shared/customizer/Customizer";
 import { CustomizerContext } from "../context/CustomizerContext";
+import { useAuth } from "../context/AuthContext";
 
 export default function Layout({
   children,
@@ -11,6 +13,30 @@ export default function Layout({
   children: React.ReactNode;
 }>) {
   const { activeLayout, isLayout } = useContext(CustomizerContext);
+  const { isAuthenticated, isLoading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    // If not loading and not authenticated, redirect to login
+    if (!isLoading && !isAuthenticated) {
+      router.push('/auth/auth1/login');
+    }
+  }, [isAuthenticated, isLoading]); // Remove router dependency to prevent infinite re-renders
+
+  // Show loading while checking authentication
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-screen">
+        <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+      </div>
+    );
+  }
+
+  // Don't render dashboard if not authenticated
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
     <div className="flex w-full min-h-screen">
       <div className="page-wrapper flex w-full">

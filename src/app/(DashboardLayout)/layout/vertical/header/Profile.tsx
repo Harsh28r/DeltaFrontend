@@ -1,3 +1,4 @@
+"use client";
 import { Icon } from "@iconify/react";
 import { Button, Dropdown } from "flowbite-react";
 import React from "react";
@@ -5,7 +6,15 @@ import * as profileData from "./Data";
 import Link from "next/link";
 import Image from "next/image";
 import SimpleBar from "simplebar-react";
+import { useAuth } from "@/app/context/AuthContext";
+
 const Profile = () => {
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+  };
+
   return (
     <div className="relative group/menu">
       <Dropdown
@@ -35,14 +44,14 @@ const Profile = () => {
               className="rounded-full"
             />
             <div>
-              <h5 className="card-title">Jonathan Deo</h5>
-              <span className="card-subtitle">Admin</span>
+              <h5 className="card-title">{user?.name || 'User'}</h5>
+              <span className="card-subtitle">{user?.role || 'Admin'}</span>
               <p className="card-subtitle mb-0 mt-1 flex items-center">
                 <Icon
                   icon="solar:mailbox-line-duotone"
                   className="text-base me-1"
                 />
-                info@Materialm.com
+                {user?.email || 'info@Materialm.com'}
               </p>
             </div>
           </div>
@@ -77,8 +86,7 @@ const Profile = () => {
         <div className="pt-6 px-6">
           <Button
             color={"primary"}
-            as={Link}
-            href="/auth/auth1/login"
+            onClick={handleLogout}
             className="w-full"
           >
             Logout

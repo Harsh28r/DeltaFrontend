@@ -2,7 +2,7 @@
 import React, { useContext } from "react";
 import { Sidebar } from "flowbite-react";
 import { IconSidebar } from "./IconSidebar";
-import SidebarContent from "./Sidebaritems";
+import { useSidebarData } from "./Sidebaritems";
 import NavItems from "./NavItems";
 import NavCollapse from "./NavCollapse";
 
@@ -13,9 +13,31 @@ import { CustomizerContext } from "@/app/context/CustomizerContext";
 const MobileSidebar = () => {
   const { selectedIconId, setSelectedIconId } =
     useContext(CustomizerContext) || {};
-  const selectedContent = SidebarContent.find(
+  const { sidebarData, isLoading } = useSidebarData();
+  
+  const selectedContent = sidebarData.find(
     (data) => data.id === selectedIconId
   );
+
+  if (isLoading) {
+    return (
+      <div>
+        <div className="minisidebar-icon border-e border-ld bg-white dark:bg-darkgray fixed start-0 z-[1] ">
+          <IconSidebar />
+          <SideProfile />
+        </div>
+        <Sidebar
+          className="fixed menu-sidebar pt-8 bg-white dark:bg-darkgray transition-all"
+          aria-label="Sidebar with multi-level dropdown example"
+        >
+          <div className="flex items-center justify-center h-32">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        </Sidebar>
+      </div>
+    );
+  }
+
   return (
     <>
       <div>

@@ -1,47 +1,36 @@
 import { NextRequest, NextResponse } from "next/server";
+import { API_ENDPOINTS } from "@/lib/config";
 
-export async function POST(req: NextRequest) {
+export async function POST(request: NextRequest) {
   try {
-    const body = await req.json();
-    const cookie = req.headers.get("cookie") || "";
+    const body = await request.json();
+    const { email, password } = body;
 
-    const upstream = await fetch(
-      "http://localhost:5000/api/superadmin/admin-login",
+    const response = await fetch(
+      API_ENDPOINTS.ADMIN_LOGIN,
       {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          ...(cookie ? { Cookie: cookie } : {}),
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({ email, password }),
       }
     );
 
-    const text = await upstream.text();
-    let data: any = {};
-    try {
-      data = JSON.parse(text);
-    } catch {
-      // not JSON
-    }
+    const data = await response.json();
 
-    const token: string | undefined = data?.token || data?.accessToken;
-    const headers: Record<string, string> = {
-      "Content-Type": upstream.headers.get("content-type") || "application/json",
-      "Access-Control-Expose-Headers": "Authorization, x-auth-token",
-    };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-      headers["x-auth-token"] = token;
+    if (response.ok) {
+      return NextResponse.json(data, { status: 200 });
+    } else {
+      return NextResponse.json(
+        { message: data.message || "Login failed" },
+        { status: response.status }
+      );
     }
-
-    return new NextResponse(token ? JSON.stringify(data) : text, {
-      status: upstream.status,
-      headers,
-    });
-  } catch (err: any) {
+  } catch (error) {
+    console.error("Login error:", error);
     return NextResponse.json(
-      { message: err?.message || "Proxy error" },
+      { message: "Internal server error" },
       { status: 500 }
     );
   }
