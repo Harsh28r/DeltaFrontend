@@ -4,7 +4,7 @@ import { Button, Card, Table, Badge, Dropdown } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
 
 interface Role {
   _id: string;
@@ -75,7 +75,8 @@ const RolesPage = () => {
         });
 
         if (response.ok) {
-          // Remove from local state
+          // Success - trigger sidebar refresh and update local state
+          createRefreshEvent();
           setRoles(roles.filter(role => role._id !== roleId));
         } else {
           const data = await response.json();

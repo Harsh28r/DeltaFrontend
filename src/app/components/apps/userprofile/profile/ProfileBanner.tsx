@@ -17,7 +17,7 @@ import { UserDataContext } from '@/app/context/UserDataContext';
 
 const ProfileBanner = () => {
   const userCtx = React.useContext(UserDataContext);
-  const user = userCtx?.currentUser;
+  const user = userCtx?.profileData;
   return (
     <>
       <CardBox className="p-0 overflow-hidden">

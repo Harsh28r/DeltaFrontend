@@ -1,6 +1,6 @@
 import Logo from "@/app/(DashboardLayout)/layout/shared/logo/Logo";
 import CardBox from "@/app/components/shared/CardBox";
-import React from "react";
+import React, { Suspense } from "react";
 import SocialButtons from "../../authforms/SocialButtons";
 import AuthLogin from "../../authforms/AuthLogin";
 import Link from "next/link";
@@ -19,7 +19,9 @@ const BoxedLogin = () => {
               <Logo />
             </div>
             <SocialButtons title="or sign in with" />
-            <AuthLogin />
+            <Suspense fallback={<div>Loading...</div>}>
+              <AuthLogin />
+            </Suspense>
             <div className="flex gap-2 text-base text-ld font-medium mt-6 items-center justify-center">
               <p>New to MaterialM?</p>
               <Link

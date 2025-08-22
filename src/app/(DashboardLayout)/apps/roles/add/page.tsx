@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
 
 interface Permission {
   id: string;
@@ -118,7 +118,8 @@ const AddRolePage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Success - redirect to roles list
+        // Success - trigger sidebar refresh and redirect to roles list
+        createRefreshEvent();
         router.push("/apps/roles");
       } else {
         // Handle error response

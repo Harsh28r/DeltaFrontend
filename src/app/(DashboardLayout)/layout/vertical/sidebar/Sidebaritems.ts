@@ -1,7 +1,7 @@
 "use client";
 import React, { useState, useEffect } from "react";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, subscribeToRefresh } from "@/lib/config";
 
 export interface ChildItem {
   id?: number | string;
@@ -33,12 +33,6 @@ export const useSidebarData = () => {
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch roles from backend
-  useEffect(() => {
-    if (token) {
-      fetchRoles();
-    }
-  }, [token]);
-
   const fetchRoles = async () => {
     try {
       setIsLoading(true);
@@ -62,14 +56,57 @@ export const useSidebarData = () => {
     }
   };
 
+  // Fetch roles when token changes
+  useEffect(() => {
+    if (token) {
+      fetchRoles();
+    }
+  }, [token]);
+
+
+
+  // Listen for refresh events (when new roles are added)
+  useEffect(() => {
+    if (token) {
+      const unsubscribe = subscribeToRefresh(() => {
+        fetchRoles();
+      });
+      return unsubscribe;
+    }
+  }, [token]);
+
   // Create dynamic role items for SuperAdmin
   const getDynamicRoleItems = () => {
-    return roles.map(role => ({
-      name: role.name,
-      id: `role-${role._id}`,
-      icon: "solar:shield-user-outline",
-      url: `/apps/role-modules/${role._id}`,
-    }));
+    if (isLoading) {
+      return [
+        {
+          name: "Loading Roles...",
+          id: "loading-roles",
+          icon: "solar:loading-line-duotone",
+          url: "#",
+        }
+      ];
+    }
+    
+    if (roles.length === 0) {
+      return [
+        {
+          name: "No Roles Found",
+          id: "no-roles",
+          icon: "solar:info-circle-line-duotone",
+          url: "/apps/roles/add",
+        }
+      ];
+    }
+
+    return roles
+      .filter(role => role.name.toLowerCase() !== 'superadmin') // Filter out superadmin role
+      .map(role => ({
+        name: role.name.toUpperCase(),
+        id: `role-${role._id}`,
+        icon: "solar:users-group-rounded-line-duotone",
+        url: `/apps/role-modules/${role.name}`,
+      }));
   };
 
   const sidebarData: MenuItem[] = [
@@ -87,17 +124,7 @@ export const useSidebarData = () => {
               url: "/dashboards/crm",
             },
            
-            {
-              name: "SuperAdmin",
-              id: uniqueId(),
-              icon: "solar:home-angle-linear",
-              children: [
-               
-                
-                // Dynamic role items will be inserted here
-                ...getDynamicRoleItems(),
-              ],
-            },
+
             
           ],
         },
@@ -181,6 +208,33 @@ export const useSidebarData = () => {
                 },
               ],
             },
+            {
+              name: "Users",
+              id: uniqueId(),
+              icon: "solar:users-group-rounded-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "List Users",
+                  url: "/apps/users",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Add User",
+                  url: "/apps/users/add",
+                },
+              ],
+            },
+            {
+              name: "SuperAdmin",
+              id: uniqueId(),
+              icon: "solar:shield-user-outline",
+              children: [
+                // Dynamic role items will be inserted here (excluding superadmin role)
+                ...getDynamicRoleItems(),
+              ],
+            },
+
            
             {
               name: "User Profile",

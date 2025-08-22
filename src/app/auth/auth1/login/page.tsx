@@ -1,6 +1,6 @@
 "use client";
 
-import React from "react";
+import React, { Suspense } from "react";
 import Logo from "@/app/(DashboardLayout)/layout/shared/logo/Logo";
 import SocialButtons from "../../authforms/SocialButtons";
 import AuthLogin from "../../authforms/AuthLogin";
@@ -47,7 +47,9 @@ const Login = () => {
                   Your Admin Dashboard
                 </p>
                 {/* <SocialButtons title="or sign in with" /> */}
-                <AuthLogin />
+                <Suspense fallback={<div>Loading...</div>}>
+                  <AuthLogin />
+                </Suspense>
               
               </div>
             </div>
