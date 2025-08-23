@@ -1,5 +1,5 @@
 "use client";
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import CardBox from "@/app/components/shared/CardBox";
 import Image from "next/image";
 import { API_ENDPOINTS } from "@/lib/config";
@@ -12,36 +12,10 @@ type Project = {
   developBy?: string;
 };
 
-const getAuthToken = (): string | null => {
-  try {
-    const keys = ["auth_token", "accessToken", "token", "authToken", "jwt"];
-    if (typeof window !== "undefined") {
-      for (const k of keys) {
-        const v = localStorage.getItem(k);
-        if (v) return v;
-      }
-      for (const k of keys) {
-        const v = sessionStorage.getItem(k);
-        if (v) return v;
-      }
-    }
-    if (typeof document !== "undefined") {
-      const m = document.cookie.match(/(?:^|;\s*)(?:auth_token|token|accessToken)=([^;]+)/);
-      if (m) return decodeURIComponent(m[1]);
-    }
-  } catch {}
-  return null;
-};
-
 const ProjectList: React.FC = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-
-  const token = useMemo(() => {
-    const t = getAuthToken();
-    return t ? t.replace(/^"|"$/g, "").trim() : null;
-  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -49,12 +23,10 @@ const ProjectList: React.FC = () => {
       setLoading(true);
       setError(null);
       try {
-        if (!token) throw new Error("No token found. Please sign in first.");
         const res = await fetch(API_ENDPOINTS.PROJECTS, {
           method: "GET",
           headers: {
             "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
           },
           credentials: "include",
           mode: "cors",
@@ -78,7 +50,7 @@ const ProjectList: React.FC = () => {
     return () => {
       mounted = false;
     };
-  }, [token]);
+  }, []);
 
   if (loading) {
     return (
