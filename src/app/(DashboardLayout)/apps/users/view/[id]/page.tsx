@@ -18,12 +18,69 @@ interface User {
   createdAt: string;
 }
 
+interface UserHistory {
+  user: {
+    _id: string;
+    name: string;
+    email: string;
+    mobile: string;
+    companyName: string;
+    currentRole: {
+      name: string;
+      level: number;
+      permissions: string[];
+      roleId: string;
+    };
+    accountCreated: string;
+    accountStatus: string;
+  };
+  timeline: {
+    events: Array<{
+      id: string;
+      type: string;
+      title: string;
+      description: string;
+      status: string;
+      timestamp: string;
+      details: any;
+      icon: string;
+      color: string;
+    }>;
+    stats: {
+      totalEvents: number;
+      accountAge: number;
+      totalProjects: number;
+      currentRole: string;
+      currentLevel: number;
+      permissionsCount: number;
+    };
+    summary: {
+      journey: string;
+      totalMilestones: number;
+      currentStatus: string;
+    };
+  };
+  currentRole: {
+    name: string;
+    level: number;
+    permissions: string[];
+    roleId: string;
+  };
+  projectSummary: {
+    total: number;
+    owned: number;
+    managed: number;
+    member: number;
+  };
+}
+
 const ViewUserPage = () => {
   const router = useRouter();
   const params = useParams();
   const { token } = useAuth();
   const [isFetching, setIsFetching] = useState(true);
   const [user, setUser] = useState<User | null>(null);
+  const [userHistory, setUserHistory] = useState<UserHistory | null>(null);
   const [projectAssignments, setProjectAssignments] = useState<{[key: string]: {projectId: string, projectName: string}}>({});
 
   const userId = params.id as string;
@@ -31,13 +88,19 @@ const ViewUserPage = () => {
   // Fetch user data and project assignments
   useEffect(() => {
     if (token && userId) {
-      fetchUserData();
+      fetchUserHistory();
       fetchProjectAssignments();
     }
   }, [token, userId]);
 
   const fetchUserData = async () => {
     try {
+      if (!token) {
+        console.error("No authentication token available");
+        router.push("/auth/auth1/signin");
+        return;
+      }
+
       const response = await fetch(API_ENDPOINTS.USER_BY_ID(userId), {
         method: "GET",
         headers: {
@@ -45,14 +108,23 @@ const ViewUserPage = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await response.json();
       
-      if (response.ok) {
-        setUser(data.user || data);
-      } else {
-        alert(`Failed to fetch user: ${data.message}`);
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error("Authentication failed - token expired or invalid");
+          localStorage.removeItem("token");
+          router.push("/auth/auth1/signin");
+          return;
+        }
+        
+        const data = await response.json();
+        alert(`Failed to fetch user: ${data.message || response.statusText}`);
         router.push("/apps/users");
+        return;
       }
+      
+      const data = await response.json();
+      setUser(data.user || data);
     } catch (error) {
       console.error("Error fetching user:", error);
       alert("Failed to fetch user data");
@@ -97,6 +169,65 @@ const ViewUserPage = () => {
       }
     } catch (error) {
       console.error("Error fetching project assignments:", error);
+    }
+  };
+
+  const fetchUserHistory = async () => {
+    try {
+      if (!token) {
+        console.error("No authentication token available");
+        router.push("/auth/auth1/login");
+        return;
+      }
+
+      const response = await fetch(API_ENDPOINTS.USER_HISTORY(userId), {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error("Authentication failed - token expired or invalid");
+          localStorage.removeItem("token");
+          router.push("/auth/auth1/login");
+          return;
+        }
+        
+        const data = await response.json();
+        alert(`Failed to fetch user history: ${data.message || response.statusText}`);
+        router.push("/apps/users");
+        return;
+      }
+      
+      const data = await response.json();
+      console.log("Fetched user history:", data);
+      console.log("Timeline events:", data.timeline?.events);
+      console.log("Project assignment events:", data.timeline?.events?.filter((e: any) => e.type === 'project_assignment'));
+      console.log("First project assignment:", data.timeline?.events?.find((e: any) => e.type === 'project_assignment'));
+      
+      setUserHistory(data);
+      
+      // Also set the user data for backward compatibility
+      setUser({
+        _id: data.user._id,
+        name: data.user.name,
+        email: data.user.email,
+        mobile: data.user.mobile,
+        companyName: data.user.companyName,
+        roleName: data.user.currentRole.name,
+        projectId: data.timeline?.events?.find((e: any) => e.type === 'project_assignment')?.details?.projectId || "",
+        projectName: data.timeline?.events?.find((e: any) => e.type === 'project_assignment')?.details?.projectName || "",
+        createdAt: data.user.accountCreated
+      });
+    } catch (error) {
+      console.error("Error fetching user history:", error);
+      alert("Failed to fetch user history data");
+      router.push("/apps/users");
+    } finally {
+      setIsFetching(false);
     }
   };
 
@@ -151,7 +282,7 @@ const ViewUserPage = () => {
             </Label>
             <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
               <span className="text-gray-900 dark:text-white font-medium">
-                {user.name}
+                {user.name || "Not specified"}
               </span>
             </div>
           </div>
@@ -163,7 +294,7 @@ const ViewUserPage = () => {
             </Label>
             <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
               <span className="text-gray-900 dark:text-white">
-                {user.email}
+                {user.email || "Not specified"}
               </span>
             </div>
           </div>
@@ -175,7 +306,7 @@ const ViewUserPage = () => {
             </Label>
             <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
               <span className="text-gray-900 dark:text-white">
-                {user.mobile}
+                {user.mobile || "Not specified"}
               </span>
             </div>
           </div>
@@ -199,8 +330,14 @@ const ViewUserPage = () => {
             </Label>
             <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
               <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                {user.roleName.toUpperCase()}
+                {userHistory?.user.currentRole.name ? userHistory.user.currentRole.name.toUpperCase() : (user.roleName ? user.roleName.toUpperCase() : "No Role Assigned")}
               </span>
+              {userHistory?.user.currentRole && (
+                <div className="mt-2 text-xs text-gray-600 dark:text-gray-400">
+                  <p>Level: {userHistory.user.currentRole.level}</p>
+                  <p>Role ID: {userHistory.user.currentRole.roleId}</p>
+                </div>
+              )}
             </div>
           </div>
 
@@ -210,33 +347,47 @@ const ViewUserPage = () => {
               Project Assignment
             </Label>
             <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
-              {(() => {
-                // First try to get project info from user data
-                if (user.projectName) {
-                  return (
+              {userHistory?.timeline?.events && userHistory.timeline.events.filter((e: any) => e.type === 'project_assignment').length > 0 ? (
+                <div className="space-y-2">
+                  {userHistory.timeline.events
+                    .filter((e: any) => e.type === 'project_assignment')
+                    .map((event, index) => (
+                      <div key={event.id} className="p-2 bg-white dark:bg-gray-600 rounded border">
+                        <div className="flex items-center justify-between">
+                          <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                            {event.details.projectName}
+                          </span>
+                          <span className="text-xs text-gray-500 dark:text-gray-400">
+                            {event.details.roleInProject}
+                          </span>
+                        </div>
+                        <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                          <p>Location: {event.details.location}</p>
+                          <p>Developed by: {event.details.developBy}</p>
+                          <p>Joined: {new Date(event.timestamp).toLocaleDateString()}</p>
+                          <p>Status: {event.details.projectStatus}</p>
+                        </div>
+                      </div>
+                    ))}
+                </div>
+              ) : user.projectName ? (
+                <div className="p-2 bg-white dark:bg-gray-600 rounded border">
+                  <div className="flex items-center justify-between">
                     <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
                       {user.projectName}
                     </span>
-                  );
-                }
-                
-                // Then try to get from fetched project assignments
-                const assignment = projectAssignments[user._id];
-                if (assignment && assignment.projectName) {
-                  return (
-                    <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                      {assignment.projectName}
+                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                      Member
                     </span>
-                  );
-                }
-                
-                // Finally, show not assigned
-                return (
-                  <span className="text-gray-500 dark:text-gray-400 text-sm">
-                    Not Assigned
-                  </span>
-                );
-              })()}
+                  </div>
+                  <div className="mt-1 text-xs text-gray-600 dark:text-gray-400">
+                    <p>Project ID: {user.projectId}</p>
+                    <p>Status: Active</p>
+                  </div>
+                </div>
+              ) : (
+                <span className="text-gray-500 dark:text-gray-400 text-sm">Not Assigned to any project</span>
+              )}
             </div>
           </div>
 
@@ -247,13 +398,19 @@ const ViewUserPage = () => {
             </Label>
             <div className="mt-1 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg border">
               <span className="text-gray-900 dark:text-white">
-                {new Date(user.createdAt).toLocaleDateString('en-US', {
+                {userHistory?.user.accountCreated ? new Date(userHistory.user.accountCreated).toLocaleDateString('en-US', {
                   year: 'numeric',
                   month: 'long',
                   day: 'numeric',
                   hour: '2-digit',
                   minute: '2-digit'
-                })}
+                }) : (user.createdAt ? new Date(user.createdAt).toLocaleDateString('en-US', {
+                  year: 'numeric',
+                  month: 'long',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                }) : "Date not available")}
               </span>
             </div>
           </div>

@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, subscribeToRefresh } from "@/lib/config";
 
 interface Role {
   _id: string;
@@ -38,14 +38,30 @@ const RoleModulePage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProject, setFilterProject] = useState<string>("all");
   const [projectAssignments, setProjectAssignments] = useState<{[key: string]: {projectId: string, projectName: string}}>({});
+  const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
 
   const roleName = params.roleName as string;
 
+  // Fetch users from backend
   useEffect(() => {
     if (token && roleName) {
       fetchRoleData();
       fetchProjectAssignments();
+      fetchExistingRoles();
     }
+  }, [token, roleName]);
+
+  // Listen for refresh events from other pages (like user edits)
+  useEffect(() => {
+    const unsubscribe = subscribeToRefresh(() => {
+      console.log("Refresh event received, updating role module data...");
+      if (token && roleName) {
+        fetchProjectAssignments();
+        fetchRoleUsers();
+      }
+    });
+
+    return unsubscribe;
   }, [token, roleName]);
 
   useEffect(() => {
@@ -56,6 +72,12 @@ const RoleModulePage = () => {
 
   const fetchRoleData = async () => {
     try {
+      if (!token) {
+        console.error("No authentication token available");
+        router.push("/auth/auth1/signin");
+        return;
+      }
+
       // Get all roles to find the one with matching name
       const response = await fetch(API_ENDPOINTS.ROLES, {
         method: "GET",
@@ -66,6 +88,13 @@ const RoleModulePage = () => {
       });
       
       if (!response.ok) {
+        if (response.status === 401) {
+          console.error("Authentication failed - token expired or invalid");
+          // Clear token and redirect to login
+          localStorage.removeItem("token");
+          router.push("/auth/auth1/signin");
+          return;
+        }
         throw new Error(`HTTP error! status: ${response.status}`);
       }
       
@@ -78,17 +107,31 @@ const RoleModulePage = () => {
           setRole(foundRole);
         } else {
           console.error("Role not found with name:", roleName);
+          // Redirect to roles list if role doesn't exist
+          router.push("/apps/roles");
         }
       } else {
         console.error("Invalid roles data format:", data);
+        router.push("/apps/roles");
       }
     } catch (error) {
       console.error("Error fetching role:", error);
+      if (error instanceof Error && error.message.includes("401")) {
+        router.push("/auth/auth1/signin");
+      } else {
+        router.push("/apps/roles");
+      }
     }
   };
 
   const fetchRoleUsers = async () => {
     try {
+      if (!token) {
+        console.error("No authentication token available");
+        router.push("/auth/auth1/signin");
+        return;
+      }
+
       // Use the new API endpoint to get users by role
       const response = await fetch(API_ENDPOINTS.USERS_BY_ROLE(role?.name || ''), {
         method: "GET",
@@ -97,17 +140,27 @@ const RoleModulePage = () => {
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await response.json();
       
-      if (response.ok) {
-        const roleUsers = data.users || data;
-        setUsers(roleUsers);
-        setUserCount(roleUsers.length);
-      } else {
-        console.error("Failed to fetch users:", data.message);
+      if (!response.ok) {
+        if (response.status === 401) {
+          console.error("Authentication failed - token expired or invalid");
+          localStorage.removeItem("token");
+          router.push("/auth/auth1/signin");
+          return;
+        }
+        console.error("Failed to fetch users:", response.status, response.statusText);
+        return;
       }
+      
+      const data = await response.json();
+      const roleUsers = data.users || data;
+      setUsers(roleUsers);
+      setUserCount(roleUsers.length);
     } catch (error) {
       console.error("Error fetching users:", error);
+      if (error instanceof Error && error.message.includes("401")) {
+        router.push("/auth/auth1/signin");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -115,6 +168,11 @@ const RoleModulePage = () => {
 
   const fetchProjectAssignments = async () => {
     try {
+      if (!token) {
+        console.error("No authentication token available");
+        return;
+      }
+
       // Fetch all projects to get project names and members
       const projectsResponse = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "GET",
@@ -124,37 +182,78 @@ const RoleModulePage = () => {
         },
       });
       
-      if (projectsResponse.ok) {
-        const projectsData = await projectsResponse.json();
-        const projects = projectsData.projects || projectsData;
-        
-        // Create a map of project IDs to project names
-        const projectMap: {[key: string]: string} = {};
-        projects.forEach((project: any) => {
-          projectMap[project._id] = project.name;
-        });
-        
-        // Extract member assignments from each project
-        const assignmentMap: {[key: string]: {projectId: string, projectName: string}} = {};
-        
-        projects.forEach((project: any) => {
-          if (project.members && Array.isArray(project.members)) {
-            project.members.forEach((member: any) => {
-              if (member._id) {
-                assignmentMap[member._id] = {
-                  projectId: project._id,
-                  projectName: project.name
-                };
-              }
-            });
-          }
-        });
-        
-        console.log("Project assignments extracted:", assignmentMap);
-        setProjectAssignments(assignmentMap);
+      if (!projectsResponse.ok) {
+        if (projectsResponse.status === 401) {
+          console.error("Authentication failed - token expired or invalid");
+          localStorage.removeItem("token");
+          router.push("/auth/auth1/signin");
+          return;
+        }
+        console.error("Failed to fetch projects:", projectsResponse.status, projectsResponse.statusText);
+        return;
       }
+      
+      const projectsData = await projectsResponse.json();
+      const projects = projectsData.projects || projectsData;
+      
+      // Create a map of project IDs to project names
+      const projectMap: {[key: string]: string} = {};
+      projects.forEach((project: any) => {
+        projectMap[project._id] = project.name;
+      });
+      
+      // Extract member assignments from each project
+      const assignmentMap: {[key: string]: {projectId: string, projectName: string}} = {};
+      
+      projects.forEach((project: any) => {
+        if (project.members && Array.isArray(project.members)) {
+          project.members.forEach((member: any) => {
+            if (member._id) {
+              assignmentMap[member._id] = {
+                projectId: project._id,
+                projectName: project.name
+              };
+            }
+          });
+        }
+      });
+      
+      console.log("Project assignments extracted:", assignmentMap);
+      setProjectAssignments(assignmentMap);
     } catch (error) {
       console.error("Error fetching project assignments:", error);
+      if (error instanceof Error && error.message.includes("401")) {
+        router.push("/auth/auth1/signin");
+      }
+    }
+  };
+
+  const fetchExistingRoles = async () => {
+    try {
+      const response = await fetch(API_ENDPOINTS.ROLES, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        const roles = data.roles || data;
+        if (Array.isArray(roles)) {
+          // Filter out restricted roles and current role
+          const restrictedRoles = ['superadmin']; // Add more restricted roles here
+          const availableRoles = roles.filter((r: Role) => 
+            !restrictedRoles.includes(r.name.toLowerCase()) && 
+            r.name.toLowerCase() !== roleName.toLowerCase() // Exclude current role
+          );
+          setExistingRoles(availableRoles.map((r: Role) => ({ name: r.name, level: r.level })));
+        }
+      } else {
+        console.error("Failed to fetch existing roles:", data.message);
+      }
+    } catch (error) {
+      console.error("Error fetching existing roles:", error);
     }
   };
 
@@ -340,17 +439,126 @@ const RoleModulePage = () => {
                value={filterProject}
                onChange={(e) => setFilterProject(e.target.value)}
              >
-                               <option value="all">All Projects</option>
-                {(() => {
-                  // Get projects from both user data and fetched assignments
-                  const userProjects = users.map(user => user.projectName).filter(Boolean);
-                  const assignmentProjects = Object.values(projectAssignments).map(assignment => assignment.projectName).filter(Boolean);
-                  const allProjects = [...new Set([...userProjects, ...assignmentProjects])];
-                  
-                  return allProjects.map(project => (
-                    <option key={project} value={project}>{project}</option>
-                  ));
-                })()}
+               <option value="all">All Projects</option>
+               {(() => {
+                 // Get projects from both user data and fetched assignments
+                 const userProjects = users.map(user => user.projectName).filter(Boolean);
+                 const assignmentProjects = Object.values(projectAssignments).map(assignment => assignment.projectName).filter(Boolean);
+                 const allProjects = [...new Set([...userProjects, ...assignmentProjects])];
+                 
+                 return allProjects.map(project => (
+                   <option key={project} value={project}>{project}</option>
+                 ));
+               })()}
+             </select>
+           </div>
+         </div>
+
+         {/* Bulk Role Change */}
+         <div className="flex flex-col sm:flex-row gap-4 items-center justify-between mb-4 p-4 bg-gray-50 dark:bg-gray-700 rounded-lg">
+           <div className="flex items-center gap-4">
+             <div className="flex items-center gap-2">
+               <input
+                 type="checkbox"
+                 className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                 onChange={(e) => {
+                   const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
+                   checkboxes.forEach(checkbox => {
+                     checkbox.checked = e.target.checked;
+                   });
+                 }}
+               />
+               <span className="text-sm text-gray-600 dark:text-gray-300">Select All</span>
+             </div>
+             <span className="text-sm text-gray-500 dark:text-gray-400">
+               {(() => {
+                 const checkedBoxes = document.querySelectorAll('input[name^="user-"]:checked') as NodeListOf<HTMLInputElement>;
+                 return `${checkedBoxes.length} user(s) selected`;
+               })()}
+             </span>
+             <span className="text-sm text-blue-600 dark:text-blue-400 font-medium">
+               Current Role: {role.name.toUpperCase()}
+             </span>
+           </div>
+           <div className="flex gap-2">
+             <select
+               className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+               onChange={async (e) => {
+                 const newRole = e.target.value;
+                 if (!newRole) return;
+                 
+                 const checkedBoxes = document.querySelectorAll('input[name^="user-"]:checked') as NodeListOf<HTMLInputElement>;
+                 if (checkedBoxes.length === 0) {
+                   alert("Please select users first");
+                   return;
+                 }
+                 
+                 if (window.confirm(`Change role to ${newRole.toUpperCase()} for ${checkedBoxes.length} selected user(s)?`)) {
+                   const selectedUserIds = Array.from(checkedBoxes).map(cb => cb.name.replace('user-', ''));
+                   
+                   try {
+                     // Prepare bulk payload
+                     const bulkPayload = {
+                       projectId: "", // Will be set from first user or can be made configurable
+                       userIds: selectedUserIds,
+                       newRoleName: newRole
+                     };
+                     
+                     // Get project ID from first selected user
+                     const firstUser = users.find(u => u._id === selectedUserIds[0]);
+                     if (firstUser) {
+                       bulkPayload.projectId = firstUser.projectId || projectAssignments[firstUser._id]?.projectId || "";
+                     }
+                     
+                     // Make bulk API call
+                     const response = await fetch(API_ENDPOINTS.BULK_ASSIGN_ROLE, {
+                       method: "POST",
+                       headers: {
+                         "Content-Type": "application/json",
+                         Authorization: `Bearer ${token}`,
+                       },
+                       body: JSON.stringify(bulkPayload),
+                     });
+                     
+                     const data = await response.json();
+                     
+                     if (response.ok) {
+                       // Update local state
+                       setUsers(users.map(u => 
+                         selectedUserIds.includes(u._id) ? { ...u, roleName: newRole } : u
+                       ));
+                       
+                       // Uncheck all checkboxes
+                       checkedBoxes.forEach(cb => cb.checked = false);
+                       
+                       // Show success message
+                       if (data.successCount !== undefined) {
+                         alert(`Bulk role change completed!\nSuccess: ${data.successCount}\nFailed: ${data.failCount || 0}`);
+                       } else {
+                         alert(`Bulk role change completed for ${selectedUserIds.length} users!`);
+                       }
+                       
+                       // Refresh the page to show updated data
+                       fetchRoleUsers();
+                     } else {
+                       alert(`Failed to change roles: ${data.message || 'Unknown error'}`);
+                     }
+                   } catch (error) {
+                     console.error("Error in bulk role change:", error);
+                     alert("Bulk role change failed. Please try again.");
+                   }
+                 }
+                 
+                 // Reset dropdown
+                 e.target.value = "";
+               }}
+             >
+               <option value="">Change Role to...</option>
+               {existingRoles.map(existingRole => (
+                 <option key={existingRole.name} value={existingRole.name}>
+                   {existingRole.name.toUpperCase()} (Level {existingRole.level})
+                 </option>
+               ))}
              </select>
            </div>
          </div>
@@ -389,17 +597,36 @@ const RoleModulePage = () => {
                    <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
                      <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
                        <tr>
-                                                   <th className="px-6 py-3">Name</th>
-                          <th className="px-6 py-3">Email</th>
-                          <th className="px-6 py-3">Mobile</th>
-                          <th className="px-6 py-3">Project</th>
-                          <th className="px-6 py-3">Created</th>
-                          <th className="px-6 py-3">Actions</th>
+                         <th className="px-6 py-3 w-4">
+                           <input
+                             type="checkbox"
+                             className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                             onChange={(e) => {
+                               const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
+                               checkboxes.forEach(checkbox => {
+                                 checkbox.checked = e.target.checked;
+                               });
+                             }}
+                           />
+                         </th>
+                         <th className="px-6 py-3">Name</th>
+                         <th className="px-6 py-3">Email</th>
+                         <th className="px-6 py-3">Mobile</th>
+                         <th className="px-6 py-3">Project</th>
+                         <th className="px-6 py-3">Created</th>
+                         <th className="px-6 py-3">Actions</th>
                        </tr>
                      </thead>
                      <tbody>
                        {filteredUsers.map((user) => (
                          <tr key={user._id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                           <td className="px-6 py-4 w-4">
+                             <input
+                               type="checkbox"
+                               name={`user-${user._id}`}
+                               className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                             />
+                           </td>
                            <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
                              {user.name}
                            </td>
