@@ -137,43 +137,43 @@ export const useSidebarData = () => {
               icon: "solar:phone-line-duotone",
               url: "/apps/contacts",
             },
-            {
-              name: "Ecommerce",
-              id: uniqueId(),
-              icon: "solar:cart-3-line-duotone",
-              children: [
-                {
-                  id: uniqueId(),
-                  name: "Shop",
-                  url: "/apps/ecommerce/shop",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Details",
-                  url: "/apps/ecommerce/detail/1",
-                },
-                {
-                  id: uniqueId(),
-                  name: "List",
-                  url: "/apps/ecommerce/list",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Checkout",
-                  url: "/apps/ecommerce/checkout",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Add Product",
-                  url: "/apps/ecommerce/addproduct",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Edit Product",
-                  url: "/apps/ecommerce/editproduct",
-                },
-              ],
-            },
+            // {
+            //   name: "Ecommerce",
+            //   id: uniqueId(),
+            //   icon: "solar:cart-3-line-duotone",
+            //   children: [
+            //     {
+            //       id: uniqueId(),
+            //       name: "Shop",
+            //       url: "/apps/ecommerce/shop",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Details",
+            //       url: "/apps/ecommerce/detail/1",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "List",
+            //       url: "/apps/ecommerce/list",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Checkout",
+            //       url: "/apps/ecommerce/checkout",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Add Product",
+            //       url: "/apps/ecommerce/addproduct",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Edit Product",
+            //       url: "/apps/ecommerce/editproduct",
+            //     },
+            //   ],
+            // },
             {
               name: "Projects",
               id: uniqueId(),
@@ -184,11 +184,11 @@ export const useSidebarData = () => {
                   name: "Add Project",
                   url: "/apps/projects",
                 },
-                {
-                  id: uniqueId(),
-                  name: "List Project",
-                  url: "/apps/projects/list",
-                },
+                // {
+                //   id: uniqueId(),
+                //   name: "List Project",
+                //   url: "/apps/projects/list",
+                // },
               ],
             },
             {
@@ -208,23 +208,23 @@ export const useSidebarData = () => {
                 },
               ],
             },
-            {
-              name: "Users",
-              id: uniqueId(),
-              icon: "solar:users-group-rounded-line-duotone",
-              children: [
-                {
-                  id: uniqueId(),
-                  name: "List Users",
-                  url: "/apps/users",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Add User",
-                  url: "/apps/users/add",
-                },
-              ],
-            },
+            // {
+            //   name: "Users",
+            //   id: uniqueId(),
+            //   icon: "solar:users-group-rounded-line-duotone",
+            //   children: [
+            //     {
+            //       id: uniqueId(),
+            //       name: "List Users",
+            //       url: "/apps/users",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Add User",
+            //       url: "/apps/users/add",
+            //     },
+            //   ],
+            // },
             {
               name: "SuperAdmin",
               id: uniqueId(),
@@ -236,28 +236,28 @@ export const useSidebarData = () => {
             },
 
            
-            {
-              name: "User Profile",
-              id: uniqueId(),
-              icon: "solar:shield-user-outline",
-              children: [
-                {
-                  id: uniqueId(),
-                  name: "Profile",
-                  url: "/apps/user-profile/profile",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Followers",
-                  url: "/apps/user-profile/followers",
-                },
-                {
-                  id: uniqueId(),
-                  name: "Friends",
-                  url: "/apps/user-profile/friends",
-                },
-              ],
-            },
+            // {
+            //   name: "User Profile",
+            //   id: uniqueId(),
+            //   icon: "solar:shield-user-outline",
+            //   children: [
+            //     {
+            //       id: uniqueId(),
+            //       name: "Profile",
+            //       url: "/apps/user-profile/profile",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Followers",
+            //       url: "/apps/user-profile/followers",
+            //     },
+            //     {
+            //       id: uniqueId(),
+            //       name: "Friends",
+            //       url: "/apps/user-profile/friends",
+            //     },
+            //   ],
+            // },
             // {
             //   id: uniqueId(),
             //   name: "Gallery",
@@ -773,49 +773,49 @@ export const staticSidebarData: MenuItem[] = [
       {
         heading: "Apps",
         children: [
-          {
-            id: uniqueId(),
-            name: "Contacts",
-            icon: "solar:phone-line-duotone",
-            url: "/apps/contacts",
-          },
-          {
-            name: "Ecommerce",
-            id: uniqueId(),
-            icon: "solar:cart-3-line-duotone",
-            children: [
-              {
-                id: uniqueId(),
-                name: "Shop",
-                url: "/apps/ecommerce/shop",
-              },
-              {
-                id: uniqueId(),
-                name: "Details",
-                url: "/apps/ecommerce/detail/1",
-              },
-              {
-                id: uniqueId(),
-                name: "List",
-                url: "/apps/ecommerce/list",
-              },
-              {
-                id: uniqueId(),
-                name: "Checkout",
-                url: "/apps/ecommerce/checkout",
-              },
-              {
-                id: uniqueId(),
-                name: "Add Product",
-                url: "/apps/ecommerce/addproduct",
-              },
-              {
-                id: uniqueId(),
-                name: "Edit Product",
-                url: "/apps/ecommerce/editproduct",
-              },
-            ],
-          },
+          // {
+          //   id: uniqueId(),
+          //   name: "Contacts",
+          //   icon: "solar:phone-line-duotone",
+          //   url: "/apps/contacts",
+          // },
+          // {
+          //   name: "Ecommerce",
+          //   id: uniqueId(),
+          //   icon: "solar:cart-3-line-duotone",
+          //   children: [
+          //     {
+          //       id: uniqueId(),
+          //       name: "Shop",
+          //       url: "/apps/ecommerce/shop",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "Details",
+          //       url: "/apps/ecommerce/detail/1",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "List",
+          //       url: "/apps/ecommerce/list",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "Checkout",
+          //       url: "/apps/ecommerce/checkout",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "Add Product",
+          //       url: "/apps/ecommerce/addproduct",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "Edit Product",
+          //       url: "/apps/ecommerce/editproduct",
+          //     },
+          //   ],
+          // },
           {
             name: "Projects",
             id: uniqueId(),
@@ -826,11 +826,11 @@ export const staticSidebarData: MenuItem[] = [
                 name: "Add Project",
                 url: "/apps/projects",
               },
-              {
-                id: uniqueId(),
-                name: "List Project",
-                url: "/apps/projects/list",
-              },
+              // {
+              //   id: uniqueId(),
+              //   name: "List Project",
+              //   url: "/apps/projects/list",
+              // },
             ],
           },
           {
@@ -850,100 +850,95 @@ export const staticSidebarData: MenuItem[] = [
               },
             ],
           },
-          {
-            id: uniqueId(),
-            name: "Chats",
-            icon: "solar:chat-round-line-line-duotone",
-            url: "/apps/chats",
-          },
-          {
-            name: "User Profile",
-            id: uniqueId(),
-            icon: "solar:shield-user-outline",
-            children: [
-              {
-                id: uniqueId(),
-                name: "Profile",
-                url: "/apps/user-profile/profile",
-              },
-              {
-                id: uniqueId(),
-                name: "Followers",
-                url: "/apps/user-profile/followers",
-              },
-              {
-                id: uniqueId(),
-                name: "Friends",
-                url: "/apps/user-profile/friends",
-              },
-            ],
-          },
-          {
-            id: uniqueId(),
-            name: "Gallery",
-            icon: "solar:gallery-line-duotone",
-            url: "/apps/gallery",
-          },
-          {
-            id: uniqueId(),
-            name: "Pricing",
-            icon: "solar:tag-price-line-duotone",
-            url: "/apps/pricing",
-          },
-          {
-            id: uniqueId(),
-            name: "FAQ",
-            icon: "solar:question-circle-line-duotone",
-            url: "/apps/faq",
-          },
-          {
-            id: uniqueId(),
-            name: "Timeline",
-            icon: "solar:clock-circle-line-duotone",
-            url: "/apps/timeline",
-          },
-          {
-            id: uniqueId(),
-            name: "Treeview",
-            icon: "solar:tree-line-duotone",
-            url: "/apps/treeview",
-          },
-          {
-            id: uniqueId(),
-            name: "Invoice",
-            icon: "solar:file-text-line-duotone",
-            url: "/apps/invoice",
-          },
-          {
-            id: uniqueId(),
-            name: "Testimonials",
-            icon: "solar:chat-round-dots-line-duotone",
-            url: "/apps/testimonials",
-          },
-          {
-            id: uniqueId(),
-            name: "404",
-            icon: "solar:file-line-duotone",
-            url: "/apps/404",
-          },
-          {
-            id: uniqueId(),
-            name: "Coming Soon",
-            icon: "solar:clock-circle-line-duotone",
-            url: "/apps/coming-soon",
-          },
-          {
-            id: uniqueId(),
-            name: "Maintenance",
-            icon: "solar:settings-line-duotone",
-            url: "/apps/maintenance",
-          },
-          {
-            id: uniqueId(),
-            name: "Starter",
-            icon: "solar:rocket-line-duotone",
-            url: "/apps/starter",
-          },
+        
+          // {
+          //   name: "User Profile",
+          //   id: uniqueId(),
+          //   icon: "solar:shield-user-outline",
+          //   children: [
+          //     {
+          //       id: uniqueId(),
+          //       name: "Profile",
+          //       url: "/apps/user-profile/profile",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "Followers",
+          //       url: "/apps/user-profile/followers",
+          //     },
+          //     {
+          //       id: uniqueId(),
+          //       name: "Friends",
+          //       url: "/apps/user-profile/friends",
+          //     },
+          //   ],
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Gallery",
+          //   icon: "solar:gallery-line-duotone",
+          //   url: "/apps/gallery",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Pricing",
+          //   icon: "solar:tag-price-line-duotone",
+          //   url: "/apps/pricing",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "FAQ",
+          //   icon: "solar:question-circle-line-duotone",
+          //   url: "/apps/faq",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Timeline",
+          //   icon: "solar:clock-circle-line-duotone",
+          //   url: "/apps/timeline",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Treeview",
+          //   icon: "solar:tree-line-duotone",
+          //   url: "/apps/treeview",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Invoice",
+          //   icon: "solar:file-text-line-duotone",
+          //   url: "/apps/invoice",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Testimonials",
+          //   icon: "solar:chat-round-dots-line-duotone",
+          //   url: "/apps/testimonials",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "404",
+          //   icon: "solar:file-line-duotone",
+          //   url: "/apps/404",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Coming Soon",
+          //   icon: "solar:clock-circle-line-duotone",
+          //   url: "/apps/coming-soon",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Maintenance",
+          //   icon: "solar:settings-line-duotone",
+          //   url: "/apps/maintenance",
+          // },
+          // {
+          //   id: uniqueId(),
+          //   name: "Starter",
+          //   icon: "solar:rocket-line-duotone",
+          //   url: "/apps/starter",
+          // },
         ],
       },
       {
