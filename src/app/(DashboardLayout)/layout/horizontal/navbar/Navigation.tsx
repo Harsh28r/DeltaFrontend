@@ -11,12 +11,12 @@ import Link from 'next/link';
 
 
 const Navigation = () => {
-  const [activeDropdown, setActiveDropdown] = useState(null);
-  const [active, setActive] = useState(Menuitems[0].id);
+  const [activeDropdown, setActiveDropdown] = useState<string | null>(null);
+  const [active, setActive] = useState<string>(Menuitems[0].id);
 
 const pathname = usePathname();
 
-  const handleDropdownEnter = (itemId: any) => {
+  const handleDropdownEnter = (itemId: string) => {
     setActiveDropdown(itemId);
     setActive(itemId);
   };
@@ -25,7 +25,7 @@ const pathname = usePathname();
     setActiveDropdown(null);
   };
 
-  const handleChildClick = (parentId: any) => {
+  const handleChildClick = (parentId: string) => {
     setActive(parentId);
   };
   return (
@@ -34,12 +34,12 @@ const pathname = usePathname();
         <ul className="flex items-center space-x-3">
           {Menuitems.map((item) => {
             let isActive = false;
-             item.children.find((item:any) => {
-              if(item?.children){
-                let nestedvalue =  item.children.find((value:any) => value.href === pathname);
+             item.children.find((childItem) => {
+              if(childItem?.children){
+                let nestedvalue =  childItem.children.find((value) => value.href === pathname);
                 if(nestedvalue){isActive = true}
               }else{
-                let value = item.href === pathname;
+                let value = childItem.href === pathname;
                 if(value){isActive = true}
               }
             })
@@ -66,13 +66,13 @@ const pathname = usePathname();
                   </p>
                   {activeDropdown === item.id && (
                     <div
-                      className={`absolute left-0 rtl:right-0 mt-2  bg-white dark:bg-dark rounded-md shadow-lg ${item.column == 4 ? 'w-screen max-w-[800px]' : 'w-52'}`}
+                      className={`absolute left-0 rtl:right-0 mt-2  bg-white dark:bg-dark rounded-md shadow-lg w-52`}
                       onMouseEnter={() => handleDropdownEnter(item.id)}
                       onMouseLeave={handleDropdownLeave}
                     >
-                      <ul className={`p-3 text-sm  gap-2  ${item.column == 4 ? 'two-cols' : 'flex flex-col'} `}>
+                      <ul className={`p-3 text-sm  gap-2  flex flex-col`}>
                         {item.children.map((child) => (
-                          <li key={child.id} className={` ${item.column == 4 ? 'mb-2' : ''} `}>
+                          <li key={child.id} className="">
                             <ChildComponent
                               item={child}
                               title={item.title}
@@ -91,7 +91,7 @@ const pathname = usePathname();
                 <Link href={item.href}>
                   <p className={`py-2 px-3 rounded-md flex gap-3 items-center ${active === item.id ? 'bg-error text-white' : 'group-hover/nav:bg-primary group-hover/nav:text-primary'}`}>
                     <Icon icon={`${item.icon}`} height={18} />
-                    <span>{(`${item.title}`)}</span>
+                    <span>{item.title}</span>
                   </p>
                 </Link>
               )}
