@@ -83,24 +83,54 @@ const RoleUsersPage = () => {
 
   const fetchRoleUsers = async () => {
     try {
-      // Use the new API endpoint to get users by role
-      const response = await fetch(API_ENDPOINTS.USERS_BY_ROLE(role?.name || ''), {
+      setIsLoading(true);
+      
+      // TEMPORARY: Using projects endpoint until backend implements /api/superadmin/users/role/{roleName}
+      const response = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await response.json();
       
-      if (response.ok) {
-        const roleUsers = data.users || data;
-        setUsers(roleUsers);
-      } else {
-        console.error("Failed to fetch users:", data.message);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      const data = await response.json();
+      const projects = data.projects || data;
+      
+      // Extract users with the specific role from all projects
+      const roleUsers: any[] = [];
+      
+      projects.forEach((project: any) => {
+        if (project.members && Array.isArray(project.members)) {
+          project.members.forEach((member: any) => {
+            if (member._id && 
+                (member.roleName === role?.name || member.role === role?.name)) {
+              roleUsers.push({
+                _id: member._id,
+                name: member.name || member.email || 'Unknown User',
+                email: member.email || 'No email',
+                mobile: member.mobile || 'No mobile',
+                companyName: member.companyName || 'No company',
+                roleName: member.roleName || member.role || role?.name,
+                projectId: project._id,
+                projectName: project.name,
+                createdAt: member.createdAt || member.joinedAt || new Date().toISOString()
+              });
+            }
+          });
+        }
+      });
+      
+      console.log(`Users with role ${role?.name}:`, roleUsers);
+      setUsers(roleUsers);
+      
     } catch (error) {
-      console.error("Error fetching users:", error);
+      console.error("Error fetching role users:", error);
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }

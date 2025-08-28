@@ -126,14 +126,10 @@ const RoleModulePage = () => {
 
   const fetchRoleUsers = async () => {
     try {
-      if (!token) {
-        console.error("No authentication token available");
-        router.push("/auth/auth1/signin");
-        return;
-      }
-
-      // Use the new API endpoint to get users by role
-      const response = await fetch(API_ENDPOINTS.USERS_BY_ROLE(role?.name || ''), {
+      setIsLoading(true);
+      
+      // TEMPORARY: Using projects endpoint until backend implements /api/superadmin/users/role/{roleName}
+      const response = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -142,25 +138,44 @@ const RoleModulePage = () => {
       });
       
       if (!response.ok) {
-        if (response.status === 401) {
-          console.error("Authentication failed - token expired or invalid");
-          localStorage.removeItem("token");
-          router.push("/auth/auth1/signin");
-          return;
-        }
-        console.error("Failed to fetch users:", response.status, response.statusText);
-        return;
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
       
       const data = await response.json();
-      const roleUsers = data.users || data;
+      const projects = data.projects || data;
+      
+      // Extract users with the specific role from all projects
+      const roleUsers: any[] = [];
+      
+      projects.forEach((project: any) => {
+        if (project.members && Array.isArray(project.members)) {
+          project.members.forEach((member: any) => {
+            if (member._id && 
+                (member.roleName === roleName || member.role === roleName)) {
+              roleUsers.push({
+                _id: member._id,
+                name: member.name || member.email || 'Unknown User',
+                email: member.email || 'No email',
+                mobile: member.mobile || 'No mobile',
+                companyName: member.companyName || 'No company',
+                roleName: member.roleName || member.role || roleName,
+                projectId: project._id,
+                projectName: project.name,
+                createdAt: member.createdAt || member.joinedAt || new Date().toISOString()
+              });
+            }
+          });
+        }
+      });
+      
+      console.log(`Users with role ${roleName}:`, roleUsers);
       setUsers(roleUsers);
       setUserCount(roleUsers.length);
+      
     } catch (error) {
-      console.error("Error fetching users:", error);
-      if (error instanceof Error && error.message.includes("401")) {
-        router.push("/auth/auth1/signin");
-      }
+      console.error("Error fetching role users:", error);
+      setUsers([]);
+      setUserCount(0);
     } finally {
       setIsLoading(false);
     }

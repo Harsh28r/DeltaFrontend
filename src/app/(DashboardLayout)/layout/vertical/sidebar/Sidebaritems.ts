@@ -28,13 +28,29 @@ import { uniqueId } from "lodash";
 
 // Hook to get dynamic sidebar data with roles
 export const useSidebarData = () => {
-  const { token } = useAuth();
+  const { token, isAuthenticated, isLoading: authLoading } = useAuth();
   const [roles, setRoles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   // Fetch roles from backend
   const fetchRoles = async () => {
     try {
+      // Check if token exists and is valid
+      if (!token || token.trim() === '') {
+        console.log("No token available, skipping roles fetch");
+        setRoles([]);
+        setIsLoading(false);
+        return;
+      }
+
+      // Check if user is authenticated
+      if (!isAuthenticated) {
+        console.log("User not authenticated, skipping roles fetch");
+        setRoles([]);
+        setIsLoading(false);
+        return;
+      }
+
       setIsLoading(true);
       const response = await fetch(API_ENDPOINTS.ROLES, {
         headers: {
@@ -42,41 +58,97 @@ export const useSidebarData = () => {
           "Content-Type": "application/json",
         },
       });
+      
+      if (response.status === 401) {
+        // Token is invalid or expired
+        console.log("Token expired or invalid, clearing roles");
+        setRoles([]);
+        setIsLoading(false);
+        return;
+      }
+      
+      if (response.status === 404) {
+        // User not found
+        console.log("User not found, clearing roles");
+        setRoles([]);
+        setIsLoading(false);
+        return;
+      }
+
       const data = await response.json();
       
       if (response.ok) {
         setRoles(data.roles || data);
       } else {
         console.error("Failed to fetch roles:", data.message);
+        setRoles([]);
       }
     } catch (error) {
       console.error("Error fetching roles:", error);
+      setRoles([]);
     } finally {
       setIsLoading(false);
     }
   };
 
-  // Fetch roles when token changes
+  // Fetch roles when token changes and user is authenticated
   useEffect(() => {
-    if (token) {
-      fetchRoles();
+    if (token && token.trim() !== '' && isAuthenticated && !authLoading) {
+      // Wrap in try-catch to prevent unhandled errors
+      try {
+        fetchRoles();
+      } catch (error) {
+        console.error("Error in useEffect when fetching roles:", error);
+        setRoles([]);
+        setIsLoading(false);
+      }
+    } else {
+      setRoles([]);
+      setIsLoading(false);
     }
-  }, [token]);
-
-
+  }, [token, isAuthenticated, authLoading]);
 
   // Listen for refresh events (when new roles are added)
   useEffect(() => {
-    if (token) {
+    if (token && token.trim() !== '' && isAuthenticated && !authLoading) {
       const unsubscribe = subscribeToRefresh(() => {
-        fetchRoles();
+        // Wrap in try-catch to prevent unhandled errors
+        try {
+          fetchRoles();
+        } catch (error) {
+          console.error("Error in refresh event when fetching roles:", error);
+          setRoles([]);
+          setIsLoading(false);
+        }
       });
       return unsubscribe;
     }
-  }, [token]);
+  }, [token, isAuthenticated, authLoading]);
 
   // Create dynamic role items for SuperAdmin
   const getDynamicRoleItems = () => {
+    if (authLoading) {
+      return [
+        {
+          name: "Loading Roles...",
+          id: "loading-roles",
+          icon: "solar:loading-line-duotone",
+          url: "#",
+        }
+      ];
+    }
+    
+    if (!isAuthenticated) {
+      return [
+        {
+          name: "Authentication Required",
+          id: "auth-required",
+          icon: "solar:lock-line-duotone",
+          url: "/auth/auth1/login",
+        }
+      ];
+    }
+    
     if (isLoading) {
       return [
         {
@@ -100,7 +172,7 @@ export const useSidebarData = () => {
     }
 
     return roles
-      .filter(role => role.name.toLowerCase() !== 'superadmin') // Filter out superadmin role
+      .filter(role => role.name && role.name.toLowerCase() !== 'superadmin') // Filter out superadmin role and invalid roles
       .map(role => ({
         name: role.name.toUpperCase(),
         id: `role-${role._id}`,
@@ -208,23 +280,40 @@ export const useSidebarData = () => {
                 },
               ],
             },
-            // {
-            //   name: "Users",
-            //   id: uniqueId(),
-            //   icon: "solar:users-group-rounded-line-duotone",
-            //   children: [
-            //     {
-            //       id: uniqueId(),
-            //       name: "List Users",
-            //       url: "/apps/users",
-            //     },
-            //     {
-            //       id: uniqueId(),
-            //       name: "Add User",
-            //       url: "/apps/users/add",
-            //     },
-            //   ],
-            // },
+            {
+              name: "Users",
+              id: uniqueId(),
+              icon: "solar:users-group-rounded-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "List Users",
+                  url: "/apps/users",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Add User",
+                  url: "/apps/users/add",
+                },
+              ],
+            },
+            {
+              name: "Lead Sources",
+              id: uniqueId(),
+              icon: "solar:target-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "Lead Management",
+                  url: "/apps/lead-management",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Leads",
+                  url: "/apps/leads",
+                },
+              ],
+            },
             {
               name: "SuperAdmin",
               id: uniqueId(),
@@ -847,6 +936,23 @@ export const staticSidebarData: MenuItem[] = [
                 id: uniqueId(),
                 name: "Add Role",
                 url: "/apps/roles/add",
+              },
+            ],
+          },
+          {
+            name: "Users",
+            id: uniqueId(),
+            icon: "solar:shield-user-outline",
+            children: [
+              {
+                id: uniqueId(),
+                name: "Add Users",
+                url: "/apps/users/add",
+              },
+              {
+                id: uniqueId(),
+                name: "List Users",
+                url: "/apps/users",
               },
             ],
           },

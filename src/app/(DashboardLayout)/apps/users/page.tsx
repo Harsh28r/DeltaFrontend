@@ -54,25 +54,61 @@ const UsersPage = () => {
   const fetchUsers = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch(API_ENDPOINTS.USERS, {
+      
+      // TEMPORARY: Using projects endpoint until backend implements /api/superadmin/users
+      const response = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
       });
-      const data = await response.json();
       
-      if (response.ok) {
-        setUsers(data.users || data);
-      } else {
-        console.error("Failed to fetch users:", data.message);
-        if (data.message === "No token, authorization denied") {
-          console.error("Token is invalid or expired");
-        }
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
+      
+      const data = await response.json();
+      const projects = data.projects || data;
+      
+      // Extract unique users from all projects
+      const userMap = new Map();
+      
+      projects.forEach((project: any) => {
+        if (project.members && Array.isArray(project.members)) {
+          project.members.forEach((member: any) => {
+            if (member._id && !userMap.has(member._id)) {
+              userMap.set(member._id, {
+                _id: member._id,
+                name: member.name || member.email || 'Unknown User',
+                email: member.email || 'No email',
+                mobile: member.mobile || 'No mobile',
+                companyName: member.companyName || 'No company',
+                roleName: member.roleName || member.role || 'No role',
+                projectId: project._id,
+                projectName: project.name,
+                createdAt: member.createdAt || member.joinedAt || new Date().toISOString()
+              });
+            }
+          });
+        }
+      });
+      
+      const extractedUsers = Array.from(userMap.values());
+      console.log("Extracted users from projects:", extractedUsers);
+      
+      if (extractedUsers.length === 0) {
+        console.warn("No users found in projects. Backend needs to implement /api/superadmin/users endpoint.");
+        // Set empty array to avoid errors
+        setUsers([]);
+      } else {
+        setUsers(extractedUsers);
+      }
+      
     } catch (error) {
       console.error("Error fetching users:", error);
+      // Set empty array to avoid errors
+      setUsers([]);
     } finally {
       setIsLoading(false);
     }
