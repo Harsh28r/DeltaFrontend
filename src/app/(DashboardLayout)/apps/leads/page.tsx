@@ -85,11 +85,10 @@ const LeadsPage = () => {
     name: "",
     email: "",
     phone: "",
-    company: "",
     source: "",
     status: "",
     notes: "",
-    projectId: "",
+    projectId: "", // Will be empty until user selects
     userId: ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -112,14 +111,13 @@ const LeadsPage = () => {
     }
   }, [user]);
 
-  // Get project ID from URL query parameter
+  // Set most recent project as default (but user can still edit it)
   useEffect(() => {
-    const projectIdFromUrl = searchParams.get('projectId');
-    if (projectIdFromUrl) {
-      const cleanProjectId = projectIdFromUrl.replace(/\/$/, '');
-      setFormData(prev => ({ ...prev, projectId: cleanProjectId }));
+    if (projects.length > 0 && !formData.projectId) {
+      // Set the most recent project (first in the list) as default
+      setFormData(prev => ({ ...prev, projectId: projects[0]._id }));
     }
-  }, [searchParams]);
+  }, [projects, formData.projectId]);
 
   const fetchLeads = async () => {
     if (isLoadingLeads) return;
@@ -212,7 +210,7 @@ const LeadsPage = () => {
             message: 'No projects found. Please create a project first before managing leads.' 
           });
         }
-        //fr
+        //frwdw
       } else {
         console.error("Failed to fetch projects:", projectsResponse.statusText);
         setAlertMessage({ 
@@ -278,7 +276,7 @@ const LeadsPage = () => {
     if (!formData.projectId) {
       setAlertMessage({ 
         type: 'error', 
-        message: 'Please manually select a project from the dropdown to create this lead.' 
+        message: 'Please select a project from the dropdown to create this lead.' 
       });
       return;
     }
@@ -311,7 +309,6 @@ const LeadsPage = () => {
               "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
               "Email": formData.email,
               "Phone": formData.phone,
-              "Company": formData.company,
               "Notes": formData.notes
             },
             user: formData.userId
@@ -342,7 +339,6 @@ const LeadsPage = () => {
             "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
             "Email": formData.email,
             "Phone": formData.phone,
-            "Company": formData.company,
             "Notes": formData.notes
           },
           user: formData.userId
@@ -424,7 +420,6 @@ const LeadsPage = () => {
       name: lead.name || '',
       email: lead.email || '',
       phone: lead.phone || '',
-      company: lead.company || '',
       source: lead.leadSource?._id || '',
       status: lead.currentStatus?._id || '',
       notes: lead.notes || '',
@@ -441,11 +436,10 @@ const LeadsPage = () => {
       name: "",
       email: "",
       phone: "",
-      company: "",
       source: "",
       status: "",
       notes: "",
-      projectId: formData.projectId || (projects.length > 0 ? projects[0]._id : ""),
+      projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: formData.userId
     });
   };
@@ -456,11 +450,10 @@ const LeadsPage = () => {
       name: "",
       email: "",
       phone: "",
-      company: "",
       source: "",
       status: "",
       notes: "",
-      projectId: formData.projectId || (projects.length > 0 ? projects[0]._id : ""),
+      projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: formData.userId
     });
     setIsModalOpen(true);
@@ -469,8 +462,7 @@ const LeadsPage = () => {
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = 
       (lead.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (lead.company?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesSource = filterSource === "all" || lead.leadSource?._id === filterSource;
     const matchesStatus = filterStatus === "all" || lead.currentStatus?._id === filterStatus;
     return matchesSearch && matchesSource && matchesStatus;
@@ -608,14 +600,14 @@ const LeadsPage = () => {
           </div>
           <div>
             <Select
-              value=""
+              value="all"
               disabled={true}
-              title="Project selection disabled - viewing all leads"
+              title="Project filter disabled - viewing all leads"
             >
-              <option value="">All Leads Mode (No Project Filter)</option>
+              <option value="all">All Projects</option>
             </Select>
             <p className="text-sm text-gray-500 mt-1">
-              Viewing all leads from all projects
+              Viewing leads from all projects
             </p>
           </div>
           <div>
@@ -668,7 +660,6 @@ const LeadsPage = () => {
                 <Table.Head>
                   <Table.HeadCell className="min-w-[120px]">Name</Table.HeadCell>
                   <Table.HeadCell className="min-w-[150px]">Contact</Table.HeadCell>
-                  <Table.HeadCell className="min-w-[120px]">Company</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Source</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Status</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Created</Table.HeadCell>
@@ -677,7 +668,7 @@ const LeadsPage = () => {
                 <Table.Body className="divide-y">
                   {filteredLeads.length === 0 ? (
                     <Table.Row>
-                      <Table.Cell colSpan={7} className="text-center py-8">
+                      <Table.Cell colSpan={6} className="text-center py-8">
                         <div className="text-gray-500 dark:text-gray-400">
                           <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-4xl mb-2" />
                           <p>No leads found</p>
@@ -701,9 +692,6 @@ const LeadsPage = () => {
                             <div>{lead.email || 'N/A'}</div>
                             <div className="text-gray-500 dark:text-gray-400">{lead.phone || 'N/A'}</div>
                           </div>
-                        </Table.Cell>
-                        <Table.Cell className="whitespace-nowrap text-gray-900 dark:text-white">
-                          {lead.company || 'N/A'}
                         </Table.Cell>
                         <Table.Cell>
                           <Badge color="blue" size="sm">
@@ -805,16 +793,7 @@ const LeadsPage = () => {
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                 />
               </div>
-              <div>
-                <Label htmlFor="company" value="Company" />
-                <TextInput
-                  id="company"
-                  type="text"
-                  placeholder="Enter company name..."
-                  value={formData.company}
-                  onChange={(e) => setFormData({ ...formData, company: e.target.value })}
-                />
-              </div>
+
               <div>
                 <Label htmlFor="source" value="Lead Source *" />
                 <Select
@@ -853,18 +832,18 @@ const LeadsPage = () => {
               <Select
                 id="projectId"
                 value={formData.projectId}
-                disabled={true}
+                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
                 required
               >
-                <option value={formData.projectId}>
-                  {formData.projectId 
-                    ? projects.find(p => p._id === formData.projectId)?.name || `Project: ${formData.projectId}`
-                    : "Loading project from URL..."
-                  }
-                </option>
+                <option value="">Select a project</option>
+                {projects.map(project => (
+                  <option key={project._id} value={project._id}>
+                    {project.name}
+                  </option>
+                ))}
               </Select>
               <p className="text-sm text-gray-500 mt-1">
-                Project ID is automatically set from URL: {formData.projectId || 'Not set'}
+                Default project is selected, but you can change it if needed
               </p>
             </div>
             <div className="mt-4">

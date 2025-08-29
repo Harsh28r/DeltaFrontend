@@ -1,4 +1,5 @@
 // API Configuration
+// export const API_BASE_URL = 'https://deltadb-o1lh.onrender.com'; // Temporarily hardcoded to bypass env var issues
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
 // API Endpoints
