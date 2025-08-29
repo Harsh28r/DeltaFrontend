@@ -41,6 +41,13 @@ export const API_ENDPOINTS = {
   CREATE_LEAD_STATUS: `${API_BASE_URL}/api/lead-statuses`,
   UPDATE_LEAD_STATUS: (id: string) => `${API_BASE_URL}/api/lead-statuses/${id}`,
   DELETE_LEAD_STATUS: (id: string) => `${API_BASE_URL}/api/lead-statuses/${id}`,
+  
+  // Leads
+  LEADS: (projectId?: string) => projectId ? `${API_BASE_URL}/api/leads?projectId=${projectId}` : `${API_BASE_URL}/api/leads`,
+  LEAD_BY_ID: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
+  CREATE_LEAD: (projectId: string) => `${API_BASE_URL}/api/leads?projectId=${projectId}`,
+  UPDATE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
+  DELETE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
 };
 
 // Create a custom event system for refreshing sidebar data
