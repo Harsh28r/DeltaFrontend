@@ -212,6 +212,7 @@ const LeadsPage = () => {
             message: 'No projects found. Please create a project first before managing leads.' 
           });
         }
+        //fr
       } else {
         console.error("Failed to fetch projects:", projectsResponse.statusText);
         setAlertMessage({ 
