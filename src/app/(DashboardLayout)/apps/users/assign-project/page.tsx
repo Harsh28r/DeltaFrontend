@@ -44,7 +44,7 @@ const AssignProjectPage = () => {
   const fetchUsers = async () => {
     try {
       // Using the users by role endpoint to get all users
-      const response = await fetch(`${API_ENDPOINTS.API_BASE_URL}/api/superadmin/users/by-role`, {
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/by-role`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
