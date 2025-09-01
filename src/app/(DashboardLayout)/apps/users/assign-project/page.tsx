@@ -4,7 +4,7 @@ import { Button, Card, Label, Select, TextInput, Alert } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
 
 interface Project {
   _id: string;
