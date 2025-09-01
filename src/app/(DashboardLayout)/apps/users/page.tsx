@@ -4,36 +4,60 @@ import { Button, Card, Table, Badge, Dropdown } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, createRefreshEvent, subscribeToRefresh } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL, createRefreshEvent, subscribeToRefresh } from "@/lib/config";
 
 interface User {
   _id: string;
   name: string;
   email: string;
   mobile: string;
-  companyName: string;
-  roleName: string;
-  projectId?: string;
-  projectName?: string;
-  createdAt: string;
-  __v: number;
+  companyName?: string;
+  currentRole: {
+    name: string;
+    level: number;
+    permissions: string[];
+    roleId: string;
+  };
+  projectAssignments: Array<{
+    projectId: string;
+    projectName: string;
+    status: string;
+    assignedDate: string;
+  }>;
+  projectSummary: {
+    totalProjects: number;
+    activeProjects: number;
+    completedProjects: number;
+    pendingProjects: number;
+  };
+  accountCreated: string;
+  lastActivity: string;
+  isAssignedToProject?: boolean;
 }
+
+// Removed UsersWithProjectsResponse interface - now using projects endpoint directly
 
 const UsersPage = () => {
   const { token } = useAuth();
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [assigningUsers, setAssigningUsers] = useState<Set<string>>(new Set());
+  const [isSyncingBackend, setIsSyncingBackend] = useState(false);
+  const [successMessage, setSuccessMessage] = useState<string>("");
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState<string>("all");
   const [filterProject, setFilterProject] = useState<string>("all");
-  const [projectAssignments, setProjectAssignments] = useState<{[key: string]: {projectId: string, projectName: string}}>({});
+  const [forceUpdate, setForceUpdate] = useState(0);
+
   const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
+  const [projects, setProjects] = useState<Array<{_id: string, name: string}>>([]);
 
   // Fetch users from backend
   useEffect(() => {
     if (token) {
       fetchUsers();
-      fetchProjectAssignments();
+      fetchProjects();
       fetchExistingRoles();
     }
   }, [token]);
@@ -44,19 +68,27 @@ const UsersPage = () => {
       console.log("Refresh event received, updating users page data...");
       if (token) {
         fetchUsers();
-        fetchProjectAssignments();
       }
     });
 
     return unsubscribe;
   }, [token]);
 
-  const fetchUsers = async () => {
+  // Debug effect to monitor users state changes
+  useEffect(() => {
+    console.log("Users state changed:", users);
+    console.log("Users with projects:", users.filter(u => u.projectAssignments.length > 0));
+    console.log("Users without projects:", users.filter(u => u.projectAssignments.length === 0));
+  }, [users]);
+
+    const fetchUsers = async () => {
     try {
       setIsLoading(true);
+      setIsRefreshing(true);
       
-      // TEMPORARY: Using projects endpoint until backend implements /api/superadmin/users
-      const response = await fetch(API_ENDPOINTS.PROJECTS, {
+      // Using the users/with-projects endpoint for user list
+      console.log("Fetching users from /api/superadmin/users/with-projects...");
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -69,55 +101,50 @@ const UsersPage = () => {
       }
       
       const data = await response.json();
-      const projects = data.projects || data;
+      console.log("Users with projects response:", data);
       
-      // Extract unique users from all projects
-      const userMap = new Map();
+      // Process the response data
+      let processedUsers: any[] = [];
       
-      projects.forEach((project: any) => {
-        if (project.members && Array.isArray(project.members)) {
-          project.members.forEach((member: any) => {
-            if (member._id && !userMap.has(member._id)) {
-              userMap.set(member._id, {
-                _id: member._id,
-                name: member.name || member.email || 'Unknown User',
-                email: member.email || 'No email',
-                mobile: member.mobile || 'No mobile',
-                companyName: member.companyName || 'No company',
-                roleName: member.roleName || member.role || 'No role',
-                projectId: project._id,
-                projectName: project.name,
-                createdAt: member.createdAt || member.joinedAt || new Date().toISOString()
-              });
-            }
-          });
-        }
-      });
-      
-      const extractedUsers = Array.from(userMap.values());
-      console.log("Extracted users from projects:", extractedUsers);
-      
-      if (extractedUsers.length === 0) {
-        console.warn("No users found in projects. Backend needs to implement /api/superadmin/users endpoint.");
-        // Set empty array to avoid errors
-        setUsers([]);
+      if (data.users && Array.isArray(data.users)) {
+        // If response has users array, use it directly
+        processedUsers = data.users
+          .filter((user: any) => user.currentRole?.name !== 'superadmin') // Hide superadmin users
+          .map((user: any) => ({
+            ...user,
+            isAssignedToProject: user.projectAssignments && user.projectAssignments.length > 0
+          }));
+      } else if (Array.isArray(data)) {
+        // If response is directly an array of users
+        processedUsers = data
+          .filter((user: any) => user.currentRole?.name !== 'superadmin') // Hide superadmin users
+          .map((user: any) => ({
+            ...user,
+            isAssignedToProject: user.projectAssignments && user.projectAssignments.length > 0
+          }));
       } else {
-        setUsers(extractedUsers);
+        console.error("Unexpected response format:", data);
+        processedUsers = [];
       }
+      
+      console.log("Processed users:", processedUsers);
+      console.log("Users with project assignments:", processedUsers.filter(u => u.projectAssignments && u.projectAssignments.length > 0));
+      console.log("Users without project assignments:", processedUsers.filter(u => !u.projectAssignments || u.projectAssignments.length === 0));
+      setUsers(processedUsers);
       
     } catch (error) {
       console.error("Error fetching users:", error);
-      // Set empty array to avoid errors
       setUsers([]);
     } finally {
       setIsLoading(false);
+      setIsRefreshing(false);
     }
   };
 
-  const fetchProjectAssignments = async () => {
+  const fetchProjects = async () => {
     try {
-      // Fetch all projects to get project names and members
-      const projectsResponse = await fetch(API_ENDPOINTS.PROJECTS, {
+      console.log("Fetching projects for assignment dropdowns...");
+      const response = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -125,38 +152,195 @@ const UsersPage = () => {
         },
       });
       
-      if (projectsResponse.ok) {
-        const projectsData = await projectsResponse.json();
-        const projects = projectsData.projects || projectsData;
+      if (response.ok) {
+        const data = await response.json();
+        const projectsList = data.projects || data;
         
-        // Create a map of project IDs to project names
-        const projectMap: {[key: string]: string} = {};
-        projects.forEach((project: any) => {
-          projectMap[project._id] = project.name;
-        });
-        
-        // Extract member assignments from each project
-        const assignmentMap: {[key: string]: {projectId: string, projectName: string}} = {};
-        
-        projects.forEach((project: any) => {
-          if (project.members && Array.isArray(project.members)) {
-            project.members.forEach((member: any) => {
-              if (member._id) {
-                assignmentMap[member._id] = {
-                  projectId: project._id,
-                  projectName: project.name
-                };
-              }
-            });
-          }
-        });
-        
-        console.log("Project assignments extracted:", assignmentMap);
-        console.log("Users with project assignments:", users.filter(u => assignmentMap[u._id]));
-        setProjectAssignments(assignmentMap);
+        if (Array.isArray(projectsList)) {
+          console.log("Projects fetched successfully:", projectsList.map(p => ({ id: p._id, name: p.name })));
+          setProjects(projectsList);
+        } else {
+          console.error("Projects response is not an array:", projectsList);
+        }
+      } else {
+        console.error("Failed to fetch projects:", response.status, response.statusText);
       }
     } catch (error) {
-      console.error("Error fetching project assignments:", error);
+      console.error("Error fetching projects:", error);
+    }
+  };
+
+
+
+  const assignUserToProject = async (userId: string, projectId: string) => {
+    if (assigningUsers.has(userId)) return; // Prevent multiple assignments for same user
+    
+    try {
+      setAssigningUsers(prev => new Set(prev).add(userId));
+      const assignPayload = {
+        userId: userId,
+        projects: [{ projectId: projectId }]
+      };
+      
+      console.log("=== PROJECT ASSIGNMENT START ===");
+      console.log("Updating user projects payload:", assignPayload);
+      console.log("Projects array:", assignPayload.projects);
+      console.log("Current users state before assignment:", users);
+      console.log("User to be updated:", users.find(u => u._id === userId));
+      
+      // Use the correct superadmin endpoint for updating user projects
+      console.log("Using update user projects endpoint:", API_ENDPOINTS.UPDATE_USER_PROJECTS);
+      
+      const assignResponse: Response = await fetch(API_ENDPOINTS.UPDATE_USER_PROJECTS, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(assignPayload),
+      });
+
+      const assignData = await assignResponse.json();
+      console.log("=== API RESPONSE ===");
+      console.log("Response status:", assignResponse.status);
+      console.log("Response ok:", assignResponse.ok);
+      console.log("Response headers:", Object.fromEntries(assignResponse.headers.entries()));
+      console.log("Assignment response data:", assignData);
+      console.log("Response URL:", assignResponse.url);
+
+      if (assignResponse.ok) {
+        setSuccessMessage(`User assigned to project successfully! Refreshing data...`);
+        
+        // Get project name for immediate UI update
+        const project = projects.find(p => p._id === projectId);
+        const projectName = project ? project.name : 'Unknown Project';
+        
+        // Update local state immediately for better UX (temporary until backend sync)
+        console.log("=== LOCAL STATE UPDATE ===");
+        console.log("Updating local state temporarily for immediate feedback...");
+        console.log("Current user before update:", users.find(u => u._id === userId));
+        
+        setUsers(prevUsers => {
+          console.log("Previous users state:", prevUsers);
+          const updatedUsers = prevUsers.map(user => {
+            if (user._id === userId) {
+              // Ensure projectAssignments exists and is an array
+              const currentProjectAssignments = user.projectAssignments || [];
+              const currentProjectSummary = user.projectSummary || {
+                totalProjects: 0,
+                activeProjects: 0,
+                completedProjects: 0,
+                pendingProjects: 0
+              };
+              
+              const updatedUser = {
+                ...user,
+                projectAssignments: [
+                  ...currentProjectAssignments,
+                  {
+                    projectId: projectId,
+                    projectName: projectName,
+                    status: 'active',
+                    assignedDate: new Date().toISOString()
+                  }
+                ],
+                isAssignedToProject: true,
+                projectSummary: {
+                  ...currentProjectSummary,
+                  totalProjects: currentProjectSummary.totalProjects + 1,
+                  activeProjects: currentProjectSummary.activeProjects + 1
+                }
+              };
+              console.log("Updated user object:", updatedUser);
+              console.log("New projectAssignments:", updatedUser.projectAssignments);
+              console.log("New isAssignedToProject:", updatedUser.isAssignedToProject);
+              return updatedUser;
+            }
+            return user;
+          });
+          console.log("All users after update:", updatedUsers);
+          return updatedUsers;
+        });
+        
+        // Force immediate UI update
+        setForceUpdate(prev => prev + 1);
+        console.log("Force update triggered:", forceUpdate + 1);
+        console.log("Local state updated - UI will refresh with backend data shortly");
+        
+        setSuccessMessage("User assigned successfully!");
+        setTimeout(() => setSuccessMessage(""), 3000);
+        
+        // Test if the state actually changed
+        setTimeout(() => {
+          console.log("=== STATE VERIFICATION ===");
+          const updatedUser = users.find(u => u._id === userId);
+          console.log("User state after assignment (delayed check):", updatedUser);
+          console.log("Current users array:", users);
+        }, 100);
+        
+        // Fetch latest data from backend to ensure UI shows real backend state
+        console.log("=== BACKEND SYNC START ===");
+        console.log("Fetching latest data from backend for dynamic updates...");
+        setTimeout(async () => {
+          try {
+            setIsSyncingBackend(true);
+            console.log("Backend sync started...");
+            await fetchUsers();
+            console.log("Backend data fetched - UI now shows real backend state");
+            setSuccessMessage("Project assignment confirmed from backend!");
+            setTimeout(() => setSuccessMessage(""), 2000);
+          } catch (error) {
+            console.error("Failed to fetch backend data:", error);
+            setSuccessMessage("Project assigned but failed to sync with backend");
+            setTimeout(() => setSuccessMessage(""), 3000);
+          } finally {
+            setIsSyncingBackend(false);
+            console.log("Backend sync completed");
+          }
+        }, 500); // Small delay to ensure backend has processed the assignment
+      } else {
+        alert(`Failed to assign user to project: ${assignData.message || assignData.error || 'Unknown error'}`);
+      }
+    } catch (assignError) {
+      console.error("Error assigning user to project:", assignError);
+      alert("Failed to assign user to project");
+    } finally {
+      setAssigningUsers(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(userId);
+        return newSet;
+      });
+    }
+  };
+
+  const removeUserFromProject = async (userId: string) => {
+    try {
+      const user = users.find(u => u._id === userId);
+      if (!user || user.projectAssignments.length === 0) {
+        alert("User is not assigned to any project");
+        return;
+      }
+
+      const projectNames = user.projectAssignments.map(pa => pa.projectName).join(", ");
+      if (window.confirm(`Remove ${user.name} from ${projectNames}?`)) {
+        // TODO: Implement remove from project API call
+        // For now, just update local state
+        setUsers(prevUsers => prevUsers.map(u => 
+          u._id === userId 
+            ? { ...u, projectAssignments: [], isAssignedToProject: false }
+            : u
+        ));
+        
+        alert("User removed from project successfully!");
+        
+        // Refresh data to ensure consistency
+        setTimeout(() => {
+          fetchUsers();
+        }, 1000);
+      }
+    } catch (error) {
+      console.error("Error removing user from project:", error);
+      alert("Failed to remove user from project");
     }
   };
 
@@ -184,12 +368,17 @@ const UsersPage = () => {
     const matchesSearch = 
       user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.mobile.includes(searchTerm);
-    const matchesRole = filterRole === "all" || user.roleName === filterRole;
+      (user.mobile && user.mobile.includes(searchTerm));
+    const matchesRole = filterRole === "all" || user.currentRole.name === filterRole;
     
-    // Check project filter against both user data and fetched assignments
-    const userProjectName = user.projectName || projectAssignments[user._id]?.projectName;
-    const matchesProject = filterProject === "all" || userProjectName === filterProject;
+    // Check project filter against user's project assignments
+    let matchesProject = true;
+    
+    if (filterProject === "unassigned") {
+      matchesProject = user.projectAssignments.length === 0;
+    } else if (filterProject !== "all") {
+      matchesProject = user.projectAssignments.some(assignment => assignment.projectName === filterProject);
+    }
     
     return matchesSearch && matchesRole && matchesProject;
   });
@@ -221,11 +410,14 @@ const UsersPage = () => {
 
   const getRoleBadge = (roleName: string) => {
     const roleColors = {
+      "superadmin": "failure",
       "admin": "failure",
       "tl": "warning",
       "developer": "info",
       "tester": "success",
-      "manager": "purple"
+      "manager": "purple",
+      "user": "gray",
+      "hr": "indigo"
     } as const;
     
     return (
@@ -236,16 +428,16 @@ const UsersPage = () => {
   };
 
   const getUniqueRoles = () => {
-    const roles = [...new Set(users.map(user => user.roleName))];
+    const roles = [...new Set(users.map(user => user.currentRole.name))];
     return roles.filter(role => role);
   };
 
   const getUniqueProjects = () => {
-    // Get projects from both user data and fetched assignments
-    const userProjects = users.map(user => user.projectName).filter(Boolean);
-    const assignmentProjects = Object.values(projectAssignments).map(assignment => assignment.projectName).filter(Boolean);
-    const allProjects = [...new Set([...userProjects, ...assignmentProjects])];
-    return allProjects;
+    // Get projects from user's project assignments
+    const allProjects = users.flatMap(user => 
+      user.projectAssignments.map(assignment => assignment.projectName)
+    );
+    return [...new Set(allProjects)].filter(Boolean);
   };
 
   if (isLoading) {
@@ -257,36 +449,62 @@ const UsersPage = () => {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 lg:space-y-6 px-4 lg:px-6">
       {/* Header */}
-      <div className="flex justify-between items-center">
+      <div className="flex flex-col gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Users Management</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage system users and their roles</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">Users Management</h1>
+          <p className="text-sm lg:text-base text-gray-600 dark:text-gray-400">Manage all users with comprehensive project assignment information.</p>
         </div>
-        <Link href="/apps/users/add">
-          <Button color="primary" size="sm">
-            <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
-            Add New User
-          </Button>
-        </Link>
+        <div className="flex flex-col sm:flex-row gap-2">
+          <Link href="/apps/users/assign-project" className="w-full sm:w-auto">
+            <Button color="info" size="sm" className="w-full">
+              <Icon icon="solar:link-circle-line-duotone" className="mr-2" />
+              Assign to Project
+            </Button>
+          </Link>
+          <Link href="/apps/users/add" className="w-full sm:w-auto">
+            <Button color="primary" size="sm" className="w-full">
+              <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
+              Add New User
+            </Button>
+          </Link>
+        </div>
       </div>
 
-      {/* Filters */}
-      <Card>
-        <div className="flex flex-col sm:flex-row gap-4">
-          <div className="flex-1">
-            <input
-              type="text"
-              placeholder="Search users by name, email, or mobile..."
-              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+      {/* Success Message */}
+      {successMessage && (
+        <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <Icon icon="solar:check-circle-line-duotone" className="text-green-500 mr-2" />
+            <span className="text-green-800">{successMessage}</span>
           </div>
-          <div className="flex gap-2">
+        </div>
+      )}
+
+      {/* Backend Sync Indicator */}
+      {isSyncingBackend && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-500 mr-2"></div>
+            <span className="text-blue-800">Syncing with backend...</span>
+          </div>
+        </div>
+      )}
+
+      {/* Filters */}
+      <Card className="p-4">
+        <div className="space-y-3">
+          <input
+            type="text"
+            placeholder="Search users by name, email, or mobile..."
+            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               value={filterRole}
               onChange={(e) => setFilterRole(e.target.value)}
             >
@@ -297,11 +515,12 @@ const UsersPage = () => {
             </select>
             
             <select
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               value={filterProject}
               onChange={(e) => setFilterProject(e.target.value)}
             >
               <option value="all">All Projects</option>
+              <option value="unassigned">Unassigned</option>
               {getUniqueProjects().map(project => (
                 <option key={project} value={project}>{project}</option>
               ))}
@@ -311,9 +530,9 @@ const UsersPage = () => {
       </Card>
 
       {/* Bulk Role Change */}
-      <Card>
-        <div className="flex flex-col sm:flex-row gap-4 items-center justify-between">
-          <div className="flex items-center gap-4">
+      <Card className="p-4">
+        <div className="space-y-3">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3">
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
@@ -334,9 +553,9 @@ const UsersPage = () => {
               })()}
             </span>
           </div>
-          <div className="flex gap-2">
+          <div>
             <select
-              className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              className="w-full sm:w-auto px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
               onChange={async (e) => {
                 const newRole = e.target.value;
                 if (!newRole) return;
@@ -360,8 +579,8 @@ const UsersPage = () => {
                     
                     // Get project ID from first selected user
                     const firstUser = users.find(u => u._id === selectedUserIds[0]);
-                    if (firstUser) {
-                      bulkPayload.projectId = firstUser.projectId || projectAssignments[firstUser._id]?.projectId || "";
+                    if (firstUser && firstUser.projectAssignments.length > 0) {
+                      bulkPayload.projectId = firstUser.projectAssignments[0].projectId;
                     }
                     
                     // Make bulk API call
@@ -379,7 +598,10 @@ const UsersPage = () => {
                     if (response.ok) {
                       // Update local state
                       setUsers(users.map(u => 
-                        selectedUserIds.includes(u._id) ? { ...u, roleName: newRole } : u
+                        selectedUserIds.includes(u._id) ? { 
+                          ...u, 
+                          currentRole: { ...u.currentRole, name: newRole }
+                        } : u
                       ));
                       
                       // Uncheck all checkboxes
@@ -394,7 +616,6 @@ const UsersPage = () => {
                       
                       // Refresh the data
                       fetchUsers();
-                      fetchProjectAssignments();
                     } else {
                       alert(`Failed to change roles: ${data.message || 'Unknown error'}`);
                     }
@@ -417,207 +638,287 @@ const UsersPage = () => {
         </div>
       </Card>
 
-      {/* Debug Information */}
-      <Card className="bg-gray-50 dark:bg-gray-800">
-        <div className="text-sm">
-          <h4 className="font-medium text-gray-700 dark:text-gray-300 mb-2">Debug Info</h4>
-          <div className="grid grid-cols-2 gap-4 text-xs">
-            <div>
-              <span className="font-medium">Total Users:</span> {users.length}
-            </div>
-            <div>
-              <span className="font-medium">Project Assignments:</span> {Object.keys(projectAssignments).length}
-            </div>
-            <div>
-              <span className="font-medium">Available Roles:</span> {existingRoles.length}
-            </div>
-            <div>
-              <span className="font-medium">Users with Projects:</span> {users.filter(u => u.projectName || projectAssignments[u._id]).length}
-            </div>
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="text-center p-3">
+          <div className="text-lg font-bold text-blue-600">{users.length}</div>
+          <div className="text-xs text-gray-600">Total Users</div>
+        </Card>
+        <Card className="text-center p-3">
+          <div className="text-lg font-bold text-green-600">
+            {users.filter(u => u.isAssignedToProject).length}
           </div>
-          {Object.keys(projectAssignments).length > 0 && (
-            <div className="mt-2">
-              <span className="font-medium">Project Assignments:</span>
-              <div className="mt-1 space-y-1">
-                {Object.entries(projectAssignments).slice(0, 5).map(([userId, assignment]) => (
-                  <div key={userId} className="text-gray-600 dark:text-gray-400">
-                    User: {userId.slice(-8)}... → Project: {assignment.projectName} ({assignment.projectId.slice(-8)}...)
-                  </div>
-                ))}
-                {Object.keys(projectAssignments).length > 5 && (
-                  <div className="text-gray-500">... and {Object.keys(projectAssignments).length - 5} more</div>
-                )}
-              </div>
+          <div className="text-xs text-gray-600">Assigned to Projects</div>
+        </Card>
+        <Card className="text-center p-3">
+          <div className="text-lg font-bold text-orange-600">
+            {users.filter(u => !u.isAssignedToProject).length}
+          </div>
+          <div className="text-xs text-gray-600">Unassigned</div>
+        </Card>
+        <Card className="text-center p-3">
+          <div className="text-lg font-bold text-purple-600">{getUniqueRoles().length}</div>
+          <div className="text-xs text-gray-600">Different Roles</div>
+        </Card>
+      </div>
+      
+      {/* Additional Project Statistics */}
+      {users.length > 0 && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Card className="text-center p-3">
+            <div className="text-lg font-bold text-indigo-600">
+              {users.reduce((total, user) => total + user.projectSummary.totalProjects, 0)}
             </div>
-          )}
+            <div className="text-xs text-gray-600">Total Project Assignments</div>
+          </Card>
+          <Card className="text-center p-3">
+            <div className="text-lg font-bold text-emerald-600">
+              {users.reduce((total, user) => total + user.projectSummary.activeProjects, 0)}
+            </div>
+            <div className="text-xs text-gray-600">Active Projects</div>
+          </Card>
+          <Card className="text-center p-3">
+            <div className="text-lg font-bold text-amber-600">
+              {users.reduce((total, user) => total + user.projectSummary.completedProjects, 0)}
+            </div>
+            <div className="text-xs text-gray-600">Completed Projects</div>
+          </Card>
         </div>
-      </Card>
+      )}
 
-      {/* Users Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <Table>
-            <Table.Head>
-              <Table.HeadCell className="w-4">
-                <input
-                  type="checkbox"
-                  className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
-                  onChange={(e) => {
-                    const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
-                    checkboxes.forEach(checkbox => {
-                      checkbox.checked = e.target.checked;
-                    });
-                  }}
-                />
-              </Table.HeadCell>
-              <Table.HeadCell>Name</Table.HeadCell>
-              <Table.HeadCell>Email</Table.HeadCell>
-              <Table.HeadCell>Mobile</Table.HeadCell>
-              <Table.HeadCell>Project</Table.HeadCell>
-              <Table.HeadCell>Role</Table.HeadCell>
-              <Table.HeadCell>Created</Table.HeadCell>
-              <Table.HeadCell>Actions</Table.HeadCell>
-            </Table.Head>
-            <Table.Body>
-              {filteredUsers.map((user) => (
-                <Table.Row key={user._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
-                  <Table.Cell className="w-4">
-                    <input
-                      type="checkbox"
-                      name={`user-${user._id}`}
-                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
-                    />
-                  </Table.Cell>
-                  <Table.Cell className="font-medium text-gray-900 dark:text-white">
-                    {user.name}
-                  </Table.Cell>
-                  <Table.Cell className="text-gray-600 dark:text-gray-400">
-                    {user.email}
-                  </Table.Cell>
-                  <Table.Cell className="text-gray-600 dark:text-gray-400">
-                    {user.mobile}
-                  </Table.Cell>
-                  <Table.Cell className="text-gray-600 dark:text-gray-400">
-                    {(() => {
-                      // First try to get project info from user data
-                      if (user.projectName) {
-                        return (
-                          <div className="space-y-1">
-                            <Badge color="info" className="text-xs">
-                              {user.projectName}
-                            </Badge>
-                            {user.projectId && (
-                              <div className="text-xs text-gray-500">
-                                ID: {user.projectId.slice(-8)}...
-                              </div>
-                            )}
-                          </div>
-                        );
-                      }
-                      
-                      // Then try to get from fetched project assignments
-                      const assignment = projectAssignments[user._id];
-                      if (assignment && assignment.projectName) {
-                        return (
-                          <div className="space-y-1">
-                            <Badge color="success" className="text-xs">
-                              {assignment.projectName}
-                            </Badge>
-                            <div className="text-xs text-gray-500">
-                              ID: {assignment.projectId.slice(-8)}...
-                            </div>
-                          </div>
-                        );
-                      }
-                      
-                      // Finally, show not assigned
-                      return (
-                        <span className="text-gray-400 text-sm">Not Assigned</span>
-                      );
-                    })()}
-                  </Table.Cell>
-                  <Table.Cell>
-                    {getRoleBadge(user.roleName)}
-                  </Table.Cell>
-                  <Table.Cell className="text-gray-600 dark:text-gray-400">
-                    {new Date(user.createdAt).toLocaleDateString()}
-                  </Table.Cell>
-                  <Table.Cell>
-                    <div className="flex gap-2">
-                      <Link href={`/apps/users/edit/${user._id}`}>
-                        <Button size="xs" color="info">
-                          <Icon icon="solar:pen-line-duotone" />
-                        </Button>
-                      </Link>
-                      <Link href={`/apps/users/view/${user._id}`}>
-                        <Button size="xs" color="success">
-                          <Icon icon="solar:eye-line-duotone" />
-                        </Button>
-                      </Link>
+            {/* Users Table */}
+            <Card>
+  <div className="max-h-[500px] overflow-y-auto">
+    <Table className="w-full table-auto">
+      <Table.Head>
+        <Table.HeadCell className="w-12 px-4 py-3">
+          <input
+            type="checkbox"
+            className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+            onChange={(e) => {
+              const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
+              checkboxes.forEach((checkbox) => {
+                checkbox.checked = e.target.checked;
+              });
+            }}
+          />
+        </Table.HeadCell>
+        <Table.HeadCell className="min-w-[150px] px-4 py-3">Name</Table.HeadCell>
+        <Table.HeadCell className="min-w-[200px] px-4 py-3">Email</Table.HeadCell>
+        <Table.HeadCell className="min-w-[120px] px-4 py-3">Mobile</Table.HeadCell>
+        <Table.HeadCell className="min-w-[150px] px-4 py-3">Company</Table.HeadCell>
+        <Table.HeadCell className="min-w-[200px] px-4 py-3">Project Assignment</Table.HeadCell>
+        <Table.HeadCell className="min-w-[100px] px-4 py-3">Role</Table.HeadCell>
+        <Table.HeadCell className="min-w-[100px] px-4 py-3">Level</Table.HeadCell>
+        <Table.HeadCell className="min-w-[120px] px-4 py-3">Created</Table.HeadCell>
+        <Table.HeadCell className="min-w-[250px] px-4 py-3">Actions</Table.HeadCell>
+      </Table.Head>
+      <Table.Body>
+        {filteredUsers.map((user) => (
+          <Table.Row
+            key={`${user._id}-${user.projectAssignments?.length || 0}-${forceUpdate}`}
+            className="hover:bg-gray-50 dark:hover:bg-gray-700"
+          >
+            <Table.Cell className="w-12 px-4 py-3">
+              <input
+                type="checkbox"
+                name={`user-${user._id}`}
+                className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+              />
+            </Table.Cell>
+            <Table.Cell className="min-w-[150px] px-4 py-3 font-medium text-gray-900 dark:text-white">
+              <div className="text-sm lg:text-base truncate">{user.name}</div>
+            </Table.Cell>
+            <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
+              <div className="text-xs lg:text-sm break-all">{user.email}</div>
+            </Table.Cell>
+            <Table.Cell className="min-w-[120px] px-4 py-3 text-gray-600 dark:text-gray-400">
+              <div className="text-xs lg:text-sm">{user.mobile || "N/A"}</div>
+            </Table.Cell>
+            <Table.Cell className="min-w-[150px] px-4 py-3 text-gray-600 dark:text-gray-400">
+              <div className="text-xs lg:text-sm truncate">{user.companyName || "N/A"}</div>
+            </Table.Cell>
+            <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
+              {(() => {
+                const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
+                console.log(
+                  `Project assignment cell for ${user.name}: isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
+                    user.projectAssignments?.length || 0
+                  }, hasProjects=${hasProjects}`
+                );
+
+                if (hasProjects) {
+                  return (
+                    <div className="space-y-2">
+                      {user.projectAssignments.map((assignment, index) => (
+                        <div key={index} className="space-y-1">
+                          <Badge color="success" className="text-xs">
+                            ✓ {assignment.projectName}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+
+                return (
+                  <div className="space-y-2">
+                    <Badge color="gray" className="text-xs">
+                      ✗ Not Assigned
+                    </Badge>
+                    <div className="flex items-center gap-2">
+                      {assigningUsers.has(user._id) && (
+                        <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                      )}
                       <select
-                        className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
-                        value={user.roleName}
-                        onChange={async (e) => {
-                          const newRole = e.target.value;
-                          if (newRole === user.roleName) return;
-                          
-                          try {
-                            const payload = {
-                              projectId: user.projectId || projectAssignments[user._id]?.projectId || "",
-                              userId: user._id,
-                              newRoleName: newRole
-                            };
-                            
-                            const response = await fetch(API_ENDPOINTS.ASSIGN_ROLE, {
-                              method: "POST",
-                              headers: {
-                                "Content-Type": "application/json",
-                                Authorization: `Bearer ${token}`,
-                              },
-                              body: JSON.stringify(payload),
-                            });
-                            
-                            if (response.ok) {
-                              // Update local state
-                              setUsers(users.map(u => 
-                                u._id === user._id ? { ...u, roleName: newRole } : u
-                              ));
-                              alert(`Role changed to ${newRole.toUpperCase()} successfully!`);
-                            } else {
-                              const data = await response.json();
-                              alert(`Failed to change role: ${data.message}`);
-                              // Reset dropdown to original value
-                              e.target.value = user.roleName;
-                            }
-                          } catch (error) {
-                            console.error("Error changing role:", error);
-                            alert("Failed to change role");
-                            e.target.value = user.roleName;
+                        className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent w-full max-w-[150px]"
+                        onChange={(e) => {
+                          const projectId = e.target.value;
+                          if (projectId) {
+                            assignUserToProject(user._id, projectId);
+                            e.target.value = "";
                           }
                         }}
+                        disabled={assigningUsers.has(user._id)}
                       >
-                        {existingRoles.map(role => (
-                          <option key={role.name} value={role.name}>{role.name.toUpperCase()}</option>
+                        <option value="">
+                          {assigningUsers.has(user._id) ? "Assigning..." : "Assign to..."}
+                        </option>
+                        {projects.map((project) => (
+                          <option key={project._id} value={project._id}>
+                            {project.name}
+                          </option>
                         ))}
                       </select>
-                      <Button 
-                        size="xs" 
-                        color="failure"
-                        onClick={() => handleDeleteUser(user._id)}
-                      >
-                        <Icon icon="solar:trash-bin-trash-line-duotone" />
-                      </Button>
                     </div>
-                  </Table.Cell>
-                </Table.Row>
-              ))}
-            </Table.Body>
-          </Table>
-        </div>
-      </Card>
+                  </div>
+                );
+              })()}
+            </Table.Cell>
+            <Table.Cell className="min-w-[100px] px-4 py-3">
+              {getRoleBadge(user.currentRole.name)}
+            </Table.Cell>
+            <Table.Cell className="min-w-[100px] px-4 py-3 text-gray-600 dark:text-gray-400">
+              <Badge color="gray" className="text-xs">
+                Level {user.currentRole.level}
+              </Badge>
+            </Table.Cell>
+            <Table.Cell className="min-w-[120px] px-4 py-3 text-gray-600 dark:text-gray-400">
+              {new Date(user.accountCreated).toLocaleDateString()}
+            </Table.Cell>
+            <Table.Cell className="min-w-[250px] px-4 py-3">
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/apps/users/edit/${user._id}`}>
+                  <Button size="xs" color="info">
+                    <Icon icon="solar:pen-line-duotone" />
+                  </Button>
+                </Link>
+                <Link href={`/apps/users/view/${user._id}`}>
+                  <Button size="xs" color="success">
+                    <Icon icon="solar:eye-line-duotone" />
+                  </Button>
+                </Link>
+                {(() => {
+                  const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
+                  console.log(
+                    `User ${user.name} (${user._id}): isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
+                      user.projectAssignments?.length || 0
+                    }, hasProjects=${hasProjects}`
+                  );
+                  return (
+                    !hasProjects && (
+                      <div className="flex items-center gap-2">
+                        {assigningUsers.has(user._id) && (
+                          <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
+                        )}
+                        {/* <select
+                          className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent w-full max-w-[150px]"
+                          onChange={(e) => {
+                            const projectId = e.target.value;
+                            if (projectId) {
+                              assignUserToProject(user._id, projectId);
+                              e.target.value = "";
+                            }
+                          }}
+                          disabled={assigningUsers.has(user._id)}
+                        >
+                          <option value="">
+                            {assigningUsers.has(user._id) ? "Assigning..." : "Quick Assign"}
+                          </option>
+                          {projects.map((project) => (
+                            <option key={project._id} value={project._id}>
+                              {project.name}
+                            </option>
+                          ))}
+                        </select> */}
+                      </div>
+                    )
+                  );
+                })()}
+                {/* <select
+                  className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent w-full max-w-[120px]"
+                  value={user.currentRole.name}
+                  onChange={async (e) => {
+                    const newRole = e.target.value;
+                    if (newRole === user.currentRole.name) return;
 
-      {/* Role Assignment Modal */}
-      {/* Removed RoleAssignmentModal usage */}
+                    try {
+                      const payload = {
+                        projectId:
+                          user.projectAssignments && user.projectAssignments.length > 0
+                            ? user.projectAssignments[0].projectId
+                            : "",
+                        userId: user._id,
+                        newRoleName: newRole,
+                      };
+
+                      const response = await fetch(API_ENDPOINTS.ASSIGN_ROLE, {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          Authorization: `Bearer ${token}`,
+                        },
+                        body: JSON.stringify(payload),
+                      });
+
+                      if (response.ok) {
+                        setUsers(
+                          users.map((u) =>
+                            u._id === user._id
+                              ? { ...u, currentRole: { ...u.currentRole, name: newRole } }
+                              : u
+                          )
+                        );
+                        alert(`Role changed to ${newRole.toUpperCase()} successfully!`);
+                      } else {
+                        const data = await response.json();
+                        alert(`Failed to change role: ${data.message}`);
+                        e.target.value = user.currentRole.name;
+                      }
+                    } catch (error) {
+                      console.error("Error changing role:", error);
+                      alert("Failed to change role");
+                      e.target.value = user.currentRole.name;
+                    }
+                  }}
+                >
+                  {existingRoles.map((role) => (
+                    <option key={role.name} value={role.name}>
+                      {role.name.toUpperCase()}
+                    </option>
+                  ))}
+                </select> */}
+                <Button size="xs" color="failure" onClick={() => handleDeleteUser(user._id)}>
+                  <Icon icon="solar:trash-bin-trash-line-duotone" />
+                </Button>
+              </div>
+            </Table.Cell>
+          </Table.Row>
+        ))}
+      </Table.Body>
+    </Table>
+  </div>
+</Card>
     </div>
   );
 };

@@ -25,6 +25,10 @@ interface User {
   projectId?: string;
   projectName?: string;
   createdAt: string;
+  projects?: Array<{
+    projectId: string;
+    projectName: string;
+  }>;
 }
 
 const RoleModulePage = () => {
@@ -144,31 +148,47 @@ const RoleModulePage = () => {
       const data = await response.json();
       const projects = data.projects || data;
       
-      // Extract users with the specific role from all projects
-      const roleUsers: any[] = [];
+      // Extract users with the specific role from all projects and group by email
+      const userMap: {[email: string]: any} = {};
       
       projects.forEach((project: any) => {
         if (project.members && Array.isArray(project.members)) {
           project.members.forEach((member: any) => {
             if (member._id && 
                 (member.roleName === roleName || member.role === roleName)) {
-              roleUsers.push({
-                _id: member._id,
-                name: member.name || member.email || 'Unknown User',
-                email: member.email || 'No email',
-                mobile: member.mobile || 'No mobile',
-                companyName: member.companyName || 'No company',
-                roleName: member.roleName || member.role || roleName,
-                projectId: project._id,
-                projectName: project.name,
-                createdAt: member.createdAt || member.joinedAt || new Date().toISOString()
-              });
+              const email = member.email || 'No email';
+              
+              if (userMap[email]) {
+                // User already exists, add project to their list
+                userMap[email].projects.push({
+                  projectId: project._id,
+                  projectName: project.name
+                });
+              } else {
+                // New user, create entry
+                userMap[email] = {
+                  _id: member._id,
+                  name: member.name || member.email || 'Unknown User',
+                  email: email,
+                  mobile: member.mobile || 'No mobile',
+                  companyName: member.companyName || 'No company',
+                  roleName: member.roleName || member.role || roleName,
+                  createdAt: member.createdAt || member.joinedAt || new Date().toISOString(),
+                  projects: [{
+                    projectId: project._id,
+                    projectName: project.name
+                  }]
+                };
+              }
             }
           });
         }
       });
       
-      console.log(`Users with role ${roleName}:`, roleUsers);
+      // Convert map to array
+      const roleUsers = Object.values(userMap);
+      
+      console.log(`Users with role ${roleName} (grouped by email):`, roleUsers);
       setUsers(roleUsers);
       setUserCount(roleUsers.length);
       

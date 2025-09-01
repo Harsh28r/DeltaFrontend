@@ -15,6 +15,8 @@ export const API_ENDPOINTS = {
   USERS: `${API_BASE_URL}/api/projects`, // Temporary: will extract users from projects
   USERS_BY_ROLE: (roleName: string) => `${API_BASE_URL}/api/projects`, // Temporary: will filter by role
   CREATE_USER: `${API_BASE_URL}/api/superadmin/create-user`,
+  CREATE_USER_WITH_PROJECTS: `${API_BASE_URL}/api/superadmin/create-user-with-projects`,
+  UPDATE_USER_PROJECTS: `${API_BASE_URL}/api/superadmin/update-user-projects`,
   USER_BY_ID: (id: string) => `${API_BASE_URL}/api/superadmin/users/${id}`,
   USER_HISTORY: (id: string) => `${API_BASE_URL}/api/superadmin/users/${id}/history`,
   UPDATE_USER: (id: string) => `${API_BASE_URL}/api/superadmin/users/${id}`,

@@ -61,7 +61,6 @@ export default function Layout({
           >
             {children}
           </div>
-          <Customizer />
         </div>
       </div>
     </div>
