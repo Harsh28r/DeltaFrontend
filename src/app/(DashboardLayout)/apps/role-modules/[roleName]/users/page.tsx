@@ -306,18 +306,24 @@ const RoleUsersPage = () => {
                     <Table.Cell>
                       <div className="flex gap-2">
                         <Link href={`/apps/users/edit/${user._id}`}>
-                          <Button size="xs" color="info">
+                          <Button size="xs" color="info" title="Edit User">
                             <Icon icon="solar:pen-line-duotone" />
                           </Button>
                         </Link>
                         <Link href={`/apps/users/view/${user._id}`}>
-                          <Button size="xs" color="success">
+                          <Button size="xs" color="success" title="View User">
                             <Icon icon="solar:eye-line-duotone" />
+                          </Button>
+                        </Link>
+                        <Link href={`/apps/users/permissions/${user._id}`}>
+                          <Button size="xs" color="warning" title="Edit Permissions">
+                            <Icon icon="solar:settings-line-duotone" />
                           </Button>
                         </Link>
                         <Button 
                           size="xs" 
                           color="failure"
+                          title="Delete User"
                           onClick={() => handleDeleteUser(user._id)}
                         >
                           <Icon icon="solar:trash-bin-trash-line-duotone" />

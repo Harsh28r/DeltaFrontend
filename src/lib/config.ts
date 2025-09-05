@@ -51,6 +51,13 @@ export const API_ENDPOINTS = {
   CREATE_LEAD: (projectId: string) => `${API_BASE_URL}/api/leads?projectId=${projectId}`,
   UPDATE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
   DELETE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
+  
+  // Permissions
+  ALL_USERS_PERMISSIONS: `${API_BASE_URL}/api/permissions/all-users`,
+  USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}/permissions`,
+  UPDATE_USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}/effective-permissions`,
+  ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
+  UPDATE_ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
 };
 
 // Create a custom event system for refreshing sidebar data

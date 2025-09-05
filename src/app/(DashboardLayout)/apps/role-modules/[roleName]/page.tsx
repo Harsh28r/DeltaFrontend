@@ -704,13 +704,18 @@ const RoleModulePage = () => {
                            <td className="px-6 py-4">
                              <div className="flex gap-2">
                                <Link href={`/apps/users/view/${user._id}`}>
-                                 <Button size="xs" color="info">
+                                 <Button size="xs" color="info" title="View User">
                                    <Icon icon="solar:eye-line-duotone" />
                                  </Button>
                                </Link>
                                <Link href={`/apps/users/edit/${user._id}`}>
-                                 <Button size="xs" color="warning">
+                                 <Button size="xs" color="warning" title="Edit User">
                                    <Icon icon="solar:pen-line-duotone" />
+                                 </Button>
+                               </Link>
+                               <Link href={`/apps/users/permissions/${user._id}`}>
+                                 <Button size="xs" color="success" title="Edit Permissions">
+                                   <Icon icon="solar:settings-line-duotone" />
                                  </Button>
                                </Link>
                              </div>

@@ -5,6 +5,8 @@ import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
 import { useSearchParams } from "next/navigation";
+import { useLeadPermissions } from "@/hooks/use-permissions";
+import { PERMISSIONS } from "@/app/types/permissions";
 
 interface LeadSource {
   _id: string;
@@ -69,6 +71,13 @@ interface Project {
 const LeadsPage = () => {
   const { token, user } = useAuth();
   const searchParams = useSearchParams();
+  const { 
+    canCreateLeads, 
+    canReadLeads, 
+    canUpdateLeads, 
+    canDeleteLeads, 
+    isLoading: permissionsLoading 
+  } = useLeadPermissions();
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
@@ -468,10 +477,40 @@ const LeadsPage = () => {
     return matchesSearch && matchesSource && matchesStatus;
   });
 
-  if (isLoading) {
+  if (isLoading || permissionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
+        <p className="ml-4 text-gray-600 dark:text-gray-400">
+          {permissionsLoading ? 'Loading permissions...' : 'Loading...'}
+        </p>
+      </div>
+    );
+  }
+
+  // Check if user has permission to read leads
+  if (!canReadLeads) {
+    return (
+      <div className="space-y-6">
+        <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+          <div className="flex-1">
+            <h1 className="text-xl lg:text-2xl font-bold text-gray-900 dark:text-white">Lead Management</h1>
+            <p className="text-sm lg:text-base text-gray-600 dark:text-gray-400">
+              Manage your sales leads and prospects
+            </p>
+          </div>
+        </div>
+        <Card>
+          <div className="text-center py-8">
+            <div className="text-gray-500 dark:text-gray-400">
+              <Icon icon="solar:shield-warning-line-duotone" className="mx-auto text-4xl mb-4" />
+              <p className="text-lg font-medium mb-2">Access Denied</p>
+              <p className="text-sm mb-4">
+                You don't have permission to view leads. Please contact your administrator.
+              </p>
+            </div>
+          </div>
+        </Card>
       </div>
     );
   }
@@ -490,16 +529,24 @@ const LeadsPage = () => {
           </p>
         </div>
         <div className="flex gap-2 w-full lg:w-auto lg:ml-auto">
-          <Button 
-            onClick={handleAddNew} 
-            color="primary"
-            disabled={projects.length === 0}
-            title={projects.length === 0 ? "No projects available. Please create a project first." : ""}
-            className="w-full lg:w-auto"
-          >
-            <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
-            Add New Lead
-          </Button>
+          {canCreateLeads && (
+            <Button 
+              onClick={handleAddNew} 
+              color="primary"
+              disabled={projects.length === 0 || permissionsLoading}
+              title={
+                projects.length === 0 
+                  ? "No projects available. Please create a project first." 
+                  : permissionsLoading 
+                    ? "Loading permissions..." 
+                    : ""
+              }
+              className="w-full lg:w-auto"
+            >
+              <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
+              Add New Lead
+            </Button>
+          )}
         </div>
       </div>
 
@@ -708,24 +755,35 @@ const LeadsPage = () => {
                         </Table.Cell>
                         <Table.Cell>
                           <div className="flex flex-col sm:flex-row gap-2">
-                            <Button
-                              size="xs"
-                              color="info"
-                              onClick={() => handleEdit(lead)}
-                              className="text-xs"
-                            >
-                              <Icon icon="solar:pen-line-duotone" className="mr-1" />
-                              <span className="hidden sm:inline">Edit</span>
-                            </Button>
-                            <Button
-                              size="xs"
-                              color="failure"
-                              onClick={() => handleDelete(lead._id)}
-                              className="text-xs"
-                            >
-                              <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
-                              <span className="hidden sm:inline">Delete</span>
-                            </Button>
+                            {canUpdateLeads && (
+                              <Button
+                                size="xs"
+                                color="info"
+                                onClick={() => handleEdit(lead)}
+                                className="text-xs"
+                                disabled={permissionsLoading}
+                              >
+                                <Icon icon="solar:pen-line-duotone" className="mr-1" />
+                                <span className="hidden sm:inline">Edit</span>
+                              </Button>
+                            )}
+                            {canDeleteLeads && (
+                              <Button
+                                size="xs"
+                                color="failure"
+                                onClick={() => handleDelete(lead._id)}
+                                className="text-xs"
+                                disabled={permissionsLoading}
+                              >
+                                <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
+                                <span className="hidden sm:inline">Delete</span>
+                              </Button>
+                            )}
+                            {!canUpdateLeads && !canDeleteLeads && (
+                              <Badge color="gray" size="sm">
+                                No Actions Available
+                              </Badge>
+                            )}
                           </div>
                         </Table.Cell>
                       </Table.Row>

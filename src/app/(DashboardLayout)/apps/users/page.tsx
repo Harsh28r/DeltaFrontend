@@ -111,7 +111,7 @@ const UsersPage = () => {
         processedUsers = data.users
           .filter((user: any) => user.currentRole?.name !== 'superadmin') // Hide superadmin users
           .map((user: any) => ({
-            ...user,
+        ...user,
             isAssignedToProject: user.projectAssignments && user.projectAssignments.length > 0
           }));
       } else if (Array.isArray(data)) {
@@ -285,14 +285,14 @@ const UsersPage = () => {
           try {
             setIsSyncingBackend(true);
             console.log("Backend sync started...");
-            await fetchUsers();
+          await fetchUsers();
             console.log("Backend data fetched - UI now shows real backend state");
             setSuccessMessage("Project assignment confirmed from backend!");
             setTimeout(() => setSuccessMessage(""), 2000);
           } catch (error) {
             console.error("Failed to fetch backend data:", error);
             setSuccessMessage("Project assigned but failed to sync with backend");
-            setTimeout(() => setSuccessMessage(""), 3000);
+          setTimeout(() => setSuccessMessage(""), 3000);
           } finally {
             setIsSyncingBackend(false);
             console.log("Backend sync completed");
@@ -495,13 +495,13 @@ const UsersPage = () => {
       {/* Filters */}
       <Card className="p-4">
         <div className="space-y-3">
-          <input
-            type="text"
-            placeholder="Search users by name, email, or mobile..."
-            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+            <input
+              type="text"
+              placeholder="Search users by name, email, or mobile..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <select
               className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
@@ -686,23 +686,23 @@ const UsersPage = () => {
         </div>
       )}
 
-            {/* Users Table */}
-            <Card>
+      {/* Users Table */}
+      <Card>
   <div className="max-h-[500px] overflow-y-auto">
     <Table className="w-full table-auto">
-      <Table.Head>
+            <Table.Head>
         <Table.HeadCell className="w-12 px-4 py-3">
-          <input
-            type="checkbox"
-            className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
-            onChange={(e) => {
-              const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
+                <input
+                  type="checkbox"
+                  className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                  onChange={(e) => {
+                    const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
               checkboxes.forEach((checkbox) => {
-                checkbox.checked = e.target.checked;
-              });
-            }}
-          />
-        </Table.HeadCell>
+                      checkbox.checked = e.target.checked;
+                    });
+                  }}
+                />
+              </Table.HeadCell>
         <Table.HeadCell className="min-w-[150px] px-4 py-3">Name</Table.HeadCell>
         <Table.HeadCell className="min-w-[200px] px-4 py-3">Email</Table.HeadCell>
         <Table.HeadCell className="min-w-[120px] px-4 py-3">Mobile</Table.HeadCell>
@@ -712,34 +712,34 @@ const UsersPage = () => {
         <Table.HeadCell className="min-w-[100px] px-4 py-3">Level</Table.HeadCell>
         <Table.HeadCell className="min-w-[120px] px-4 py-3">Created</Table.HeadCell>
         <Table.HeadCell className="min-w-[250px] px-4 py-3">Actions</Table.HeadCell>
-      </Table.Head>
-      <Table.Body>
-        {filteredUsers.map((user) => (
+            </Table.Head>
+            <Table.Body>
+              {filteredUsers.map((user) => (
           <Table.Row
             key={`${user._id}-${user.projectAssignments?.length || 0}-${forceUpdate}`}
             className="hover:bg-gray-50 dark:hover:bg-gray-700"
           >
             <Table.Cell className="w-12 px-4 py-3">
-              <input
-                type="checkbox"
-                name={`user-${user._id}`}
-                className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
-              />
-            </Table.Cell>
+                    <input
+                      type="checkbox"
+                      name={`user-${user._id}`}
+                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                    />
+                  </Table.Cell>
             <Table.Cell className="min-w-[150px] px-4 py-3 font-medium text-gray-900 dark:text-white">
               <div className="text-sm lg:text-base truncate">{user.name}</div>
-            </Table.Cell>
+                  </Table.Cell>
             <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
               <div className="text-xs lg:text-sm break-all">{user.email}</div>
-            </Table.Cell>
+                  </Table.Cell>
             <Table.Cell className="min-w-[120px] px-4 py-3 text-gray-600 dark:text-gray-400">
               <div className="text-xs lg:text-sm">{user.mobile || "N/A"}</div>
-            </Table.Cell>
+                  </Table.Cell>
             <Table.Cell className="min-w-[150px] px-4 py-3 text-gray-600 dark:text-gray-400">
               <div className="text-xs lg:text-sm truncate">{user.companyName || "N/A"}</div>
-            </Table.Cell>
+                  </Table.Cell>
             <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
-              {(() => {
+                    {(() => {
                 const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
                 console.log(
                   `Project assignment cell for ${user.name}: isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
@@ -748,76 +748,81 @@ const UsersPage = () => {
                 );
 
                 if (hasProjects) {
-                  return (
+                        return (
                     <div className="space-y-2">
-                      {user.projectAssignments.map((assignment, index) => (
-                        <div key={index} className="space-y-1">
-                          <Badge color="success" className="text-xs">
-                            ✓ {assignment.projectName}
-                          </Badge>
-                        </div>
-                      ))}
-                    </div>
-                  );
-                }
-
-                return (
+                            {user.projectAssignments.map((assignment, index) => (
+                              <div key={index} className="space-y-1">
+                                <Badge color="success" className="text-xs">
+                                  ✓ {assignment.projectName}
+                                </Badge>
+                              </div>
+                            ))}
+                          </div>
+                        );
+                      }
+                      
+                      return (
                   <div className="space-y-2">
-                    <Badge color="gray" className="text-xs">
-                      ✗ Not Assigned
-                    </Badge>
+                          <Badge color="gray" className="text-xs">
+                            ✗ Not Assigned
+                          </Badge>
                     <div className="flex items-center gap-2">
                       {assigningUsers.has(user._id) && (
                         <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-primary"></div>
                       )}
-                      <select
+                            <select
                         className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent w-full max-w-[150px]"
-                        onChange={(e) => {
-                          const projectId = e.target.value;
-                          if (projectId) {
-                            assignUserToProject(user._id, projectId);
+                              onChange={(e) => {
+                                const projectId = e.target.value;
+                                if (projectId) {
+                                  assignUserToProject(user._id, projectId);
                             e.target.value = "";
-                          }
-                        }}
+                                }
+                              }}
                         disabled={assigningUsers.has(user._id)}
-                      >
+                            >
                         <option value="">
                           {assigningUsers.has(user._id) ? "Assigning..." : "Assign to..."}
                         </option>
-                        {projects.map((project) => (
-                          <option key={project._id} value={project._id}>
-                            {project.name}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                );
-              })()}
-            </Table.Cell>
+                              {projects.map((project) => (
+                                <option key={project._id} value={project._id}>
+                                  {project.name}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      );
+                    })()}
+                  </Table.Cell>
             <Table.Cell className="min-w-[100px] px-4 py-3">
-              {getRoleBadge(user.currentRole.name)}
-            </Table.Cell>
+                    {getRoleBadge(user.currentRole.name)}
+                  </Table.Cell>
             <Table.Cell className="min-w-[100px] px-4 py-3 text-gray-600 dark:text-gray-400">
-              <Badge color="gray" className="text-xs">
-                Level {user.currentRole.level}
-              </Badge>
-            </Table.Cell>
+                    <Badge color="gray" className="text-xs">
+                      Level {user.currentRole.level}
+                    </Badge>
+                  </Table.Cell>
             <Table.Cell className="min-w-[120px] px-4 py-3 text-gray-600 dark:text-gray-400">
-              {new Date(user.accountCreated).toLocaleDateString()}
-            </Table.Cell>
+                    {new Date(user.accountCreated).toLocaleDateString()}
+                  </Table.Cell>
             <Table.Cell className="min-w-[250px] px-4 py-3">
               <div className="flex flex-wrap gap-2">
-                <Link href={`/apps/users/edit/${user._id}`}>
-                  <Button size="xs" color="info">
-                    <Icon icon="solar:pen-line-duotone" />
-                  </Button>
-                </Link>
-                <Link href={`/apps/users/view/${user._id}`}>
-                  <Button size="xs" color="success">
-                    <Icon icon="solar:eye-line-duotone" />
-                  </Button>
-                </Link>
+                      <Link href={`/apps/users/edit/${user._id}`}>
+                        <Button size="xs" color="info">
+                          <Icon icon="solar:pen-line-duotone" />
+                        </Button>
+                      </Link>
+                      <Link href={`/apps/users/view/${user._id}`}>
+                        <Button size="xs" color="success">
+                          <Icon icon="solar:eye-line-duotone" />
+                        </Button>
+                      </Link>
+                      <Link href={`/apps/users/permissions/${user._id}`}>
+                        <Button size="xs" color="warning" title="Edit Permissions">
+                          <Icon icon="solar:settings-line-duotone" />
+                        </Button>
+                      </Link>
                 {(() => {
                   const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
                   console.log(
@@ -857,31 +862,31 @@ const UsersPage = () => {
                 })()}
                 {/* <select
                   className="px-2 py-1 text-xs border border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent w-full max-w-[120px]"
-                  value={user.currentRole.name}
-                  onChange={async (e) => {
-                    const newRole = e.target.value;
-                    if (newRole === user.currentRole.name) return;
-
-                    try {
-                      const payload = {
+                        value={user.currentRole.name}
+                        onChange={async (e) => {
+                          const newRole = e.target.value;
+                          if (newRole === user.currentRole.name) return;
+                          
+                          try {
+                            const payload = {
                         projectId:
                           user.projectAssignments && user.projectAssignments.length > 0
                             ? user.projectAssignments[0].projectId
                             : "",
-                        userId: user._id,
+                              userId: user._id,
                         newRoleName: newRole,
-                      };
-
-                      const response = await fetch(API_ENDPOINTS.ASSIGN_ROLE, {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          Authorization: `Bearer ${token}`,
-                        },
-                        body: JSON.stringify(payload),
-                      });
-
-                      if (response.ok) {
+                            };
+                            
+                            const response = await fetch(API_ENDPOINTS.ASSIGN_ROLE, {
+                              method: "POST",
+                              headers: {
+                                "Content-Type": "application/json",
+                                Authorization: `Bearer ${token}`,
+                              },
+                              body: JSON.stringify(payload),
+                            });
+                            
+                            if (response.ok) {
                         setUsers(
                           users.map((u) =>
                             u._id === user._id
@@ -889,19 +894,19 @@ const UsersPage = () => {
                               : u
                           )
                         );
-                        alert(`Role changed to ${newRole.toUpperCase()} successfully!`);
-                      } else {
-                        const data = await response.json();
-                        alert(`Failed to change role: ${data.message}`);
-                        e.target.value = user.currentRole.name;
-                      }
-                    } catch (error) {
-                      console.error("Error changing role:", error);
-                      alert("Failed to change role");
-                      e.target.value = user.currentRole.name;
-                    }
-                  }}
-                >
+                              alert(`Role changed to ${newRole.toUpperCase()} successfully!`);
+                            } else {
+                              const data = await response.json();
+                              alert(`Failed to change role: ${data.message}`);
+                              e.target.value = user.currentRole.name;
+                            }
+                          } catch (error) {
+                            console.error("Error changing role:", error);
+                            alert("Failed to change role");
+                            e.target.value = user.currentRole.name;
+                          }
+                        }}
+                      >
                   {existingRoles.map((role) => (
                     <option key={role.name} value={role.name}>
                       {role.name.toUpperCase()}
@@ -909,16 +914,16 @@ const UsersPage = () => {
                   ))}
                 </select> */}
                 <Button size="xs" color="failure" onClick={() => handleDeleteUser(user._id)}>
-                  <Icon icon="solar:trash-bin-trash-line-duotone" />
-                </Button>
-              </div>
-            </Table.Cell>
-          </Table.Row>
-        ))}
-      </Table.Body>
-    </Table>
-  </div>
-</Card>
+                        <Icon icon="solar:trash-bin-trash-line-duotone" />
+                      </Button>
+                    </div>
+                  </Table.Cell>
+                </Table.Row>
+              ))}
+            </Table.Body>
+          </Table>
+        </div>
+      </Card>
     </div>
   );
 };

@@ -9,6 +9,7 @@ import NextTopLoader from "nextjs-toploader";
 import { Toaster } from "@/app/components/shadcn-ui/Default-Ui/toaster";
 import { CustomizerContextProvider } from "./context/CustomizerContext";
 import { AuthProvider } from "./context/AuthContext";
+import { PermissionProvider } from "./context/PermissionContext";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -32,7 +33,9 @@ export default function RootLayout({
         <Flowbite theme={{ theme: customTheme }}>
           <NextTopLoader color="var(--color-primary)" />
           <AuthProvider>
-            <CustomizerContextProvider>{children}</CustomizerContextProvider>
+            <PermissionProvider>
+              <CustomizerContextProvider>{children}</CustomizerContextProvider>
+            </PermissionProvider>
           </AuthProvider>
         </Flowbite>
         <Toaster />
