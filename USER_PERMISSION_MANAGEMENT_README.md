@@ -230,3 +230,4 @@ Response: { "success": true }
 - Error messages provide specific failure reasons
 - Loading states indicate when operations are in progress
 
+

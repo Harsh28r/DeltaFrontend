@@ -283,3 +283,4 @@ The system includes a dedicated permissions page at `/apps/permissions` that all
 4. **Rate limiting**: Implement rate limiting on permission update endpoints
 5. **Input validation**: Validate permission strings to prevent injection attacks
 
+
