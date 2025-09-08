@@ -212,7 +212,7 @@ const PermissionsPage = () => {
             <div className="font-mono text-sm">
               <div className="text-green-600 dark:text-green-400">GET</div>
               <div className="text-gray-900 dark:text-white">
-                /api/permissions/user/{user?.id || '[USER_ID]'}/permissions
+                /api/permissions/user/{user?.id || '[USER_ID]'}
               </div>
               <div className="text-gray-600 dark:text-gray-400 text-xs mt-1">
                 Fetch user-specific permissions

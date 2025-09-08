@@ -62,7 +62,25 @@ const RoleModulesPage = () => {
     
     // System Settings
     { id: "manage_settings", name: "Manage Settings", description: "Can modify system settings", category: "System Settings" },
-    { id: "view_settings", name: "View Settings", description: "Can view system settings", category: "System Settings" }
+    { id: "view_settings", name: "View Settings", description: "Can view system settings", category: "System Settings" },
+    
+    // Lead Management
+    { id: "leads:create", name: "Create Leads", description: "Can create lead sources and statuses", category: "Lead Management" },
+    { id: "leads:read", name: "View Leads", description: "Can view lead sources and statuses", category: "Lead Management" },
+    { id: "leads:update", name: "Update Leads", description: "Can update lead sources and statuses", category: "Lead Management" },
+    { id: "leads:delete", name: "Delete Leads", description: "Can delete lead sources and statuses", category: "Lead Management" },
+    
+    // Lead Sources
+    { id: "lead-sources:create", name: "Create Lead Sources", description: "Can create lead sources", category: "Lead Management" },
+    { id: "lead-sources:read", name: "View Lead Sources", description: "Can view lead sources", category: "Lead Management" },
+    { id: "lead-sources:update", name: "Update Lead Sources", description: "Can update lead sources", category: "Lead Management" },
+    { id: "lead-sources:delete", name: "Delete Lead Sources", description: "Can delete lead sources", category: "Lead Management" },
+    
+    // Lead Statuses
+    { id: "lead-statuses:create", name: "Create Lead Statuses", description: "Can create lead statuses", category: "Lead Management" },
+    { id: "lead-statuses:read", name: "View Lead Statuses", description: "Can view lead statuses", category: "Lead Management" },
+    { id: "lead-statuses:update", name: "Update Lead Statuses", description: "Can update lead statuses", category: "Lead Management" },
+    { id: "lead-statuses:delete", name: "Delete Lead Statuses", description: "Can delete lead statuses", category: "Lead Management" }
   ];
 
   // Fetch roles from backend

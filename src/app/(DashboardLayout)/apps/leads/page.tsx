@@ -71,6 +71,10 @@ interface Project {
 const LeadsPage = () => {
   const { token, user } = useAuth();
   const searchParams = useSearchParams();
+  
+  // Super admin bypass - no permission checks needed
+  const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'superadmin@deltayards.com';
+  
   const { 
     canCreateLeads, 
     canReadLeads, 
@@ -78,6 +82,15 @@ const LeadsPage = () => {
     canDeleteLeads, 
     isLoading: permissionsLoading 
   } = useLeadPermissions();
+  
+  // Override permissions for super admin
+  const finalPermissions = {
+    canCreateLeads: isSuperAdmin ? true : canCreateLeads,
+    canReadLeads: isSuperAdmin ? true : canReadLeads,
+    canUpdateLeads: isSuperAdmin ? true : canUpdateLeads,
+    canDeleteLeads: isSuperAdmin ? true : canDeleteLeads,
+    permissionsLoading: isSuperAdmin ? false : permissionsLoading
+  };
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
@@ -100,6 +113,9 @@ const LeadsPage = () => {
     projectId: "", // Will be empty until user selects
     userId: ""
   });
+  
+  // Dynamic form fields based on selected status
+  const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
@@ -127,6 +143,28 @@ const LeadsPage = () => {
       setFormData(prev => ({ ...prev, projectId: projects[0]._id }));
     }
   }, [projects, formData.projectId]);
+
+  // Get required fields for selected status
+  const getRequiredFieldsForStatus = (statusId: string) => {
+    const status = leadStatuses.find(s => s._id === statusId);
+    return status?.formFields || [];
+  };
+
+  // Update dynamic fields when status changes
+  const handleStatusChange = (statusId: string) => {
+    setFormData(prev => ({ ...prev, status: statusId }));
+    
+    // Reset dynamic fields
+    const newDynamicFields: {[key: string]: any} = {};
+    const requiredFields = getRequiredFieldsForStatus(statusId);
+    
+    // Initialize dynamic fields based on status requirements
+    requiredFields.forEach(field => {
+      newDynamicFields[field.name] = formData[field.name as keyof typeof formData] || "";
+    });
+    
+    setDynamicFields(newDynamicFields);
+  };
 
   const fetchLeads = async () => {
     if (isLoadingLeads) return;
@@ -298,6 +336,21 @@ const LeadsPage = () => {
       return;
     }
 
+    // Validate dynamic fields based on selected status
+    const requiredFields = getRequiredFieldsForStatus(formData.status);
+    for (const field of requiredFields) {
+      if (field.required) {
+        const fieldValue = dynamicFields[field.name] || formData[field.name as keyof typeof formData];
+        if (!fieldValue || !fieldValue.toString().trim()) {
+          setAlertMessage({ 
+            type: 'error', 
+            message: `Please fill in the required field: ${field.name}` 
+          });
+          return;
+        }
+      }
+    }
+
     try {
       setIsSubmitting(true);
       
@@ -318,7 +371,8 @@ const LeadsPage = () => {
               "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
               "Email": formData.email,
               "Phone": formData.phone,
-              "Notes": formData.notes
+              "Notes": formData.notes,
+              ...dynamicFields // Include dynamic fields
             },
             user: formData.userId
           }),
@@ -348,7 +402,8 @@ const LeadsPage = () => {
             "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
             "Email": formData.email,
             "Phone": formData.phone,
-            "Notes": formData.notes
+            "Notes": formData.notes,
+            ...dynamicFields // Include dynamic fields
           },
           user: formData.userId
         };
@@ -435,6 +490,17 @@ const LeadsPage = () => {
       projectId: formData.projectId || '',
       userId: formData.userId
     });
+    
+    // Populate dynamic fields from lead's customData
+    const newDynamicFields: {[key: string]: any} = {};
+    if (lead.currentStatus?._id) {
+      const requiredFields = getRequiredFieldsForStatus(lead.currentStatus._id);
+      requiredFields.forEach(field => {
+        newDynamicFields[field.name] = lead.customData?.[field.name] || '';
+      });
+    }
+    setDynamicFields(newDynamicFields);
+    
     setIsModalOpen(true);
   };
 
@@ -451,6 +517,7 @@ const LeadsPage = () => {
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: formData.userId
     });
+    setDynamicFields({});
   };
 
   const handleAddNew = () => {
@@ -465,6 +532,7 @@ const LeadsPage = () => {
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: formData.userId
     });
+    setDynamicFields({});
     setIsModalOpen(true);
   };
 
@@ -477,19 +545,19 @@ const LeadsPage = () => {
     return matchesSearch && matchesSource && matchesStatus;
   });
 
-  if (isLoading || permissionsLoading) {
+  if (isLoading || finalPermissions.permissionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
         <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-primary"></div>
         <p className="ml-4 text-gray-600 dark:text-gray-400">
-          {permissionsLoading ? 'Loading permissions...' : 'Loading...'}
+          {finalPermissions.permissionsLoading ? 'Loading permissions...' : 'Loading...'}
         </p>
       </div>
     );
   }
 
   // Check if user has permission to read leads
-  if (!canReadLeads) {
+  if (!finalPermissions.canReadLeads) {
     return (
       <div className="space-y-6">
         <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
@@ -517,6 +585,7 @@ const LeadsPage = () => {
 
   return (
     <div className="space-y-6">
+      
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="flex-1">
@@ -529,15 +598,15 @@ const LeadsPage = () => {
           </p>
         </div>
         <div className="flex gap-2 w-full lg:w-auto lg:ml-auto">
-          {canCreateLeads && (
+          {finalPermissions.canCreateLeads && (
             <Button 
               onClick={handleAddNew} 
               color="primary"
-              disabled={projects.length === 0 || permissionsLoading}
+              disabled={projects.length === 0 || finalPermissions.permissionsLoading}
               title={
                 projects.length === 0 
                   ? "No projects available. Please create a project first." 
-                  : permissionsLoading 
+                  : finalPermissions.permissionsLoading 
                     ? "Loading permissions..." 
                     : ""
               }
@@ -755,31 +824,31 @@ const LeadsPage = () => {
                         </Table.Cell>
                         <Table.Cell>
                           <div className="flex flex-col sm:flex-row gap-2">
-                            {canUpdateLeads && (
+                            {finalPermissions.canUpdateLeads && (
                               <Button
                                 size="xs"
                                 color="info"
                                 onClick={() => handleEdit(lead)}
                                 className="text-xs"
-                                disabled={permissionsLoading}
+                                disabled={finalPermissions.permissionsLoading}
                               >
                                 <Icon icon="solar:pen-line-duotone" className="mr-1" />
                                 <span className="hidden sm:inline">Edit</span>
                               </Button>
                             )}
-                            {canDeleteLeads && (
+                            {finalPermissions.canDeleteLeads && (
                               <Button
                                 size="xs"
                                 color="failure"
                                 onClick={() => handleDelete(lead._id)}
                                 className="text-xs"
-                                disabled={permissionsLoading}
+                                disabled={finalPermissions.permissionsLoading}
                               >
                                 <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
                                 <span className="hidden sm:inline">Delete</span>
                               </Button>
                             )}
-                            {!canUpdateLeads && !canDeleteLeads && (
+                            {!finalPermissions.canUpdateLeads && !finalPermissions.canDeleteLeads && (
                               <Badge color="gray" size="sm">
                                 No Actions Available
                               </Badge>
@@ -818,101 +887,234 @@ const LeadsPage = () => {
           {editingLead ? 'Edit Lead' : 'Add New Lead'}
         </Modal.Header>
         <form onSubmit={handleSubmit}>
-          <Modal.Body>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="name" value="Full Name *" />
-                <TextInput
-                  id="name"
-                  type="text"
-                  placeholder="Enter full name..."
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
-                />
-              </div>
-              <div>
-                <Label htmlFor="email" value="Email" />
-                <TextInput
-                  id="email"
-                  type="email"
-                  placeholder="Enter email..."
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div>
-                <Label htmlFor="phone" value="Phone" />
-                <TextInput
-                  id="phone"
-                  type="tel"
-                  placeholder="Enter phone number..."
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
+          <Modal.Body className="max-h-[80vh] overflow-y-auto">
+            <div className="space-y-8">
+              {/* Basic Information Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-blue-100 dark:bg-blue-900/20 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:user-line-duotone" className="text-blue-600 dark:text-blue-400 text-xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Basic Information</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="name" value="Full Name *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <TextInput
+                      id="name"
+                      type="text"
+                      placeholder="Enter full name..."
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="email" value="Email Address" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <TextInput
+                      id="email"
+                      type="email"
+                      placeholder="Enter email address..."
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      className="w-full"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="phone" value="Phone Number" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <TextInput
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter phone number..."
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                      className="w-full"
+                    />
+                  </div>
+                </div>
               </div>
 
-              <div>
-                <Label htmlFor="source" value="Lead Source *" />
-                <Select
-                  id="source"
-                  value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                  required
-                >
-                  <option value="">Select source</option>
-                  {leadSources.map(source => (
-                    <option key={source._id} value={source._id}>
-                      {source.name}
-                    </option>
-                  ))}
-                </Select>
+              {/* Lead Details Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:chart-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Lead Details</h3>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="source" value="Lead Source *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <Select
+                      id="source"
+                      value={formData.source}
+                      onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                      required
+                      className="w-full"
+                    >
+                      <option value="">Select lead source</option>
+                      {leadSources.map(source => (
+                        <option key={source._id} value={source._id}>
+                          {source.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="status" value="Lead Status *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <Select
+                      id="status"
+                      value={formData.status}
+                      onChange={(e) => handleStatusChange(e.target.value)}
+                      required
+                      className="w-full"
+                    >
+                      <option value="">Select lead status</option>
+                      {leadStatuses.map(status => (
+                        <option key={status._id} value={status._id}>
+                          {status.name}
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label htmlFor="status" value="Lead Status *" />
-                <Select
-                  id="status"
-                  value={formData.status}
-                  onChange={(e) => setFormData({ ...formData, status: e.target.value })}
-                  required
-                >
-                  <option value="">Select status</option>
-                  {leadStatuses.map(status => (
-                    <option key={status._id} value={status._id}>
-                      {status.name}
-                    </option>
-                  ))}
-                </Select>
+
+              {/* Project Selection Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Assignment</h3>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                  <Select
+                    id="projectId"
+                    value={formData.projectId}
+                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                    required
+                    className="w-full"
+                  >
+                    <option value="">Select a project</option>
+                    {projects.map(project => (
+                      <option key={project._id} value={project._id}>
+                        {project.name}
+                      </option>
+                    ))}
+                  </Select>
+                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                    <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                    Default project is selected, but you can change it if needed
+                  </p>
+                </div>
               </div>
-            </div>
-            <div className="mt-4">
-              <Label htmlFor="projectId" value="Project *" />
-              <Select
-                id="projectId"
-                value={formData.projectId}
-                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                required
-              >
-                <option value="">Select a project</option>
-                {projects.map(project => (
-                  <option key={project._id} value={project._id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
-              <p className="text-sm text-gray-500 mt-1">
-                Default project is selected, but you can change it if needed
-              </p>
-            </div>
-            <div className="mt-4">
-              <Label htmlFor="notes" value="Notes" />
-              <Textarea
-                id="notes"
-                placeholder="Enter additional notes..."
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={3}
-              />
+
+              {/* Dynamic Fields based on selected status */}
+              {formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
+                <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-xl border border-blue-200 dark:border-blue-700 p-6">
+                  <div className="flex items-center mb-6">
+                    <div className="bg-blue-100 dark:bg-blue-900/20 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:settings-line-duotone" className="text-blue-600 dark:text-blue-400 text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                        Additional Required Fields
+                      </h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">
+                        for "{leadStatuses.find(s => s._id === formData.status)?.name}" Status
+                      </p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {getRequiredFieldsForStatus(formData.status)
+                      .filter(field => field.name && field.name.trim() !== '') // Filter out empty field names
+                      .map((field) => (
+                      <div key={field.name} className="space-y-2">
+                        <Label 
+                          htmlFor={field.name} 
+                          value={`${field.name} ${field.required ? '*' : ''}`} 
+                          className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                        />
+                        {field.type === 'text' ? (
+                          <TextInput
+                            id={field.name}
+                            type="text"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          />
+                        ) : field.type === 'email' ? (
+                          <TextInput
+                            id={field.name}
+                            type="email"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          />
+                        ) : field.type === 'tel' ? (
+                          <TextInput
+                            id={field.name}
+                            type="tel"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          />
+                        ) : field.type === 'textarea' ? (
+                          <Textarea
+                            id={field.name}
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            rows={3}
+                            required={field.required}
+                            className="w-full"
+                          />
+                        ) : (
+                          <TextInput
+                            id={field.name}
+                            type="text"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Notes Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:notes-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                  <Textarea
+                    id="notes"
+                    placeholder="Enter additional notes or comments about this lead..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                    rows={4}
+                    className="w-full"
+                  />
+                </div>
+              </div>
             </div>
           </Modal.Body>
           <Modal.Footer className="flex flex-col sm:flex-row gap-2">

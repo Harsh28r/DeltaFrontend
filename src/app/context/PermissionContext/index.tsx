@@ -39,7 +39,11 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
       setIsLoading(true);
       setError(null);
       
-      const response = await fetch(API_ENDPOINTS.USER_PERMISSIONS(userId), {
+      const apiUrl = API_ENDPOINTS.USER_PERMISSIONS(userId);
+      console.log('🔗 Calling permissions API:', apiUrl);
+      console.log('🔗 Expected URL should be: http://localhost:5000/api/permissions/user/' + userId);
+      
+      const response = await fetch(apiUrl, {
         headers: {
           'Authorization': `Bearer ${authToken}`,
           'Content-Type': 'application/json',
@@ -47,15 +51,48 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
       });
 
       if (response.ok) {
-        const data: PermissionResponse = await response.json();
-        setUserPermissions({
-          allowed: data.allowed || [],
-          denied: data.denied || []
-        });
+        const data = await response.json();
+        console.log('Permissions API Response:', data);
+        
+        // Parse the new API response format
+        if (data.success && data.permissions) {
+          const effectivePermissions = data.permissions.effective || [];
+          const customAllowed = data.permissions.custom?.allowed || [];
+          const customDenied = data.permissions.custom?.denied || [];
+          
+          // Combine effective permissions with custom allowed, remove custom denied
+          const allAllowed = [...effectivePermissions, ...customAllowed];
+          const finalAllowed = allAllowed.filter(permission => !customDenied.includes(permission));
+          
+          setUserPermissions({
+            allowed: finalAllowed,
+            denied: customDenied
+          });
+        } else {
+          // Fallback to old format if needed
+          setUserPermissions({
+            allowed: data.allowed || [],
+            denied: data.denied || []
+          });
+        }
       } else if (response.status === 404) {
-        // User permissions not found, set default permissions
+        // User permissions not found, set default permissions for development
+        console.warn('Permissions API not implemented yet, using default permissions');
         setUserPermissions({
-          allowed: [],
+          allowed: [
+            'leads:read',
+            'leads:create', 
+            'leads:update',
+            'leads:delete',
+            'lead-sources:read',
+            'lead-sources:create',
+            'lead-sources:update', 
+            'lead-sources:delete',
+            'lead-statuses:read',
+            'lead-statuses:create',
+            'lead-statuses:update',
+            'lead-statuses:delete'
+          ],
           denied: []
         });
       } else {
@@ -65,9 +102,23 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
     } catch (err) {
       console.error('Error fetching user permissions:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch permissions');
-      // Set default permissions on error
+      // Set default permissions on error for development
+      console.warn('Using fallback permissions due to API error');
       setUserPermissions({
-        allowed: [],
+        allowed: [
+          'leads:read',
+          'leads:create', 
+          'leads:update',
+          'leads:delete',
+          'lead-sources:read',
+          'lead-sources:create',
+          'lead-sources:update', 
+          'lead-sources:delete',
+          'lead-statuses:read',
+          'lead-statuses:create',
+          'lead-statuses:update',
+          'lead-statuses:delete'
+        ],
         denied: []
       });
     } finally {
@@ -82,19 +133,31 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
   };
 
   const hasPermission = (permission: string): boolean => {
-    if (!userPermissions) return false;
+    // Check if user is super admin - give all permissions
+    if (user?.role === 'superadmin' || user?.email === 'superadmin@deltayards.com') {
+      console.log(`✅ Super Admin - Permission granted: ${permission}`);
+      return true;
+    }
+    
+    if (!userPermissions) {
+      console.log('❌ No user permissions available');
+      return false;
+    }
     
     // Check if permission is explicitly denied
     if (userPermissions.denied.includes(permission)) {
+      console.log(`❌ Permission denied: ${permission}`);
       return false;
     }
     
     // Check if permission is explicitly allowed
     if (userPermissions.allowed.includes(permission)) {
+      console.log(`✅ Permission allowed: ${permission}`);
       return true;
     }
     
     // If not explicitly allowed or denied, default to false
+    console.log(`❌ Permission not found: ${permission} (Available: ${userPermissions.allowed.join(', ')})`);
     return false;
   };
 

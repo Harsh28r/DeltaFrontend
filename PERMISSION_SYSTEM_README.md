@@ -284,3 +284,4 @@ The system includes a dedicated permissions page at `/apps/permissions` that all
 5. **Input validation**: Validate permission strings to prevent injection attacks
 
 
+

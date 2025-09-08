@@ -49,6 +49,8 @@ export const PERMISSIONS = {
   LEADS_READ: 'leads:read',
   LEADS_UPDATE: 'leads:update',
   LEADS_DELETE: 'leads:delete',
+  LEADS_BULK: 'leads:bulk',
+  LEADS_TRANSFER: 'leads:transfer',
   
   // User management permissions
   USERS_MANAGE: 'users:manage',
@@ -62,6 +64,7 @@ export const PERMISSIONS = {
   PROJECTS_CREATE: 'projects:create',
   PROJECTS_UPDATE: 'projects:update',
   PROJECTS_DELETE: 'projects:delete',
+  PROJECTS_MANAGE: 'projects:manage',
   
   // Notification permissions
   NOTIFICATIONS_READ: 'notifications:read',
@@ -74,18 +77,35 @@ export const PERMISSIONS = {
   ROLES_CREATE: 'roles:create',
   ROLES_UPDATE: 'roles:update',
   ROLES_DELETE: 'roles:delete',
+  ROLES_MANAGE: 'role:manage',
   
-  // Lead source permissions
-  LEAD_SOURCES_READ: 'lead-sources:read',
-  LEAD_SOURCES_CREATE: 'lead-sources:create',
-  LEAD_SOURCES_UPDATE: 'lead-sources:update',
-  LEAD_SOURCES_DELETE: 'lead-sources:delete',
+  // Lead source permissions (matching API response)
+  LEAD_SOURCES_READ: 'leadssource:read',
+  LEAD_SOURCES_CREATE: 'leadssource:create',
+  LEAD_SOURCES_UPDATE: 'leadssource:update',
+  LEAD_SOURCES_DELETE: 'leadssource:delete',
+  LEAD_SOURCES_READ_ALL: 'leadssource:read_all',
   
-  // Lead status permissions
-  LEAD_STATUSES_READ: 'lead-statuses:read',
-  LEAD_STATUSES_CREATE: 'lead-statuses:create',
-  LEAD_STATUSES_UPDATE: 'lead-statuses:update',
-  LEAD_STATUSES_DELETE: 'lead-statuses:delete',
+  // Lead status permissions (matching API response)
+  LEAD_STATUSES_READ: 'leadsstatus:read',
+  LEAD_STATUSES_CREATE: 'leadsstatus:create',
+  LEAD_STATUSES_UPDATE: 'leadsstatus:update',
+  LEAD_STATUSES_DELETE: 'leadsstatus:delete',
+  LEAD_STATUSES_READ_ALL: 'leadsstatus:read_all',
+  
+  // User-Project permissions
+  USER_PROJECTS_READ: 'user-projects:read',
+  USER_PROJECTS_ASSIGN: 'user-projects:assign',
+  USER_PROJECTS_REMOVE: 'user-projects:remove',
+  USER_PROJECTS_BULK_UPDATE: 'user-projects:bulk-update',
+  USER_PROJECTS_BULK_DELETE: 'user-projects:bulk-delete',
+  
+  // Reporting permissions
+  REPORTING_READ: 'reporting:read',
+  
+  // Notification bulk permissions
+  NOTIFICATIONS_BULK_UPDATE: 'notifications:bulk-update',
+  NOTIFICATIONS_BULK_DELETE: 'notifications:bulk-delete',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
