@@ -312,6 +312,11 @@ export const useSidebarData = () => {
                   name: "Leads",
                   url: "/apps/leads",
                 },
+                {
+                  id: uniqueId(),
+                  name: "Lead Activities",
+                  url: "/apps/lead-activities",
+                },
               ],
             },
             {

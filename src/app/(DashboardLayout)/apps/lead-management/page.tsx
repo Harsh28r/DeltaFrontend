@@ -22,6 +22,7 @@ interface LeadStatus {
   _id: string;
   name: string;
   formFields: FormField[];
+  is_final_status?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -38,7 +39,8 @@ const LeadManagementPage = () => {
     sourceName: "",
     // Lead Status
     statusName: "",
-    formFields: [{ name: "", type: "text", required: false }]
+    formFields: [{ name: "", type: "text", required: false }],
+    is_final_status: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -103,6 +105,18 @@ const LeadManagementPage = () => {
       return;
     }
 
+    // Check if trying to create a final status when one already exists
+    if (activeTab === "status" && formData.is_final_status) {
+      const existingFinalStatus = leadStatuses.find(status => status.is_final_status === true);
+      if (existingFinalStatus) {
+        setAlertMessage({ 
+          type: 'error', 
+          message: `Cannot create final status. A final status already exists: "${existingFinalStatus.name}". Only one final status is allowed.` 
+        });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
       
@@ -135,7 +149,8 @@ const LeadManagementPage = () => {
           },
           body: JSON.stringify({
             name: formData.statusName,
-            formFields: formData.formFields.filter(field => field.name.trim())
+            formFields: formData.formFields.filter(field => field.name.trim()),
+            is_final_status: formData.is_final_status
           }),
         });
 
@@ -198,7 +213,8 @@ const LeadManagementPage = () => {
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "", type: "text", required: false }]
+      formFields: [{ name: "", type: "text", required: false }],
+      is_final_status: false
     });
   };
 
@@ -206,7 +222,8 @@ const LeadManagementPage = () => {
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "", type: "text", required: false }]
+      formFields: [{ name: "", type: "text", required: false }],
+      is_final_status: false
     });
     setIsModalOpen(true);
   };
@@ -351,12 +368,13 @@ const LeadManagementPage = () => {
             <Table.Head>
               <Table.HeadCell>Name</Table.HeadCell>
               <Table.HeadCell>Form Fields</Table.HeadCell>
+              <Table.HeadCell>Final Status</Table.HeadCell>
               <Table.HeadCell>Actions</Table.HeadCell>
             </Table.Head>
             <Table.Body className="divide-y">
               {leadStatuses.length === 0 ? (
                 <Table.Row>
-                  <Table.Cell colSpan={3} className="text-center py-4">
+                  <Table.Cell colSpan={4} className="text-center py-4">
                     <div className="text-gray-500 dark:text-gray-400 text-sm">
                       No lead statuses found
                     </div>
@@ -381,6 +399,19 @@ const LeadManagementPage = () => {
                           </div>
                         ))}
                       </div>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {status.is_final_status ? (
+                        <Badge color="red" size="sm">
+                          <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
+                          Final
+                        </Badge>
+                      ) : (
+                        <Badge color="gray" size="sm">
+                          <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
+                          Active
+                        </Badge>
+                      )}
                     </Table.Cell>
                     <Table.Cell>
                       <Button
@@ -469,6 +500,37 @@ const LeadManagementPage = () => {
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
                     Examples: New, Contacted, Qualified, Proposal Sent, Closed Won
                   </p>
+                </div>
+                
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_final_status"
+                      checked={formData.is_final_status}
+                      onChange={(e) => setFormData({ ...formData, is_final_status: e.target.checked })}
+                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
+                      disabled={leadStatuses.some(status => status.is_final_status === true)}
+                    />
+                    <Label htmlFor="is_final_status" value="Final Status" />
+                  </div>
+                  {leadStatuses.some(status => status.is_final_status === true) ? (
+                    <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+                      <Icon icon="solar:danger-triangle-line-duotone" className="text-red-600 dark:text-red-400 text-lg" />
+                      <div>
+                        <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                          Final Status Already Exists
+                        </p>
+                        <p className="text-xs text-red-600 dark:text-red-400">
+                          Only one final status is allowed. Current final status: "{leadStatuses.find(s => s.is_final_status)?.name}"
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Check if this is a final status (e.g., Closed Won, Closed Lost)
+                    </p>
+                  )}
                 </div>
                 
                 <div>

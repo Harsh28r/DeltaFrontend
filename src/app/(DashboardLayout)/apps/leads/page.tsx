@@ -3,7 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Button, Card, Table, Badge, Modal, TextInput, Label, Alert, Select, Textarea } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
+import { API_ENDPOINTS, createRefreshEvent, API_BASE_URL } from "@/lib/config";
 import { useSearchParams } from "next/navigation";
 import { useLeadPermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/app/types/permissions";
@@ -40,6 +40,10 @@ interface Lead {
     _id: string;
     name: string;
   } | null;
+  project?: {
+    _id: string;
+    name: string;
+  } | null;
   customData: {
     "First Name"?: string;
     "Last Name"?: string;
@@ -50,6 +54,7 @@ interface Lead {
     [key: string]: any;
   };
   statusHistory: any[];
+  LeadScore?: number;
   createdAt: string;
   updatedAt: string;
   // Computed fields for display
@@ -60,12 +65,23 @@ interface Lead {
   source?: string;
   status?: string;
   notes?: string;
+  projectName?: string;
 }
 
 interface Project {
   _id: string;
   name: string;
   description?: string;
+}
+
+interface User {
+  _id: string;
+  name: string;
+  email: string;
+  role: string;
+  level?: number;
+  mobile?: string;
+  companyName?: string;
 }
 
 const LeadsPage = () => {
@@ -95,6 +111,7 @@ const LeadsPage = () => {
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
 
@@ -111,13 +128,23 @@ const LeadsPage = () => {
     status: "",
     notes: "",
     projectId: "", // Will be empty until user selects
-    userId: ""
+    userId: "",
+    remark: "" // For status updates
   });
   
   // Dynamic form fields based on selected status
   const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+  const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
+  const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
+  const [statusUpdateData, setStatusUpdateData] = useState({ newStatus: '', remark: '' });
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
+  const [bulkTransferModal, setBulkTransferModal] = useState(false);
+  const [transferToUser, setTransferToUser] = useState('');
+  const [isTransferring, setIsTransferring] = useState(false);
+  const [userProjects, setUserProjects] = useState<Project[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState('');
 
   useEffect(() => {
     if (token) {
@@ -129,10 +156,14 @@ const LeadsPage = () => {
     }
   }, [token]);
 
+
   // Set userId when user data is available
   useEffect(() => {
     if (user && user.id) {
+      console.log("Setting userId:", user.id);
       setFormData(prev => ({ ...prev, userId: user.id }));
+    } else {
+      console.log("User or user.id not available:", user);
     }
   }, [user]);
 
@@ -180,6 +211,10 @@ const LeadsPage = () => {
         const leadsArray = leadsData.leads || leadsData || [];
         const transformedLeads = transformLeadData(leadsArray);
         setLeads(transformedLeads);
+        setLastRefresh(new Date());
+        
+        // Clear selected leads when leads are refreshed to avoid stale selections
+        setSelectedLeads([]);
       } else {
         setLeads([]);
         handleLeadsError(leadsResponse);
@@ -205,7 +240,9 @@ const LeadsPage = () => {
       company: lead.customData?.["Company"] || 'N/A',
       notes: lead.customData?.["Notes"] || '',
       source: lead.leadSource?._id || 'N/A',
-      status: lead.currentStatus?._id || 'N/A'
+      status: lead.currentStatus?._id || 'N/A',
+      projectName: lead.project?.name || 'N/A',
+      LeadScore: lead.LeadScore || 0 // Set default score if undefined
     }));
   };
 
@@ -283,6 +320,72 @@ const LeadsPage = () => {
         const statusesData = await statusesResponse.json();
         setLeadStatuses(statusesData.leadStatuses || statusesData || []);
       }
+
+      // Fetch users (only for super admin)
+      if (isSuperAdmin) {
+        const usersResponse = await fetch(API_ENDPOINTS.USERS, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (usersResponse.ok) {
+          const projectsData = await usersResponse.json();
+          const projects = projectsData.projects || projectsData || [];
+          
+          // Extract all unique users from projects (owner, members, managers)
+          const allUsers = new Map();
+          
+          projects.forEach((project: any) => {
+            // Add owner
+            if (project.owner) {
+              allUsers.set(project.owner._id, {
+                _id: project.owner._id,
+                name: project.owner.name,
+                email: project.owner.email,
+                role: project.owner.role,
+                level: project.owner.level,
+                mobile: project.owner.mobile,
+                companyName: project.owner.companyName
+              });
+            }
+            
+            // Add members
+            if (project.members && Array.isArray(project.members)) {
+              project.members.forEach((member: any) => {
+                allUsers.set(member._id, {
+                  _id: member._id,
+                  name: member.name,
+                  email: member.email,
+                  role: member.role,
+                  level: member.level,
+                  mobile: member.mobile,
+                  companyName: member.companyName
+                });
+              });
+            }
+            
+            // Add managers
+            if (project.managers && Array.isArray(project.managers)) {
+              project.managers.forEach((manager: any) => {
+                allUsers.set(manager._id, {
+                  _id: manager._id,
+                  name: manager.name,
+                  email: manager.email,
+                  role: manager.role,
+                  level: manager.level,
+                  mobile: manager.mobile,
+                  companyName: manager.companyName
+                });
+              });
+            }
+          });
+          
+          // Convert Map to Array
+          const usersList = Array.from(allUsers.values());
+          setUsers(usersList);
+          console.log("Extracted users from projects:", usersList);
+        } else {
+          console.error("Failed to fetch users:", usersResponse.statusText);
+        }
+      }
       
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -355,48 +458,97 @@ const LeadsPage = () => {
       setIsSubmitting(true);
       
       if (editingLead) {
-        // Update existing lead
-        const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            projectId: formData.projectId,
-            leadSource: formData.source,
-            currentStatus: formData.status,
-            customData: {
-              "First Name": formData.name.split(' ')[0] || formData.name,
-              "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
-              "Email": formData.email,
-              "Phone": formData.phone,
-              "Notes": formData.notes,
-              ...dynamicFields // Include dynamic fields
+        // Check if status has changed - if so, use status update API
+        const statusChanged = editingLead.currentStatus?._id !== formData.status;
+        
+        if (statusChanged) {
+          // Use status update API with the format you specified
+          const statusUpdateBody = {
+            newStatus: formData.status, // new status id
+            project: formData.projectId, // Add project field
+            newData: { 
+              "First Name": formData.name.split(' ')[0] || editingLead.customData?.["First Name"] || 'N/A',
+              "Last Name": formData.name.split(' ').slice(1).join(' ') || editingLead.customData?.["Last Name"] || '',
+              "Email": formData.email || editingLead.customData?.["Email"] || editingLead.email || 'N/A',
+              "Phone": formData.phone || editingLead.customData?.["Phone"] || editingLead.phone || 'N/A',
+              "Notes": formData.notes || editingLead.customData?.["Notes"] || editingLead.notes || '',
+              "Remark": formData.remark || 'Status updated' 
+            } // form data
+          };
+          
+          console.log('Status update request:', {
+            url: `${API_BASE_URL}/api/leads/${editingLead._id}/status/`,
+            method: 'PUT',
+            body: statusUpdateBody
+          });
+          
+          const response = await fetch(`${API_BASE_URL}/api/leads/${editingLead._id}/status/`, {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
             },
-            user: formData.userId
-          }),
-        });
+            body: JSON.stringify(statusUpdateBody),
+          });
 
-        if (response.ok) {
-          setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
-          setTimeout(() => fetchLeads(), 2000);
-        } else {
-          let errorMessage = 'Failed to update lead';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorMessage;
-          } catch (parseError) {
-            errorMessage = `Update failed: ${response.status} ${response.statusText}`;
+          if (response.ok) {
+            setAlertMessage({ type: 'success', message: 'Lead status updated successfully!' });
+            handleCloseModal();
+            fetchLeads();
+          } else {
+            let errorMessage = 'Failed to update lead status';
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.message || errorMessage;
+            } catch (parseError) {
+              errorMessage = `Status update failed: ${response.status} ${response.statusText}`;
+            }
+            setAlertMessage({ type: 'error', message: errorMessage });
           }
-          setAlertMessage({ type: 'error', message: errorMessage });
+        } else {
+          // Regular lead update (no status change)
+          const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              leadSource: formData.source,
+              currentStatus: formData.status,
+              customData: {
+                "First Name": formData.name.split(' ')[0] || formData.name,
+                "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
+                "Email": formData.email,
+                "Phone": formData.phone,
+                "Notes": formData.notes,
+                ...dynamicFields // Include dynamic fields
+              },
+              userId: formData.userId
+            }),
+          });
+
+          if (response.ok) {
+            setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
+            handleCloseModal();
+            fetchLeads();
+          } else {
+            let errorMessage = 'Failed to update lead';
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.message || errorMessage;
+            } catch (parseError) {
+              errorMessage = `Update failed: ${response.status} ${response.statusText}`;
+            }
+            setAlertMessage({ type: 'error', message: errorMessage });
+          }
         }
       } else {
         // Create new lead
         const requestBody = {
-          projectId: formData.projectId,
           leadSource: formData.source,
           currentStatus: formData.status,
+          project: formData.projectId, // Add required project field
           customData: {
             "First Name": formData.name.split(' ')[0] || formData.name,
             "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
@@ -405,7 +557,7 @@ const LeadsPage = () => {
             "Notes": formData.notes,
             ...dynamicFields // Include dynamic fields
           },
-          user: formData.userId
+          userId: formData.userId
         };
         
         const response = await fetch(API_ENDPOINTS.CREATE_LEAD(formData.projectId), {
@@ -450,6 +602,222 @@ const LeadsPage = () => {
     }
   };
 
+  const handleStatusUpdate = async (leadId: string, newStatusId: string, remark: string = '') => {
+    try {
+      setIsUpdatingStatus(true);
+      
+      const requestBody = {
+        newStatus: newStatusId, // new status id
+        newData: { 
+          Remark: remark || 'Status updated' 
+        } // form data
+      };
+      
+      console.log('Status update request:', {
+        url: `${API_BASE_URL}/api/leads/${leadId}/status/`,
+        method: 'PUT',
+        body: requestBody
+      });
+      
+      const response = await fetch(`${API_BASE_URL}/api/leads/${leadId}/status/`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Status update response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      if (response.ok) {
+        setAlertMessage({ type: 'success', message: 'Lead status updated successfully!' });
+        fetchLeads(); // Refresh immediately
+        setStatusUpdateData({ newStatus: '', remark: '' });
+      } else {
+        let errorMessage = 'Failed to update lead status';
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorMessage;
+          console.log('Error response data:', errorData);
+        } catch (parseError) {
+          errorMessage = `Status updat failed: ${response.status} ${response.statusText}`;
+        }
+        setAlertMessage({ type: 'error', message: errorMessage });
+      }
+    } catch (error) {
+      console.error("Error updating lead status:", error);
+      setAlertMessage({ type: 'error', message: 'Network error: Failed to update lead status. Please check your connection.' });
+    } finally {
+      setIsUpdatingStatus(false);
+    }
+  };
+
+  // Bulk transfer functions
+  const handleSelectLead = (leadId: string) => {
+    setSelectedLeads(prev => 
+      prev.includes(leadId) 
+        ? prev.filter(id => id !== leadId)
+        : [...prev, leadId]
+    );
+  };
+
+  const handleSelectAllLeads = () => {
+    if (selectedLeads.length === filteredLeads.length) {
+      setSelectedLeads([]);
+    } else {
+      setSelectedLeads(filteredLeads.map(lead => lead._id));
+    }
+  };
+
+  const fetchUserProjects = async () => {
+    if (!token || !user?.id) return;
+    
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/user-projects/user/${user.id}`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log('User projects response:', data);
+        
+        if (data.success && data.projects) {
+          setUserProjects(data.projects);
+        } else if (data.success && Array.isArray(data)) {
+          setUserProjects(data);
+        } else {
+          // Fallback to all projects if user-specific projects not available
+          setUserProjects(projects);
+        }
+      } else {
+        console.log('User projects not available, using all projects');
+        setUserProjects(projects);
+      }
+    } catch (error) {
+      console.error('Error fetching user projects:', error);
+      // Fallback to all projects
+      setUserProjects(projects);
+    }
+  };
+
+  const handleOpenBulkTransferModal = () => {
+    setBulkTransferModal(true);
+    setSelectedProjectId('');
+    fetchUserProjects();
+  };
+
+  const handleBulkTransfer = async () => {
+    if (selectedLeads.length === 0) {
+      setAlertMessage({ type: 'error', message: 'Please select leads to transfer' });
+      return;
+    }
+
+    if (!transferToUser) {
+      setAlertMessage({ type: 'error', message: 'Please select a user to transfer to' });
+      return;
+    }
+
+    if (!selectedProjectId) {
+      setAlertMessage({ type: 'error', message: 'Please select a project for the transfer' });
+      return;
+    }
+
+    // Validate that selected leads exist in current leads
+    const validLeadIds = leads.filter(lead => selectedLeads.includes(lead._id)).map(lead => lead._id);
+    const invalidLeadIds = selectedLeads.filter(id => !leads.some(lead => lead._id === id));
+    
+    console.log('Selected leads validation:', {
+      selectedLeads,
+      validLeadIds,
+      invalidLeadIds,
+      allLeads: leads.map(l => ({ id: l._id, name: l.name }))
+    });
+
+    if (validLeadIds.length === 0) {
+      setAlertMessage({ type: 'error', message: 'No valid leads selected. Please select leads and try again.' });
+      return;
+    }
+
+    if (invalidLeadIds.length > 0) {
+      console.log('Removing invalid lead IDs from selection:', invalidLeadIds);
+      // Remove invalid IDs from selection and continue with valid ones
+      setSelectedLeads(validLeadIds);
+      setAlertMessage({ 
+        type: 'info', 
+        message: `Removed ${invalidLeadIds.length} invalid lead(s) from selection. Proceeding with ${validLeadIds.length} valid lead(s).` 
+      });
+    }
+
+    setIsTransferring(true);
+    try {
+      const requestBody = {
+        fromUser: user?.id,
+        toUser: transferToUser,
+        leadIds: validLeadIds, // Use validated lead IDs
+        projectId: selectedProjectId
+      };
+
+      console.log('Bulk transfer request:', {
+        url: `${API_BASE_URL}/api/leads/bulk-transfer`,
+        method: 'POST',
+        body: requestBody
+      });
+
+      const response = await fetch(`${API_BASE_URL}/api/leads/bulk-transfer`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify(requestBody),
+      });
+
+      console.log('Bulk transfer response:', {
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.log('Bulk transfer error data:', errorData);
+        throw new Error(errorData.message || `HTTP error! status: ${response.status}`);
+      }
+
+      const result = await response.json();
+      console.log('Bulk transfer successful:', result);
+      
+      setAlertMessage({ 
+        type: 'success', 
+        message: `Successfully transferred ${selectedLeads.length} lead(s)` 
+      });
+      
+      // Reset selection and close modal
+      setSelectedLeads([]);
+      setBulkTransferModal(false);
+      setTransferToUser('');
+      
+      // Refresh leads
+      await fetchLeads();
+      
+    } catch (error) {
+      console.error('Bulk transfer failed:', error);
+      setAlertMessage({ 
+        type: 'error', 
+        message: `Bulk transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      });
+    } finally {
+      setIsTransferring(false);
+    }
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this lead?")) return;
 
@@ -488,7 +856,8 @@ const LeadsPage = () => {
       status: lead.currentStatus?._id || '',
       notes: lead.notes || '',
       projectId: formData.projectId || '',
-      userId: formData.userId
+      userId: formData.userId,
+      remark: '' // Reset remark for new status update
     });
     
     // Populate dynamic fields from lead's customData
@@ -515,7 +884,8 @@ const LeadsPage = () => {
       status: "",
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
-      userId: formData.userId
+      userId: isSuperAdmin ? "" : formData.userId, // Reset for super admin, keep for regular users
+      remark: ""
     });
     setDynamicFields({});
   };
@@ -530,7 +900,8 @@ const LeadsPage = () => {
       status: "",
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
-      userId: formData.userId
+      userId: isSuperAdmin ? "" : formData.userId, // Reset for super admin, keep for regular users
+      remark: ""
     });
     setDynamicFields({});
     setIsModalOpen(true);
@@ -595,9 +966,36 @@ const LeadsPage = () => {
             <span className="block lg:inline lg:ml-2 text-green-600 dark:text-green-400">
               • Viewing All Leads from All Projects
             </span>
+            {lastRefresh && (
+              <span className="block lg:inline lg:ml-2 text-blue-600 dark:text-blue-400 text-xs">
+                • Last updated: {lastRefresh.toLocaleTimeString()}
+              </span>
+            )}
           </p>
         </div>
         <div className="flex gap-2 w-full lg:w-auto lg:ml-auto">
+          <Button 
+            onClick={fetchLeads} 
+            color="gray"
+            disabled={isLoadingLeads}
+            title="Refresh leads list"
+            className="w-full lg:w-auto"
+          >
+            <Icon icon="solar:refresh-line-duotone" className={`mr-2 ${isLoadingLeads ? 'animate-spin' : ''}`} />
+            Refresh
+          </Button>
+          {selectedLeads.length > 0 && (
+            <Button 
+              onClick={handleOpenBulkTransferModal} 
+              color="orange"
+              disabled={isTransferring}
+              title="Transfer selected leads"
+              className="w-full lg:w-auto"
+            >
+              <Icon icon="solar:transfer-horizontal-line-duotone" className="mr-2" />
+              Transfer ({selectedLeads.length})
+            </Button>
+          )}
           {finalPermissions.canCreateLeads && (
             <Button 
               onClick={handleAddNew} 
@@ -619,10 +1017,11 @@ const LeadsPage = () => {
         </div>
       </div>
 
+
       {/* Alert Messages */}
       {alertMessage && (
         <Alert
-          color={alertMessage.type === 'success' ? 'success' : 'failure'}
+          color={alertMessage.type === 'success' ? 'success' : alertMessage.type === 'info' ? 'info' : 'failure'}
           onDismiss={() => setAlertMessage(null)}
         >
           {alertMessage.message}
@@ -774,17 +1173,26 @@ const LeadsPage = () => {
             <div className="overflow-x-auto">
               <Table>
                 <Table.Head>
+                  <Table.HeadCell className="min-w-[50px]">
+                    <input
+                      type="checkbox"
+                      checked={selectedLeads.length === filteredLeads.length && filteredLeads.length > 0}
+                      onChange={handleSelectAllLeads}
+                      className="rounded border-gray-300"
+                    />
+                  </Table.HeadCell>
                   <Table.HeadCell className="min-w-[120px]">Name</Table.HeadCell>
                   <Table.HeadCell className="min-w-[150px]">Contact</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Source</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Status</Table.HeadCell>
+                  <Table.HeadCell className="min-w-[100px]">Project</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Created</Table.HeadCell>
                   <Table.HeadCell className="min-w-[150px]">Actions</Table.HeadCell>
                 </Table.Head>
                 <Table.Body className="divide-y">
                   {filteredLeads.length === 0 ? (
                     <Table.Row>
-                      <Table.Cell colSpan={6} className="text-center py-8">
+                      <Table.Cell colSpan={8} className="text-center py-8">
                         <div className="text-gray-500 dark:text-gray-400">
                           <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-4xl mb-2" />
                           <p>No leads found</p>
@@ -800,6 +1208,14 @@ const LeadsPage = () => {
                   ) : (
                     filteredLeads.map((lead) => (
                       <Table.Row key={lead._id} className="bg-white dark:border-gray-700 dark:bg-gray-800">
+                        <Table.Cell>
+                          <input
+                            type="checkbox"
+                            checked={selectedLeads.includes(lead._id)}
+                            onChange={() => handleSelectLead(lead._id)}
+                            className="rounded border-gray-300"
+                          />
+                        </Table.Cell>
                         <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
                           {lead.name || 'N/A'}
                         </Table.Cell>
@@ -817,6 +1233,11 @@ const LeadsPage = () => {
                         <Table.Cell>
                           <Badge color="green" size="sm">
                             {lead.currentStatus?.name || 'N/A'}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <Badge color="purple" size="sm">
+                            {lead.projectName || 'N/A'}
                           </Badge>
                         </Table.Cell>
                         <Table.Cell className="whitespace-nowrap text-gray-500 dark:text-gray-400">
@@ -900,37 +1321,37 @@ const LeadsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="name" value="Full Name *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                    <TextInput
-                      id="name"
-                      type="text"
-                      placeholder="Enter full name..."
-                      value={formData.name}
-                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                      required
+                <TextInput
+                  id="name"
+                  type="text"
+                  placeholder="Enter full name..."
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                  required
                       className="w-full"
-                    />
-                  </div>
+                />
+              </div>
                   <div className="space-y-2">
                     <Label htmlFor="email" value="Email Address" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                    <TextInput
-                      id="email"
-                      type="email"
+                <TextInput
+                  id="email"
+                  type="email"
                       placeholder="Enter email address..."
-                      value={formData.email}
-                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                  value={formData.email}
+                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full"
-                    />
-                  </div>
+                />
+              </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" value="Phone Number" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                    <TextInput
-                      id="phone"
-                      type="tel"
-                      placeholder="Enter phone number..."
-                      value={formData.phone}
-                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                <TextInput
+                  id="phone"
+                  type="tel"
+                  placeholder="Enter phone number..."
+                  value={formData.phone}
+                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="w-full"
-                    />
+                />
                   </div>
                 </div>
               </div>
@@ -946,39 +1367,39 @@ const LeadsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="source" value="Lead Source *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                    <Select
-                      id="source"
-                      value={formData.source}
-                      onChange={(e) => setFormData({ ...formData, source: e.target.value })}
-                      required
+                <Select
+                  id="source"
+                  value={formData.source}
+                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                  required
                       className="w-full"
-                    >
+                >
                       <option value="">Select lead source</option>
-                      {leadSources.map(source => (
-                        <option key={source._id} value={source._id}>
-                          {source.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
+                  {leadSources.map(source => (
+                    <option key={source._id} value={source._id}>
+                      {source.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
                   <div className="space-y-2">
                     <Label htmlFor="status" value="Lead Status *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                    <Select
-                      id="status"
-                      value={formData.status}
+                <Select
+                  id="status"
+                  value={formData.status}
                       onChange={(e) => handleStatusChange(e.target.value)}
-                      required
+                  required
                       className="w-full"
-                    >
+                >
                       <option value="">Select lead status</option>
-                      {leadStatuses.map(status => (
-                        <option key={status._id} value={status._id}>
-                          {status.name}
-                        </option>
-                      ))}
-                    </Select>
-                  </div>
-                </div>
+                  {leadStatuses.map(status => (
+                    <option key={status._id} value={status._id}>
+                      {status.name}
+                    </option>
+                  ))}
+                </Select>
+              </div>
+            </div>
               </div>
 
               {/* Project Selection Section */}
@@ -991,24 +1412,105 @@ const LeadsPage = () => {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                  <Select
-                    id="projectId"
-                    value={formData.projectId}
-                    onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
-                    required
+              <Select
+                id="projectId"
+                value={formData.projectId}
+                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                required
                     className="w-full"
-                  >
-                    <option value="">Select a project</option>
-                    {projects.map(project => (
-                      <option key={project._id} value={project._id}>
-                        {project.name}
-                      </option>
-                    ))}
-                  </Select>
+              >
+                <option value="">Select a project</option>
+                {projects.map(project => (
+                  <option key={project._id} value={project._id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
                   <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
                     <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
-                    Default project is selected, but you can change it if needed
-                  </p>
+                Default project is selected, but you can change it if needed
+              </p>
+                  
+                  {/* Debug: Show User ID (only for non-superadmin users) */}
+                  {!isSuperAdmin && (
+                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      <div className="flex items-center space-x-2">
+                        <Icon icon="solar:user-id-line-duotone" className="text-gray-500 dark:text-gray-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <strong>User ID:</strong> {formData.userId || 'Not set'}
+                        </span>
+            </div>
+                      <div className="flex items-center space-x-2 mt-1">
+                        <Icon icon="solar:user-line-duotone" className="text-gray-500 dark:text-gray-400" />
+                        <span className="text-sm text-gray-600 dark:text-gray-400">
+                          <strong>User Name:</strong> {user?.name || 'Not available'}
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Super Admin User Selection */}
+                  {isSuperAdmin && (
+                    <div className="mt-4 space-y-3">
+                      <div className="p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-lg border border-orange-200 dark:border-orange-700">
+                        <div className="flex items-center space-x-2">
+                          <Icon icon="solar:crown-line-duotone" className="text-orange-600 dark:text-orange-400" />
+                          <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
+                            <strong>Super Admin Mode:</strong> Select User for Lead Assignment
+                          </span>
+                        </div>
+                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                          As a super admin, you can assign this lead to any user
+                        </p>
+                      </div>
+                      
+                      <div className="space-y-2">
+                        <Label htmlFor="selectedUserId" value="Assign Lead To User *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                        <Select
+                          id="selectedUserId"
+                          value={formData.userId}
+                          onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
+                          required
+                          className="w-full"
+                        >
+                          <option value="">Select a user to assign this lead to</option>
+                          {users.length > 0 ? (
+                            users.map(userItem => (
+                              <option key={userItem._id} value={userItem._id}>
+                                {userItem.name} ({userItem.email}) - {userItem.role} {userItem.level ? `- Level ${userItem.level}` : ''}
+                              </option>
+                            ))
+                          ) : (
+                            <option value="" disabled>
+                              Loading users... ({users.length} users found)
+                            </option>
+                          )}
+                        </Select>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                          Choose which user this lead will be assigned to
+                        </p>
+                        <div className="text-xs text-gray-400 dark:text-gray-500">
+                          Available users: {users.length}
+                        </div>
+                        
+                        {/* Show selected user info */}
+                        {formData.userId && (
+                          <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                            <div className="flex items-center space-x-2">
+                              <Icon icon="solar:check-circle-line-duotone" className="text-green-600 dark:text-green-400" />
+                              <span className="text-sm text-green-800 dark:text-green-200">
+                                <strong>Selected User:</strong> {users.find(u => u._id === formData.userId)?.name || 'Unknown User'}
+                              </span>
+                            </div>
+                            <div className="text-xs text-green-600 dark:text-green-400 mt-1">
+                              ID: {formData.userId}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 
@@ -1103,16 +1605,37 @@ const LeadsPage = () => {
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                  <Textarea
-                    id="notes"
-                    placeholder="Enter additional notes or comments about this lead..."
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                    rows={4}
-                    className="w-full"
-                  />
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <Textarea
+                      id="notes"
+                      placeholder="Enter additional notes or comments about this lead..."
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      rows={4}
+                      className="w-full"
+                    />
+                  </div>
+                  
+                  {/* Status Update Remark - Only show when editing */}
+                  {editingLead && (
+                    <div className="space-y-2">
+                      <Label htmlFor="remark" value="Status Update Remark" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Textarea
+                        id="remark"
+                        placeholder="Enter a remark for status changes (optional)..."
+                        value={formData.remark}
+                        onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
+                        rows={3}
+                        className="w-full"
+                      />
+                      <p className="text-xs text-gray-500 dark:text-gray-400">
+                        <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                        This remark will be added to the status history when you change the lead status
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -1132,6 +1655,89 @@ const LeadsPage = () => {
           </Modal.Footer>
         </form>
       </Modal>
+
+      {/* Bulk Transfer Modal */}
+      <Modal show={bulkTransferModal} onClose={() => setBulkTransferModal(false)} size="md">
+        <Modal.Header>Transfer Leads</Modal.Header>
+        <Modal.Body>
+          <div className="space-y-4">
+            <div>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
+                Transfer {selectedLeads.length} selected lead(s) to another user
+              </p>
+            </div>
+            
+            <div>
+              <Label htmlFor="transferToUser" value="Transfer to User" />
+              <Select
+                id="transferToUser"
+                value={transferToUser}
+                onChange={(e) => setTransferToUser(e.target.value)}
+                required
+              >
+                <option value="">Select a user...</option>
+                {users.map((user) => (
+                  <option key={user._id} value={user._id}>
+                    {user.name} ({user.email})
+                  </option>
+                ))}
+              </Select>
+            </div>
+
+            <div>
+              <Label htmlFor="selectedProjectId" value="Project" />
+              <Select
+                id="selectedProjectId"
+                value={selectedProjectId}
+                onChange={(e) => setSelectedProjectId(e.target.value)}
+                required
+              >
+                <option value="">Select a project...</option>
+                {userProjects.map((project) => (
+                  <option key={project._id} value={project._id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
+              <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                Showing projects accessible to {user?.name || 'you'}
+              </p>
+            </div>
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            color="gray"
+            onClick={() => {
+              setBulkTransferModal(false);
+              setTransferToUser('');
+              setSelectedProjectId('');
+              setSelectedLeads([]); // Clear selection when modal is closed
+            }}
+            disabled={isTransferring}
+          >
+            Cancel
+          </Button>
+          <Button
+            color="orange"
+            onClick={handleBulkTransfer}
+            disabled={isTransferring || !transferToUser || !selectedProjectId}
+          >
+            {isTransferring ? (
+              <>
+                <Icon icon="solar:refresh-line-duotone" className="mr-2 animate-spin" />
+                Transferring...
+              </>
+            ) : (
+              <>
+                <Icon icon="solar:transfer-horizontal-line-duotone" className="mr-2" />
+                Transfer Leads
+              </>
+            )}
+          </Button>
+        </Modal.Footer>
+      </Modal>
+
     </div>
   );
 };

@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
+import { useRouter } from "next/navigation";
 
 interface Role {
   _id: string;
@@ -17,6 +18,7 @@ interface Role {
 
 const RolesPage = () => {
   const { token } = useAuth();
+  const router = useRouter();
   const [roles, setRoles] = useState<Role[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -87,6 +89,12 @@ const RolesPage = () => {
         alert("Failed to delete role");
       }
     }
+  };
+
+  const handleEditRole = (roleId: string) => {
+    console.log("Edit button clicked for role ID:", roleId);
+    console.log("Navigating to:", `/apps/roles/edit/${roleId}`);
+    router.push(`/apps/roles/edit/${roleId}`);
   };
 
   const getLevelBadge = (level: number) => {
@@ -194,17 +202,25 @@ const RolesPage = () => {
                   </Table.Cell>
                   <Table.Cell>
                     <div className="flex gap-2">
-                      <Link href={`/apps/roles/edit/${role._id}`}>
-                        <Button size="xs" color="info">
-                          <Icon icon="solar:pen-line-duotone" />
-                        </Button>
-                      </Link>
+                      <Button 
+                        size="xs" 
+                        color="info"
+                        className="flex items-center gap-1"
+                        title="Edit Role"
+                        onClick={() => handleEditRole(role._id)}
+                      >
+                        <Icon icon="solar:pen-line-duotone" className="w-4 h-4" />
+                        <span className="hidden sm:inline">Edit</span>
+                      </Button>
                       <Button 
                         size="xs" 
                         color="failure"
                         onClick={() => handleDeleteRole(role._id)}
+                        className="flex items-center gap-1"
+                        title="Delete Role"
                       >
-                        <Icon icon="solar:trash-bin-trash-line-duotone" />
+                        <Icon icon="solar:trash-bin-trash-line-duotone" className="w-4 h-4" />
+                        <span className="hidden sm:inline">Delete</span>
                       </Button>
                     </div>
                   </Table.Cell>
