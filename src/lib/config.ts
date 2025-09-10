@@ -51,6 +51,7 @@ export const API_ENDPOINTS = {
   CREATE_LEAD: (projectId: string) => `${API_BASE_URL}/api/leads?projectId=${projectId}`,
   UPDATE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
   DELETE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
+  BULK_TRANSFER_LEADS: `${API_BASE_URL}/api/leads/bulk-transfer`,
   LEAD_ACTIVITIES: `${API_BASE_URL}/api/lead-activities/`,
   
   // Permissions

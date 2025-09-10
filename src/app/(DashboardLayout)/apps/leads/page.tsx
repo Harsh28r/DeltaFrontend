@@ -4,7 +4,7 @@ import { Button, Card, Table, Badge, Modal, TextInput, Label, Alert, Select, Tex
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS, createRefreshEvent, API_BASE_URL } from "@/lib/config";
-import { useSearchParams } from "next/navigation";
+import { useSearchParams, useRouter } from "next/navigation";
 import { useLeadPermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/app/types/permissions";
 
@@ -87,6 +87,7 @@ interface User {
 const LeadsPage = () => {
   const { token, user } = useAuth();
   const searchParams = useSearchParams();
+  const router = useRouter();
   
   // Super admin bypass - no permission checks needed
   const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'superadmin@deltayards.com';
@@ -213,8 +214,11 @@ const LeadsPage = () => {
         setLeads(transformedLeads);
         setLastRefresh(new Date());
         
-        // Clear selected leads when leads are refreshed to avoid stale selections
-        setSelectedLeads([]);
+        // Only clear selected leads if we're not in bulk transfer mode
+        // This prevents clearing selection when refreshing for bulk transfer
+        if (!bulkTransferModal) {
+          setSelectedLeads([]);
+        }
       } else {
         setLeads([]);
         handleLeadsError(leadsResponse);
@@ -465,7 +469,6 @@ const LeadsPage = () => {
           // Use status update API with the format you specified
           const statusUpdateBody = {
             newStatus: formData.status, // new status id
-            project: formData.projectId, // Add project field
             newData: { 
               "First Name": formData.name.split(' ')[0] || editingLead.customData?.["First Name"] || 'N/A',
               "Last Name": formData.name.split(' ').slice(1).join(' ') || editingLead.customData?.["Last Name"] || '',
@@ -507,40 +510,40 @@ const LeadsPage = () => {
           }
         } else {
           // Regular lead update (no status change)
-          const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
-            method: 'PUT',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({
-              leadSource: formData.source,
-              currentStatus: formData.status,
-              customData: {
-                "First Name": formData.name.split(' ')[0] || formData.name,
-                "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
-                "Email": formData.email,
-                "Phone": formData.phone,
+        const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            leadSource: formData.source,
+            currentStatus: formData.status,
+            customData: {
+              "First Name": formData.name.split(' ')[0] || formData.name,
+              "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
+              "Email": formData.email,
+              "Phone": formData.phone,
                 "Notes": formData.notes,
                 ...dynamicFields // Include dynamic fields
-              },
+            },
               userId: formData.userId
-            }),
-          });
+          }),
+        });
 
-          if (response.ok) {
-            setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
+        if (response.ok) {
+          setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
             handleCloseModal();
             fetchLeads();
-          } else {
-            let errorMessage = 'Failed to update lead';
-            try {
-              const errorData = await response.json();
-              errorMessage = errorData.message || errorMessage;
-            } catch (parseError) {
-              errorMessage = `Update failed: ${response.status} ${response.statusText}`;
-            }
-            setAlertMessage({ type: 'error', message: errorMessage });
+        } else {
+          let errorMessage = 'Failed to update lead';
+          try {
+            const errorData = await response.json();
+            errorMessage = errorData.message || errorMessage;
+          } catch (parseError) {
+            errorMessage = `Update failed: ${response.status} ${response.statusText}`;
+          }
+          setAlertMessage({ type: 'error', message: errorMessage });
           }
         }
       } else {
@@ -674,11 +677,14 @@ const LeadsPage = () => {
     }
   };
 
-  const fetchUserProjects = async () => {
-    if (!token || !user?.id) return;
+  const fetchRecipientProjects = async (recipientUserId: string) => {
+    if (!token || !recipientUserId) return;
     
     try {
-      const response = await fetch(`${API_BASE_URL}/api/user-projects/user/${user.id}`, {
+      console.log('Fetching projects for recipient user:', recipientUserId);
+      
+      // First try the superadmin endpoint to get user with projects
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
         headers: {
           Authorization: `Bearer ${token}`,
         },
@@ -686,31 +692,92 @@ const LeadsPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('User projects response:', data);
+        console.log('Superadmin users with projects response:', data);
         
-        if (data.success && data.projects) {
-          setUserProjects(data.projects);
-        } else if (data.success && Array.isArray(data)) {
-          setUserProjects(data);
+        // Find the specific user and extract their projects
+        const users = data.users || data || [];
+        const recipientUser = users.find((u: any) => u._id === recipientUserId);
+        
+        if (recipientUser && recipientUser.projects && Array.isArray(recipientUser.projects)) {
+          console.log('Found recipient user projects:', recipientUser.projects);
+          setUserProjects(recipientUser.projects);
+          return;
+        }
+      }
+      
+      // Fallback: try to get projects from the user's assigned projects
+      const userProjectsResponse = await fetch(`${API_BASE_URL}/api/projects`, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+
+      if (userProjectsResponse.ok) {
+        const projectsData = await userProjectsResponse.json();
+        const allProjects = projectsData.projects || projectsData || [];
+        
+        // Filter projects where the user is owner, member, or manager
+        const userAssignedProjects = allProjects.filter((project: any) => {
+          const isOwner = project.owner && project.owner._id === recipientUserId;
+          const isMember = project.members && project.members.some((member: any) => member._id === recipientUserId);
+          const isManager = project.managers && project.managers.some((manager: any) => manager._id === recipientUserId);
+          
+          return isOwner || isMember || isManager;
+        });
+        
+        console.log('Filtered user assigned projects:', userAssignedProjects);
+        
+        if (userAssignedProjects.length > 0) {
+          setUserProjects(userAssignedProjects);
         } else {
-          // Fallback to all projects if user-specific projects not available
-          setUserProjects(projects);
+          // If no specific projects found, show all projects as fallback
+          console.log('No specific projects found for user, showing all projects');
+          setUserProjects(allProjects);
         }
       } else {
-        console.log('User projects not available, using all projects');
+        console.log('Failed to fetch projects, using all available projects');
         setUserProjects(projects);
       }
     } catch (error) {
-      console.error('Error fetching user projects:', error);
+      console.error('Error fetching recipient projects:', error);
       // Fallback to all projects
       setUserProjects(projects);
     }
   };
 
-  const handleOpenBulkTransferModal = () => {
+  const handleOpenBulkTransferModal = async () => {
+    // Check if leads are selected first
+    if (selectedLeads.length === 0) {
+      setAlertMessage({ type: 'error', message: 'Please select leads to transfer first.' });
+      return;
+    }
+    
     setBulkTransferModal(true);
     setSelectedProjectId('');
-    fetchUserProjects();
+    setTransferToUser('');
+    setUserProjects([]); // Clear previous projects
+    
+    // Store current selection before refresh
+    const currentSelection = [...selectedLeads];
+    console.log('Opening bulk transfer with selected leads:', currentSelection);
+    
+    // Refresh leads to ensure we have the latest data
+    console.log('Refreshing leads before bulk transfer...');
+    await fetchLeads();
+    
+    // Restore selection after refresh
+    setSelectedLeads(currentSelection);
+    console.log('Restored selection after refresh:', currentSelection);
+  };
+
+  const handleRecipientUserChange = (userId: string) => {
+    setTransferToUser(userId);
+    setSelectedProjectId(''); // Clear selected project when user changes
+    if (userId) {
+      fetchRecipientProjects(userId);
+    } else {
+      setUserProjects([]);
+    }
   };
 
   const handleBulkTransfer = async () => {
@@ -729,25 +796,73 @@ const LeadsPage = () => {
       return;
     }
 
-    // Validate that selected leads exist in current leads
-    const validLeadIds = leads.filter(lead => selectedLeads.includes(lead._id)).map(lead => lead._id);
+    // Validate that selected leads exist in current leads (no ownership restriction)
+    const selectedLeadsData = leads.filter(lead => selectedLeads.includes(lead._id));
+    const validLeadIds = selectedLeadsData.map(lead => lead._id);
     const invalidLeadIds = selectedLeads.filter(id => !leads.some(lead => lead._id === id));
+    
+    // Check if any leads are already assigned to the target user AND project
+    const alreadyAssignedLeads = selectedLeadsData.filter(lead => 
+      lead.user?._id === transferToUser && lead.project?._id === selectedProjectId
+    );
+    const alreadyAssignedLeadIds = alreadyAssignedLeads.map(lead => lead._id);
+    const transferableLeadIds = selectedLeadsData.filter(lead => 
+      !(lead.user?._id === transferToUser && lead.project?._id === selectedProjectId)
+    ).map(lead => lead._id);
     
     console.log('Selected leads validation:', {
       selectedLeads,
       validLeadIds,
       invalidLeadIds,
-      allLeads: leads.map(l => ({ id: l._id, name: l.name }))
+      alreadyAssignedLeadIds,
+      transferableLeadIds,
+      totalLeads: leads.length,
+      selectedCount: selectedLeadsData.length,
+      targetUser: transferToUser,
+      allLeads: leads.map(l => ({ id: l._id, name: l.name, userId: l.user?._id, currentUser: user?.id }))
     });
 
+    // If no valid leads found, show a more helpful error
     if (validLeadIds.length === 0) {
-      setAlertMessage({ type: 'error', message: 'No valid leads selected. Please select leads and try again.' });
+      if (selectedLeads.length === 0) {
+        setAlertMessage({ type: 'error', message: 'Please select leads to transfer first.' });
+      } else if (invalidLeadIds.length === selectedLeads.length) {
+        setAlertMessage({ 
+          type: 'error', 
+          message: 'Selected leads are no longer available. Please refresh the page and select leads again.' 
+        });
+        // Clear the invalid selection
+        setSelectedLeads([]);
+      } else {
+        setAlertMessage({ 
+          type: 'error', 
+          message: 'No valid leads found for transfer. Please check your selection and try again.' 
+        });
+      }
       return;
     }
 
+    // Check if all selected leads are already assigned to the target user AND project
+    if (alreadyAssignedLeadIds.length === selectedLeads.length) {
+      setAlertMessage({ 
+        type: 'info', 
+        message: `All selected leads are already assigned to the target user and project. No transfer needed.` 
+      });
+      return;
+    }
+
+    // If some leads are already assigned, show info message and continue with transferable ones
+    if (alreadyAssignedLeadIds.length > 0) {
+      setAlertMessage({ 
+        type: 'info', 
+        message: `Skipping ${alreadyAssignedLeadIds.length} lead(s) that are already assigned to the target user and project. Transferring ${transferableLeadIds.length} lead(s).` 
+      });
+    }
+
+
+    // If some leads are invalid, remove them and continue with valid ones
     if (invalidLeadIds.length > 0) {
       console.log('Removing invalid lead IDs from selection:', invalidLeadIds);
-      // Remove invalid IDs from selection and continue with valid ones
       setSelectedLeads(validLeadIds);
       setAlertMessage({ 
         type: 'info', 
@@ -755,22 +870,34 @@ const LeadsPage = () => {
       });
     }
 
+    // Use only transferable leads (exclude already assigned ones)
+    const finalLeadIds = transferableLeadIds.length > 0 ? transferableLeadIds : validLeadIds;
+    
+    if (finalLeadIds.length === 0) {
+      setAlertMessage({ 
+        type: 'info', 
+        message: 'No leads available for transfer after filtering.' 
+      });
+      return;
+    }
+
     setIsTransferring(true);
     try {
       const requestBody = {
         fromUser: user?.id,
         toUser: transferToUser,
-        leadIds: validLeadIds, // Use validated lead IDs
-        projectId: selectedProjectId
+        leadIds: finalLeadIds, // Use only transferable lead IDs
+        projectId: selectedProjectId // Only send projectId as per schema validation
       };
 
       console.log('Bulk transfer request:', {
-        url: `${API_BASE_URL}/api/leads/bulk-transfer`,
+        url: API_ENDPOINTS.BULK_TRANSFER_LEADS,
         method: 'POST',
-        body: requestBody
+        body: requestBody,
+        note: 'Sending projectId as per schema validation'
       });
 
-      const response = await fetch(`${API_BASE_URL}/api/leads/bulk-transfer`, {
+      const response = await fetch(API_ENDPOINTS.BULK_TRANSFER_LEADS, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -785,6 +912,13 @@ const LeadsPage = () => {
         ok: response.ok
       });
 
+      if (response.status === 404) {
+        // Bulk transfer endpoint not implemented, fallback to individual transfers
+        console.log('Bulk transfer endpoint not available, falling back to individual transfers...');
+        await transferLeadsIndividually(validLeadIds, transferToUser, selectedProjectId);
+        return;
+      }
+
       if (!response.ok) {
         const errorData = await response.json();
         console.log('Bulk transfer error data:', errorData);
@@ -796,7 +930,7 @@ const LeadsPage = () => {
       
       setAlertMessage({ 
         type: 'success', 
-        message: `Successfully transferred ${selectedLeads.length} lead(s)` 
+        message: `Successfully transferred ${validLeadIds.length} lead(s)` 
       });
       
       // Reset selection and close modal
@@ -815,6 +949,138 @@ const LeadsPage = () => {
       });
     } finally {
       setIsTransferring(false);
+    }
+  };
+
+  // Fallback function for individual lead transfers using bulk transfer API
+  const transferLeadsIndividually = async (leadIds: string[], toUser: string, projectId: string) => {
+    console.log('Starting individual lead transfers using bulk transfer API...', { leadIds, toUser, projectId });
+    
+    try {
+      // Debug: Show selected leads data
+      const selectedLeadsData = leads.filter(lead => leadIds.includes(lead._id));
+      console.log('Selected leads data:', selectedLeadsData.map(lead => ({
+        id: lead._id,
+        name: lead.name,
+        userId: lead.user?._id,
+        currentUserId: user?.id
+      })));
+
+      // Check if any leads are already assigned to the target user AND project
+      const alreadyAssignedLeads = selectedLeadsData.filter(lead => 
+        lead.user?._id === toUser && lead.project?._id === projectId
+      );
+      const transferableLeads = selectedLeadsData.filter(lead => 
+        !(lead.user?._id === toUser && lead.project?._id === projectId)
+      );
+      
+      console.log('Lead assignment check:', {
+        total: selectedLeadsData.length,
+        alreadyAssigned: alreadyAssignedLeads.length,
+        transferable: transferableLeads.length,
+        targetUser: toUser
+      });
+
+      // If all leads are already assigned, show message and return
+      if (alreadyAssignedLeads.length === selectedLeadsData.length) {
+        setAlertMessage({ 
+          type: 'info', 
+          message: `All selected leads are already assigned to the target user and project. No transfer needed.` 
+        });
+        return;
+      }
+
+      // If some leads are already assigned, show info message
+      if (alreadyAssignedLeads.length > 0) {
+        setAlertMessage({ 
+          type: 'info', 
+          message: `Skipping ${alreadyAssignedLeads.length} lead(s) that are already assigned to the target user and project. Transferring ${transferableLeads.length} lead(s).` 
+        });
+      }
+
+      // Group transferable leads by their actual owners since backend requires fromUser to match lead ownership
+      const leadsByOwner = transferableLeads.reduce((acc, lead) => {
+        const ownerId = lead.user?._id || 'unknown';
+        if (!acc[ownerId]) {
+          acc[ownerId] = [];
+        }
+        acc[ownerId].push(lead._id);
+        return acc;
+      }, {} as Record<string, string[]>);
+
+      console.log('Leads grouped by owner:', leadsByOwner);
+
+      let totalTransferred = 0;
+      let totalErrors = 0;
+      const errors: string[] = [];
+
+      // Make separate transfer requests for each owner
+      for (const [ownerId, ownerLeadIds] of Object.entries(leadsByOwner)) {
+        try {
+          const requestBody = {
+            fromUser: ownerId,
+            toUser: toUser,
+            leadIds: ownerLeadIds,
+            projectId: projectId // Only send projectId as per schema validation
+          };
+
+          console.log(`Transferring leads from owner ${ownerId}:`, requestBody);
+
+          const response = await fetch(API_ENDPOINTS.BULK_TRANSFER_LEADS, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify(requestBody),
+          });
+
+          if (response.ok) {
+            const result = await response.json();
+            totalTransferred += result.modifiedCount || ownerLeadIds.length;
+            console.log(`Successfully transferred ${ownerLeadIds.length} leads from owner ${ownerId}`);
+          } else {
+            const errorData = await response.json();
+            totalErrors += ownerLeadIds.length;
+            errors.push(`Owner ${ownerId}: ${errorData.message || 'Transfer failed'}`);
+            console.error(`Failed to transfer leads from owner ${ownerId}:`, errorData);
+          }
+        } catch (error) {
+          totalErrors += ownerLeadIds.length;
+          errors.push(`Owner ${ownerId}: ${error instanceof Error ? error.message : 'Network error'}`);
+          console.error(`Error transferring leads from owner ${ownerId}:`, error);
+        }
+      }
+
+      // Show results
+      if (totalTransferred > 0) {
+        setAlertMessage({ 
+          type: 'success', 
+          message: `Successfully transferred ${totalTransferred} lead(s)` 
+        });
+      }
+
+      if (totalErrors > 0) {
+        setAlertMessage({ 
+          type: 'error', 
+          message: `Failed to transfer ${totalErrors} lead(s). Errors: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}` 
+        });
+      }
+
+      // Reset selection and close modal
+      setSelectedLeads([]);
+      setBulkTransferModal(false);
+      setTransferToUser('');
+      
+      // Refresh leads
+      await fetchLeads();
+      
+    } catch (error) {
+      console.error('Individual transfer failed:', error);
+      setAlertMessage({ 
+        type: 'error', 
+        message: `Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      });
     }
   };
 
@@ -856,7 +1122,7 @@ const LeadsPage = () => {
       status: lead.currentStatus?._id || '',
       notes: lead.notes || '',
       projectId: formData.projectId || '',
-      userId: formData.userId,
+      userId: user?.id || '', // Always use current user's ID
       remark: '' // Reset remark for new status update
     });
     
@@ -884,7 +1150,7 @@ const LeadsPage = () => {
       status: "",
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
-      userId: isSuperAdmin ? "" : formData.userId, // Reset for super admin, keep for regular users
+      userId: user?.id || "", // Always use current user's ID
       remark: ""
     });
     setDynamicFields({});
@@ -900,7 +1166,7 @@ const LeadsPage = () => {
       status: "",
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
-      userId: isSuperAdmin ? "" : formData.userId, // Reset for super admin, keep for regular users
+      userId: user?.id || "", // Always use current user's ID
       remark: ""
     });
     setDynamicFields({});
@@ -984,18 +1250,16 @@ const LeadsPage = () => {
             <Icon icon="solar:refresh-line-duotone" className={`mr-2 ${isLoadingLeads ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          {selectedLeads.length > 0 && (
-            <Button 
-              onClick={handleOpenBulkTransferModal} 
-              color="orange"
-              disabled={isTransferring}
-              title="Transfer selected leads"
-              className="w-full lg:w-auto"
-            >
-              <Icon icon="solar:transfer-horizontal-line-duotone" className="mr-2" />
-              Transfer ({selectedLeads.length})
-            </Button>
-          )}
+          <Button 
+            onClick={handleOpenBulkTransferModal} 
+            color="orange"
+            disabled={isTransferring || selectedLeads.length === 0}
+            title={selectedLeads.length === 0 ? "Please select leads first" : "Transfer selected leads"}
+            className="w-full lg:w-auto"
+          >
+            <Icon icon="solar:transfer-horizontal-line-duotone" className="mr-2" />
+            {selectedLeads.length === 0 ? "Select Leads to Transfer" : `Transfer (${selectedLeads.length})`}
+          </Button>
           {finalPermissions.canCreateLeads && (
             <Button 
               onClick={handleAddNew} 
@@ -1100,6 +1364,21 @@ const LeadsPage = () => {
           </div>
         </Alert>
       )}
+
+      {/* Quick Tips */}
+      <Card className="bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700">
+        <div className="flex items-center gap-3">
+          <Icon icon="solar:lightbulb-line-duotone" className="text-blue-600 dark:text-blue-400 text-xl" />
+          <div>
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              💡 <strong>Quick Tip:</strong> Click on any lead name or use the "View" button to see detailed information about that lead.
+            </p>
+            <p className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+              You can also use the breadcrumb navigation to easily move between the leads list and individual lead details.
+            </p>
+          </div>
+        </div>
+      </Card>
 
       {/* Search and Filters */}
       <Card>
@@ -1207,7 +1486,14 @@ const LeadsPage = () => {
                     </Table.Row>
                   ) : (
                     filteredLeads.map((lead) => (
-                      <Table.Row key={lead._id} className="bg-white dark:border-gray-700 dark:bg-gray-800">
+                      <Table.Row 
+                        key={lead._id} 
+                        className={`bg-white dark:border-gray-700 dark:bg-gray-800 ${
+                          selectedLeads.includes(lead._id) 
+                            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700' 
+                            : ''
+                        }`}
+                      >
                         <Table.Cell>
                           <input
                             type="checkbox"
@@ -1217,7 +1503,12 @@ const LeadsPage = () => {
                           />
                         </Table.Cell>
                         <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
-                          {lead.name || 'N/A'}
+                          <button
+                            onClick={() => router.push(`/apps/leads/${lead._id}`)}
+                            className="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline transition-colors"
+                          >
+                            {lead.name || 'N/A'}
+                          </button>
                         </Table.Cell>
                         <Table.Cell>
                           <div className="text-sm">
@@ -1245,6 +1536,15 @@ const LeadsPage = () => {
                         </Table.Cell>
                         <Table.Cell>
                           <div className="flex flex-col sm:flex-row gap-2">
+                            <Button
+                              size="xs"
+                              color="primary"
+                              onClick={() => router.push(`/apps/leads/${lead._id}`)}
+                              className="text-xs"
+                            >
+                              <Icon icon="solar:eye-line-duotone" className="mr-1" />
+                              <span className="hidden sm:inline">View</span>
+                            </Button>
                             {finalPermissions.canUpdateLeads && (
                               <Button
                                 size="xs"
@@ -1271,7 +1571,7 @@ const LeadsPage = () => {
                             )}
                             {!finalPermissions.canUpdateLeads && !finalPermissions.canDeleteLeads && (
                               <Badge color="gray" size="sm">
-                                No Actions Available
+                                View Only
                               </Badge>
                             )}
                           </div>
@@ -1465,49 +1765,28 @@ const LeadsPage = () => {
                       </div>
                       
                       <div className="space-y-2">
-                        <Label htmlFor="selectedUserId" value="Assign Lead To User *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                        <Select
-                          id="selectedUserId"
-                          value={formData.userId}
-                          onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                          required
-                          className="w-full"
-                        >
-                          <option value="">Select a user to assign this lead to</option>
-                          {users.length > 0 ? (
-                            users.map(userItem => (
-                              <option key={userItem._id} value={userItem._id}>
-                                {userItem.name} ({userItem.email}) - {userItem.role} {userItem.level ? `- Level ${userItem.level}` : ''}
-                              </option>
-                            ))
-                          ) : (
-                            <option value="" disabled>
-                              Loading users... ({users.length} users found)
-                            </option>
-                          )}
-                        </Select>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
-                          Choose which user this lead will be assigned to
-                        </p>
-                        <div className="text-xs text-gray-400 dark:text-gray-500">
-                          Available users: {users.length}
+                        <Label htmlFor="currentUser" value="Current User *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                        
+                        {/* Display current user info directly */}
+                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                          <div className="flex items-center space-x-2">
+                            <Icon icon="solar:user-line-duotone" className="text-blue-600 dark:text-blue-400" />
+                            <span className="text-sm text-blue-800 dark:text-blue-200">
+                              <strong>Current User:</strong> {user?.name || 'Unknown User'}
+                            </span>
+                          </div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            Email: {user?.email || 'N/A'} | Role: {user?.role || 'N/A'}
+                          </div>
+                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
+                            User ID: {user?.id || 'N/A'}
+                          </div>
                         </div>
                         
-                        {/* Show selected user info */}
-                        {formData.userId && (
-                          <div className="mt-2 p-2 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
-                            <div className="flex items-center space-x-2">
-                              <Icon icon="solar:check-circle-line-duotone" className="text-green-600 dark:text-green-400" />
-                              <span className="text-sm text-green-800 dark:text-green-200">
-                                <strong>Selected User:</strong> {users.find(u => u._id === formData.userId)?.name || 'Unknown User'}
-                              </span>
-                            </div>
-                            <div className="text-xs text-green-600 dark:text-green-400 mt-1">
-                              ID: {formData.userId}
-                            </div>
-                          </div>
-                        )}
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                          This lead will be assigned to the current user
+                        </p>
                       </div>
                     </div>
                   )}
@@ -1608,11 +1887,11 @@ const LeadsPage = () => {
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                    <Textarea
-                      id="notes"
+              <Textarea
+                id="notes"
                       placeholder="Enter additional notes or comments about this lead..."
-                      value={formData.notes}
-                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                value={formData.notes}
+                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows={4}
                       className="w-full"
                     />
@@ -1627,7 +1906,7 @@ const LeadsPage = () => {
                         placeholder="Enter a remark for status changes (optional)..."
                         value={formData.remark}
                         onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
-                        rows={3}
+                rows={3}
                         className="w-full"
                       />
                       <p className="text-xs text-gray-500 dark:text-gray-400">
@@ -1665,6 +1944,42 @@ const LeadsPage = () => {
               <p className="text-sm text-gray-600 dark:text-gray-400 mb-2">
                 Transfer {selectedLeads.length} selected lead(s) to another user
               </p>
+              {selectedLeads.length > 0 && (
+                <div className="mt-2 p-2 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                  <p className="text-xs text-blue-600 dark:text-blue-400">
+                    <strong>Selected Leads:</strong> {selectedLeads.length} lead(s) ready for transfer
+                  </p>
+                  <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                    Total leads available: {leads.length}
+                  </p>
+                  {transferToUser && selectedProjectId && (() => {
+                    const selectedLeadsData = leads.filter(lead => selectedLeads.includes(lead._id));
+                    const alreadyAssignedCount = selectedLeadsData.filter(lead => 
+                      lead.user?._id === transferToUser && lead.project?._id === selectedProjectId
+                    ).length;
+                    const transferableCount = selectedLeadsData.filter(lead => 
+                      !(lead.user?._id === transferToUser && lead.project?._id === selectedProjectId)
+                    ).length;
+                    
+                    if (alreadyAssignedCount > 0) {
+                      return (
+                        <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-700">
+                          <p className="text-xs text-orange-700 dark:text-orange-300">
+                            <Icon icon="solar:warning-circle-line-duotone" className="inline mr-1" />
+                            <strong>Warning:</strong> {alreadyAssignedCount} of {selectedLeads.length} selected lead(s) are already assigned to this user and project and will be skipped.
+                          </p>
+                          {transferableCount > 0 && (
+                            <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
+                              Only {transferableCount} lead(s) will be transferred.
+                            </p>
+                          )}
+                        </div>
+                      );
+                    }
+                    return null;
+                  })()}
+                </div>
+              )}
             </div>
             
             <div>
@@ -1672,7 +1987,7 @@ const LeadsPage = () => {
               <Select
                 id="transferToUser"
                 value={transferToUser}
-                onChange={(e) => setTransferToUser(e.target.value)}
+                onChange={(e) => handleRecipientUserChange(e.target.value)}
                 required
               >
                 <option value="">Select a user...</option>
@@ -1691,8 +2006,16 @@ const LeadsPage = () => {
                 value={selectedProjectId}
                 onChange={(e) => setSelectedProjectId(e.target.value)}
                 required
+                disabled={!transferToUser || userProjects.length === 0}
               >
-                <option value="">Select a project...</option>
+                <option value="">
+                  {!transferToUser 
+                    ? "Select a user first..." 
+                    : userProjects.length === 0 
+                      ? "Loading projects..." 
+                      : "Select a project..."
+                  }
+                </option>
                 {userProjects.map((project) => (
                   <option key={project._id} value={project._id}>
                     {project.name}
@@ -1700,7 +2023,12 @@ const LeadsPage = () => {
                 ))}
               </Select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                Showing projects accessible to {user?.name || 'you'}
+                {!transferToUser 
+                  ? "Please select a user first to see their assigned projects"
+                  : userProjects.length === 0 
+                    ? "No projects found for this user"
+                    : `Showing ${userProjects.length} project(s) accessible to the selected user`
+                }
               </p>
             </div>
           </div>
@@ -1712,6 +2040,7 @@ const LeadsPage = () => {
               setBulkTransferModal(false);
               setTransferToUser('');
               setSelectedProjectId('');
+              setUserProjects([]); // Clear user projects
               setSelectedLeads([]); // Clear selection when modal is closed
             }}
             disabled={isTransferring}
