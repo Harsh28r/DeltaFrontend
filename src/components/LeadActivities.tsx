@@ -45,7 +45,22 @@ const LeadActivities = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setActivities(Array.isArray(data) ? data : []);
+        console.log('Activities data:', data);
+        
+        // Handle different possible response formats
+        let activitiesArray = [];
+        if (Array.isArray(data)) {
+          activitiesArray = data;
+        } else if (data && Array.isArray(data.activities)) {
+          activitiesArray = data.activities;
+        } else if (data && Array.isArray(data.data)) {
+          activitiesArray = data.data;
+        } else if (data && data.leadActivities && Array.isArray(data.leadActivities)) {
+          activitiesArray = data.leadActivities;
+        }
+        
+        console.log('Processed activities array:', activitiesArray);
+        setActivities(activitiesArray);
       } else {
         setError(`Failed to fetch activities: ${response.status} ${response.statusText}`);
       }
@@ -137,79 +152,89 @@ const LeadActivities = () => {
   const formatDetails = (activity: LeadActivity) => {
     const { action, details } = activity;
     
+    // Ensure details is an object
+    const safeDetails = details && typeof details === 'object' ? details : {};
+    
     switch (action) {
       case 'created':
-        if (details.data) {
-          const leadData = details.data;
+        if (safeDetails?.data) {
+          const leadData = safeDetails.data;
           return (
             <div className="text-sm">
-              <div><strong>Lead:</strong> {leadData.customData?.["First Name"]} {leadData.customData?.["Last Name"]}</div>
-              <div><strong>Email:</strong> {leadData.customData?.["Email"]}</div>
-              <div><strong>Phone:</strong> {leadData.customData?.["Phone"]}</div>
-              {leadData.customData?.["Notes"] && (
-                <div><strong>Notes:</strong> {leadData.customData.Notes}</div>
+              <div><strong>Lead:</strong> {String(leadData?.customData?.["First Name"] || '')} {String(leadData?.customData?.["Last Name"] || '')}</div>
+              <div><strong>Email:</strong> {String(leadData?.customData?.["Email"] || 'N/A')}</div>
+              <div><strong>Phone:</strong> {String(leadData?.customData?.["Phone"] || 'N/A')}</div>
+              {leadData?.customData?.["Notes"] && (
+                <div><strong>Notes:</strong> {String(leadData.customData.Notes)}</div>
               )}
             </div>
           );
         }
-        break;
+        return <div className="text-sm text-gray-500">No additional details</div>;
         
-      case 'transferred':
-        return (
-          <div className="text-sm">
-            <div><strong>From User:</strong> {details.fromUser}</div>
-            <div><strong>To User:</strong> {details.toUser}</div>
-            {details.projectId && <div><strong>Project:</strong> {details.projectId}</div>}
-            {details.oldProject && <div><strong>Old Project:</strong> {details.oldProject}</div>}
-            {details.newProject && <div><strong>New Project:</strong> {details.newProject}</div>}
-          </div>
-        );
-        
+   // ... existing code ...
+   case 'transferred':
+    return (
+      <div className="text-sm">
+        <div><strong>From User:</strong> {String(safeDetails?.fromUser?.name || 'N/A')} ({String(safeDetails?.fromUser?.email || 'N/A')})</div>
+        <div><strong>To User:</strong> {String(safeDetails?.toUser?.name || 'N/A')} ({String(safeDetails?.toUser?.email || 'N/A')})</div>
+        {safeDetails?.projectId && <div><strong>Project ID:</strong> {String(safeDetails.projectId)}</div>}
+        {safeDetails?.oldProject && (
+          <div><strong>Old Project:</strong> {String(safeDetails.oldProject?.name || 'N/A')} (ID: {String(safeDetails.oldProject?.id || safeDetails.oldProject?._id || 'N/A')})</div>
+        )}
+        {safeDetails?.newProject && (
+          <div><strong>New Project:</strong> {String(safeDetails.newProject?.name || 'N/A')} (ID: {String(safeDetails.newProject?.id || safeDetails.newProject?._id || 'N/A')})</div>
+        )}
+        {safeDetails?.reason && <div><strong>Reason:</strong> {String(safeDetails.reason)}</div>}
+        {safeDetails?.notes && <div><strong>Notes:</strong> {String(safeDetails.notes)}</div>}
+      </div>
+    );
+// ... existing code ...
       case 'status_changed':
         return (
           <div className="text-sm">
-            <div><strong>Old Status:</strong> {details.oldStatus}</div>
-            <div><strong>New Status:</strong> {details.newStatus}</div>
-            {details.newData && Object.keys(details.newData).length > 0 && (
-              <div><strong>New Data:</strong> {JSON.stringify(details.newData, null, 2)}</div>
+            <div><strong>Old Status:</strong> {String(safeDetails?.oldStatus || 'N/A')}</div>
+            <div><strong>New Status:</strong> {String(safeDetails?.newStatus || 'N/A')}</div>
+            {safeDetails?.newData && Object.keys(safeDetails.newData).length > 0 && (
+              <div><strong>New Data:</strong> <pre className="text-xs mt-1">{JSON.stringify(safeDetails.newData, null, 2)}</pre></div>
             )}
           </div>
         );
         
       case 'deleted':
-        if (details.data) {
-          const leadData = details.data;
+        if (safeDetails?.data) {
+          const leadData = safeDetails.data;
           return (
             <div className="text-sm">
-              <div><strong>Deleted Lead:</strong> {leadData.customData?.["First Name"]} {leadData.customData?.["Last Name"]}</div>
-              <div><strong>Email:</strong> {leadData.customData?.["Email"]}</div>
+              <div><strong>Deleted Lead:</strong> {String(leadData?.customData?.["First Name"] || '')} {String(leadData?.customData?.["Last Name"] || '')}</div>
+              <div><strong>Email:</strong> {String(leadData?.customData?.["Email"] || 'N/A')}</div>
             </div>
           );
         }
-        break;
+        return <div className="text-sm text-gray-500">No additional details</div>;
         
       case 'leadstatus_created':
       case 'leadstatus_deleted':
-        if (details.data) {
+        if (safeDetails?.data) {
           return (
             <div className="text-sm">
-              <div><strong>Status Name:</strong> {details.data.name}</div>
-              <div><strong>Final Status:</strong> {details.data.is_final_status ? 'Yes' : 'No'}</div>
+              <div><strong>Status Name:</strong> {String(safeDetails.data?.name || 'N/A')}</div>
+              <div><strong>Final Status:</strong> {safeDetails.data?.is_final_status ? 'Yes' : 'No'}</div>
             </div>
           );
         }
-        break;
+        return <div className="text-sm text-gray-500">No additional details</div>;
         
       case 'leadsource_created':
       case 'leadsource_deleted':
-        if (details.data) {
+        if (safeDetails?.data) {
           return (
             <div className="text-sm">
-              <div><strong>Source Name:</strong> {details.data.name}</div>
+              <div><strong>Source Name:</strong> {String(safeDetails.data?.name || 'N/A')}</div>
             </div>
           );
         }
-        break;
+        return <div className="text-sm text-gray-500">No additional details</div>;
     }
     
     return <div className="text-sm text-gray-500">No additional details</div>;
@@ -307,44 +332,72 @@ const LeadActivities = () => {
           </div>
         ) : (
           <Timeline>
-            {filteredActivities.map((activity, index) => (
-              <Timeline.Item key={activity._id}>
-                <Timeline.Point
-                  icon={() => (
-                    <Icon 
-                      icon={getActionIcon(activity.action)} 
-                      className="text-white"
-                    />
-                  )}
-                  color={getActionColor(activity.action)}
-                />
-                <Timeline.Content>
-                  <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 mb-2">
-                    <div className="flex items-center gap-2">
-                      <Badge color={getActionColor(activity.action)} size="sm">
-                        {formatActionText(activity.action)}
-                      </Badge>
-                      <span className="text-sm text-gray-500 dark:text-gray-400">
-                        by {activity.user.name}
-                      </span>
+            {filteredActivities.map((activity, index) => {
+              // Safety check to ensure activity is valid
+              if (!activity || typeof activity !== 'object') {
+                console.warn('Invalid activity object:', activity);
+                return null;
+              }
+              
+              // Ensure required properties exist and are valid
+              const safeActivity: LeadActivity = {
+                _id: activity._id || `activity-${index}`,
+                action: activity.action || 'unknown',
+                user: activity.user && typeof activity.user === 'object' ? {
+                  _id: activity.user._id || 'unknown',
+                  name: activity.user.name || 'Unknown User',
+                  email: activity.user.email || 'unknown@example.com'
+                } : {
+                  _id: 'unknown',
+                  name: 'Unknown User',
+                  email: 'unknown@example.com'
+                },
+                details: activity.details || {},
+                timestamp: activity.timestamp || new Date().toISOString(),
+                lead: activity.lead || null,
+                createdAt: activity.createdAt || new Date().toISOString(),
+                updatedAt: activity.updatedAt || new Date().toISOString()
+              };
+              
+              return (
+                <Timeline.Item key={safeActivity._id}>
+                  <Timeline.Point
+                    icon={() => (
+                      <Icon 
+                        icon={getActionIcon(safeActivity.action)} 
+                        className="text-white"
+                      />
+                    )}
+                    color={getActionColor(safeActivity.action)}
+                  />
+                  <Timeline.Content>
+                    <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-2 mb-2">
+                      <div className="flex items-center gap-2">
+                        <Badge color={getActionColor(safeActivity.action)} size="sm">
+                          {formatActionText(safeActivity.action)}
+                        </Badge>
+                        <span className="text-sm text-gray-500 dark:text-gray-400">
+                          by {safeActivity.user.name}
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-500 dark:text-gray-400">
+                        {new Date(safeActivity.timestamp).toLocaleString()}
+                      </div>
                     </div>
-                    <div className="text-sm text-gray-500 dark:text-gray-400">
-                      {new Date(activity.timestamp).toLocaleString()}
+                    
+                    <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                      {formatDetails(safeActivity as LeadActivity)}
                     </div>
-                  </div>
-                  
-                  <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                    {formatDetails(activity)}
-                  </div>
-                  
-                  {activity.lead && (
-                    <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-                      Lead ID: {activity.lead._id}
-                    </div>
-                  )}
-                </Timeline.Content>
-              </Timeline.Item>
-            ))}
+                    
+                    {safeActivity.lead && (
+                      <div className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+                        Lead ID: {safeActivity.lead._id || 'Unknown'}
+                      </div>
+                    )}
+                  </Timeline.Content>
+                </Timeline.Item>
+              );
+            })}
           </Timeline>
         )}
       </Card>

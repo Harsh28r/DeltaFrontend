@@ -23,6 +23,7 @@ interface LeadStatus {
   name: string;
   formFields: FormField[];
   is_final_status?: boolean;
+  is_default_status?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -39,8 +40,9 @@ const LeadManagementPage = () => {
     sourceName: "",
     // Lead Status
     statusName: "",
-    formFields: [{ name: "", type: "text", required: false }],
-    is_final_status: false
+    formFields: [{ name: "Remark", type: "text", required: true }],
+    is_final_status: false,
+    is_default_status: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -117,6 +119,18 @@ const LeadManagementPage = () => {
       }
     }
 
+    // Check if trying to create a default status when one already exists
+    if (activeTab === "status" && formData.is_default_status) {
+      const existingDefaultStatus = leadStatuses.find(status => status.is_default_status === true);
+      if (existingDefaultStatus) {
+        setAlertMessage({ 
+          type: 'error', 
+          message: `Cannot create default status. A default status already exists: "${existingDefaultStatus.name}". Only one default status is allowed.` 
+        });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
       
@@ -150,7 +164,8 @@ const LeadManagementPage = () => {
           body: JSON.stringify({
             name: formData.statusName,
             formFields: formData.formFields.filter(field => field.name.trim()),
-            is_final_status: formData.is_final_status
+            is_final_status: formData.is_final_status,
+            is_default_status: formData.is_default_status
           }),
         });
 
@@ -213,8 +228,9 @@ const LeadManagementPage = () => {
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "", type: "text", required: false }],
-      is_final_status: false
+      formFields: [{ name: "Remark", type: "text", required: true }],
+      is_final_status: false,
+      is_default_status: false
     });
   };
 
@@ -222,8 +238,9 @@ const LeadManagementPage = () => {
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "", type: "text", required: false }],
-      is_final_status: false
+      formFields: [{ name: "Remark", type: "text", required: true }],
+      is_final_status: false,
+      is_default_status: false
     });
     setIsModalOpen(true);
   };
@@ -368,7 +385,7 @@ const LeadManagementPage = () => {
             <Table.Head>
               <Table.HeadCell>Name</Table.HeadCell>
               <Table.HeadCell>Form Fields</Table.HeadCell>
-              <Table.HeadCell>Final Status</Table.HeadCell>
+              <Table.HeadCell>Type</Table.HeadCell>
               <Table.HeadCell>Actions</Table.HeadCell>
             </Table.Head>
             <Table.Body className="divide-y">
@@ -401,17 +418,26 @@ const LeadManagementPage = () => {
                       </div>
                     </Table.Cell>
                     <Table.Cell>
-                      {status.is_final_status ? (
-                        <Badge color="red" size="sm">
-                          <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
-                          Final
-                        </Badge>
-                      ) : (
-                        <Badge color="gray" size="sm">
-                          <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
-                          Active
-                        </Badge>
-                      )}
+                      <div className="flex flex-wrap gap-1">
+                        {status.is_final_status && (
+                          <Badge color="red" size="sm">
+                            <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
+                            Final
+                          </Badge>
+                        )}
+                        {status.is_default_status && (
+                          <Badge color="blue" size="sm">
+                            <Icon icon="solar:star-line-duotone" className="mr-1" />
+                            Default
+                          </Badge>
+                        )}
+                        {!status.is_final_status && !status.is_default_status && (
+                          <Badge color="gray" size="sm">
+                            <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
+                            Active
+                          </Badge>
+                        )}
+                      </div>
                     </Table.Cell>
                     <Table.Cell>
                       <Button
@@ -529,6 +555,37 @@ const LeadManagementPage = () => {
                   ) : (
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Check if this is a final status (e.g., Closed Won, Closed Lost)
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <input
+                      type="checkbox"
+                      id="is_default_status"
+                      checked={formData.is_default_status}
+                      onChange={(e) => setFormData({ ...formData, is_default_status: e.target.checked })}
+                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
+                      disabled={leadStatuses.some(status => status.is_default_status === true)}
+                    />
+                    <Label htmlFor="is_default_status" value="Default Status" />
+                  </div>
+                  {leadStatuses.some(status => status.is_default_status === true) ? (
+                    <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                      <Icon icon="solar:danger-triangle-line-duotone" className="text-blue-600 dark:text-blue-400 text-lg" />
+                      <div>
+                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                          Default Status Already Exists
+                        </p>
+                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                          Only one default status is allowed. Current default status: "{leadStatuses.find(s => s.is_default_status)?.name}"
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Check if this should be the default status for new leads
                     </p>
                   )}
                 </div>

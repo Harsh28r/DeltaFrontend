@@ -130,7 +130,13 @@ const LeadsPage = () => {
     notes: "",
     projectId: "", // Will be empty until user selects
     userId: "",
-    remark: "" // For status updates
+    remark: "", // For status updates
+    leadPriority: "",
+    propertyType: "",
+    configuration: "",
+    fundingMode: "",
+    gender: "",
+    budget: ""
   });
   
   // Dynamic form fields based on selected status
@@ -524,8 +530,14 @@ const LeadsPage = () => {
               "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
               "Email": formData.email,
               "Phone": formData.phone,
-                "Notes": formData.notes,
-                ...dynamicFields // Include dynamic fields
+              "Notes": formData.notes,
+              "Lead Priority": formData.leadPriority,
+              "Property Type": formData.propertyType,
+              "Configuration": formData.configuration,
+              "Funding Mode": formData.fundingMode,
+              "Gender": formData.gender,
+              "Budget": formData.budget,
+              ...dynamicFields // Include dynamic fields
             },
               userId: formData.userId
           }),
@@ -558,6 +570,12 @@ const LeadsPage = () => {
             "Email": formData.email,
             "Phone": formData.phone,
             "Notes": formData.notes,
+            "Lead Priority": formData.leadPriority,
+            "Property Type": formData.propertyType,
+            "Configuration": formData.configuration,
+            "Funding Mode": formData.fundingMode,
+            "Gender": formData.gender,
+            "Budget": formData.budget,
             ...dynamicFields // Include dynamic fields
           },
           userId: formData.userId
@@ -1123,7 +1141,13 @@ const LeadsPage = () => {
       notes: lead.notes || '',
       projectId: formData.projectId || '',
       userId: user?.id || '', // Always use current user's ID
-      remark: '' // Reset remark for new status update
+      remark: '', // Reset remark for new status update
+      leadPriority: lead.customData?.["Lead Priority"] || '',
+      propertyType: lead.customData?.["Property Type"] || '',
+      configuration: lead.customData?.["Configuration"] || '',
+      fundingMode: lead.customData?.["Funding Mode"] || '',
+      gender: lead.customData?.["Gender"] || '',
+      budget: lead.customData?.["Budget"] || ''
     });
     
     // Populate dynamic fields from lead's customData
@@ -1151,7 +1175,13 @@ const LeadsPage = () => {
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: user?.id || "", // Always use current user's ID
-      remark: ""
+      remark: "",
+      leadPriority: "",
+      propertyType: "",
+      configuration: "",
+      fundingMode: "",
+      gender: "",
+      budget: ""
     });
     setDynamicFields({});
   };
@@ -1167,7 +1197,13 @@ const LeadsPage = () => {
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: user?.id || "", // Always use current user's ID
-      remark: ""
+      remark: "",
+      leadPriority: "",
+      propertyType: "",
+      configuration: "",
+      fundingMode: "",
+      gender: "",
+      budget: ""
     });
     setDynamicFields({});
     setIsModalOpen(true);
@@ -1554,7 +1590,7 @@ const LeadsPage = () => {
                                 disabled={finalPermissions.permissionsLoading}
                               >
                                 <Icon icon="solar:pen-line-duotone" className="mr-1" />
-                                <span className="hidden sm:inline">Edit</span>
+                                <span className="hidden sm:inline">change status</span>
                               </Button>
                             )}
                             {finalPermissions.canDeleteLeads && (
@@ -1655,6 +1691,8 @@ const LeadsPage = () => {
                   </div>
                 </div>
               </div>
+
+
 
               {/* Lead Details Section */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -1875,6 +1913,126 @@ const LeadsPage = () => {
                   </div>
                 </div>
               )}
+
+              {/* Additional Lead Information */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-indigo-100 dark:bg-indigo-900/20 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:settings-line-duotone" className="text-indigo-600 dark:text-indigo-400 text-xl" />
+                  </div>
+                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Lead Information</h3>
+                </div>
+                <div className="space-y-6">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="leadPriority" value="Lead Priority" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="leadPriority"
+                        value={formData.leadPriority}
+                        onChange={(e) => setFormData({ ...formData, leadPriority: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select Priority</option>
+                        <option value="Hot">Hot</option>
+                        <option value="Cold">Cold</option>
+                        <option value="Warm">Warm</option>
+                        
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="propertyType" value="Property Type" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="propertyType"
+                        value={formData.propertyType}
+                        onChange={(e) => setFormData({ ...formData, propertyType: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select Property Type</option>
+                        <option value="residential">Residential</option>
+                        
+                       
+                        <option value="Commercial">Commercial</option>
+                       
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="configuration" value="Configuration" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="configuration"
+                        value={formData.configuration}
+                        onChange={(e) => setFormData({ ...formData, configuration: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select Configuration</option>
+                        <option value="1 BHK">1 BHK</option>
+                        <option value="2 BHK">2 BHK</option>
+                        <option value="3 BHK">3 BHK</option>
+                        <option value="2+1 BHK">2+1 BHK</option>
+                        <option value="2+2 BHK">2+2 BHK</option>
+                        <option value="commercial office">Commercial Office</option>
+                        <option value="unknown">Unknown</option>
+                      
+                        <option value="Duplex">Duplex</option>
+                       
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="fundingMode" value="Funding Mode" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="fundingMode"
+                        value={formData.fundingMode}
+                        onChange={(e) => setFormData({ ...formData, fundingMode: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select Funding Mode</option>
+                        <option value="Self Funded">Self Funded</option>
+                        <option value="sale out property">Sale Out Property</option>
+                        <option value="loan">Loan</option>
+                        <option value="self loan">Self Loan</option>
+                        
+                        
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-2">
+                      <Label htmlFor="gender" value="Gender" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="gender"
+                        value={formData.gender}
+                        onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select Gender</option>
+                        <option value="Male">Male</option>
+                        <option value="Female">Female</option>
+                        
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="budget" value="Budget" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="budget"
+                        value={formData.budget}
+                        onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select Budget Range</option>
+                        <option value="25-50 Lakhs">25-50 Lakhs</option>
+                        <option value="50 Lakhs - 1 Crore">50 Lakhs - 1 Crore</option>
+                        <option value="1-2 Crores">1-2 Crores</option>
+                        <option value="2-5 Crores">2-5 Crores</option>
+                        <option value="Above 5 Crores">Above 5 Crores</option>
+                        <option value="Not Specified">Not Specified</option>
+                      </Select>
+                    </div>
+                  </div>
+                </div>
+              </div>
 
               {/* Notes Section */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
