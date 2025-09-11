@@ -17,12 +17,16 @@ interface FormField {
   name: string;
   type: string;
   required: boolean;
+  options: string[];
+  _id: string;
 }
 
 interface LeadStatus {
   _id: string;
   name: string;
   formFields: FormField[];
+  is_default_status?: boolean; // Optional default field from API
+  is_final_status?: boolean; // Optional final status field from API
 }
 
 interface Lead {
@@ -198,7 +202,13 @@ const LeadsPage = () => {
     
     // Initialize dynamic fields based on status requirements
     requiredFields.forEach(field => {
-      newDynamicFields[field.name] = formData[field.name as keyof typeof formData] || "";
+      if (field.type === 'checkbox') {
+        // Initialize checkbox fields as empty arrays
+        newDynamicFields[field.name] = [];
+      } else {
+        // Initialize other fields as empty strings
+        newDynamicFields[field.name] = formData[field.name as keyof typeof formData] || "";
+      }
     });
     
     setDynamicFields(newDynamicFields);
@@ -328,7 +338,43 @@ const LeadsPage = () => {
       });
       if (statusesResponse.ok) {
         const statusesData = await statusesResponse.json();
-        setLeadStatuses(statusesData.leadStatuses || statusesData || []);
+        const statuses = statusesData.leadStatuses || statusesData || [];
+        setLeadStatuses(statuses);
+        
+        // Set default status (check for default field, then "New", then first status)
+        if (statuses.length > 0 && !formData.status) {
+          console.log('Available statuses:', statuses.map((s: LeadStatus) => ({ 
+            name: s.name, 
+            id: s._id, 
+            is_default_status: (s as any).is_default_status,
+            isDefault: (s as any).is_default_status === true 
+          })));
+          
+          const defaultStatus = statuses.find((status: LeadStatus) => 
+            (status as any).is_default_status === true
+          ) || statuses.find((status: LeadStatus) => 
+            status.name.toLowerCase() === 'new'
+          ) || statuses[0]; // Fallback to first status if no default found
+          
+          console.log('Selected default status:', {
+            name: defaultStatus?.name,
+            id: defaultStatus?._id,
+            isFromDefaultField: (defaultStatus as any)?.is_default_status === true,
+            isFromNewName: defaultStatus?.name?.toLowerCase() === 'new',
+            isFirstStatus: statuses[0] === defaultStatus
+          });
+          
+          setFormData(prev => ({ ...prev, status: defaultStatus._id }));
+          
+          // Also populate dynamic fields for the default status
+          if (defaultStatus.formFields && defaultStatus.formFields.length > 0) {
+            const newDynamicFields: {[key: string]: any} = {};
+            defaultStatus.formFields.forEach((field: FormField) => {
+              newDynamicFields[field.name] = '';
+            });
+            setDynamicFields(newDynamicFields);
+          }
+        }
       }
 
       // Fetch users (only for super admin)
@@ -481,7 +527,14 @@ const LeadsPage = () => {
               "Email": formData.email || editingLead.customData?.["Email"] || editingLead.email || 'N/A',
               "Phone": formData.phone || editingLead.customData?.["Phone"] || editingLead.phone || 'N/A',
               "Notes": formData.notes || editingLead.customData?.["Notes"] || editingLead.notes || '',
-              "Remark": formData.remark || 'Status updated' 
+              "Lead Priority": formData.leadPriority || editingLead.customData?.["Lead Priority"] || '',
+              "Property Type": formData.propertyType || editingLead.customData?.["Property Type"] || '',
+              "Configuration": formData.configuration || editingLead.customData?.["Configuration"] || '',
+              "Funding Mode": formData.fundingMode || editingLead.customData?.["Funding Mode"] || '',
+              "Gender": formData.gender || editingLead.customData?.["Gender"] || '',
+              "Budget": formData.budget || editingLead.customData?.["Budget"] || '',
+              "Remark": formData.remark || 'Status updated',
+              ...dynamicFields // Include dynamic fields
             } // form data
           };
           
@@ -490,6 +543,7 @@ const LeadsPage = () => {
             method: 'PUT',
             body: statusUpdateBody
           });
+          console.log('Dynamic fields being sent:', dynamicFields);
           
           const response = await fetch(`${API_BASE_URL}/api/leads/${editingLead._id}/status/`, {
             method: 'PUT',
@@ -581,6 +635,11 @@ const LeadsPage = () => {
           userId: formData.userId
         };
         
+        console.log('Creating new lead with dynamic fields:', {
+          dynamicFields,
+          requestBody
+        });
+        
         const response = await fetch(API_ENDPOINTS.CREATE_LEAD(formData.projectId), {
           method: 'POST',
           headers: {
@@ -627,10 +686,32 @@ const LeadsPage = () => {
     try {
       setIsUpdatingStatus(true);
       
+      // Find the lead to get its current data
+      const currentLead = leads.find(lead => lead._id === leadId);
+      
       const requestBody = {
         newStatus: newStatusId, // new status id
         newData: { 
-          Remark: remark || 'Status updated' 
+          "First Name": currentLead?.customData?.["First Name"] || '',
+          "Last Name": currentLead?.customData?.["Last Name"] || '',
+          "Email": currentLead?.customData?.["Email"] || '',
+          "Phone": currentLead?.customData?.["Phone"] || '',
+          "Company": currentLead?.customData?.["Company"] || '',
+          "Notes": currentLead?.customData?.["Notes"] || '',
+          "Lead Priority": currentLead?.customData?.["Lead Priority"] || '',
+          "Property Type": currentLead?.customData?.["Property Type"] || '',
+          "Configuration": currentLead?.customData?.["Configuration"] || '',
+          "Funding Mode": currentLead?.customData?.["Funding Mode"] || '',
+          "Gender": currentLead?.customData?.["Gender"] || '',
+          "Budget": currentLead?.customData?.["Budget"] || '',
+          "Remark": remark || 'Status updated',
+          // Include all dynamic fields from current lead's customData
+          ...Object.keys(currentLead?.customData || {}).reduce((acc, key) => {
+            if (!["First Name", "Last Name", "Email", "Phone", "Company", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget"].includes(key)) {
+              acc[key] = currentLead?.customData?.[key];
+            }
+            return acc;
+          }, {} as any)
         } // form data
       };
       
@@ -901,11 +982,16 @@ const LeadsPage = () => {
 
     setIsTransferring(true);
     try {
+      // Get the old project information from the first lead being transferred
+      const firstLead = leads.find(lead => finalLeadIds.includes(lead._id));
+      const oldProjectId = firstLead?.project?._id;
+      
       const requestBody = {
         fromUser: user?.id,
         toUser: transferToUser,
         leadIds: finalLeadIds, // Use only transferable lead IDs
-        projectId: selectedProjectId // Only send projectId as per schema validation
+        projectId: selectedProjectId, // New project ID
+        oldProjectId: oldProjectId // Old project ID for activity tracking
       };
 
       console.log('Bulk transfer request:', {
@@ -1035,11 +1121,16 @@ const LeadsPage = () => {
       // Make separate transfer requests for each owner
       for (const [ownerId, ownerLeadIds] of Object.entries(leadsByOwner)) {
         try {
+          // Get the old project information from the first lead being transferred
+          const firstLead = leads.find(lead => ownerLeadIds.includes(lead._id));
+          const oldProjectId = firstLead?.project?._id;
+          
           const requestBody = {
             fromUser: ownerId,
             toUser: toUser,
             leadIds: ownerLeadIds,
-            projectId: projectId // Only send projectId as per schema validation
+            projectId: projectId, // New project ID
+            oldProjectId: oldProjectId // Old project ID for activity tracking
           };
 
           console.log(`Transferring leads from owner ${ownerId}:`, requestBody);
@@ -1155,7 +1246,14 @@ const LeadsPage = () => {
     if (lead.currentStatus?._id) {
       const requiredFields = getRequiredFieldsForStatus(lead.currentStatus._id);
       requiredFields.forEach(field => {
-        newDynamicFields[field.name] = lead.customData?.[field.name] || '';
+        if (field.type === 'checkbox') {
+          // Initialize checkbox fields as arrays
+          const existingValue = lead.customData?.[field.name];
+          newDynamicFields[field.name] = Array.isArray(existingValue) ? existingValue : [];
+        } else {
+          // Initialize other fields as strings
+          newDynamicFields[field.name] = lead.customData?.[field.name] || '';
+        }
       });
     }
     setDynamicFields(newDynamicFields);
@@ -1166,12 +1264,34 @@ const LeadsPage = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingLead(null);
+    
+    // Find default status (check for default field, then "New", then first status)
+    const defaultStatus = leadStatuses.find((status: LeadStatus) => 
+      (status as any).is_default_status === true
+    ) || leadStatuses.find((status: LeadStatus) => 
+      status.name.toLowerCase() === 'new'
+    ) || leadStatuses[0];
+    
+    // Initialize dynamic fields for default status
+    const newDynamicFields: {[key: string]: any} = {};
+    if (defaultStatus && defaultStatus.formFields && defaultStatus.formFields.length > 0) {
+      defaultStatus.formFields.forEach((field: FormField) => {
+        if (field.type === 'checkbox') {
+          // Initialize checkbox fields as empty arrays
+          newDynamicFields[field.name] = [];
+        } else {
+          // Initialize other fields as empty strings
+          newDynamicFields[field.name] = '';
+        }
+      });
+    }
+    
     setFormData({
       name: "",
       email: "",
       phone: "",
       source: "",
-      status: "",
+      status: defaultStatus?._id || "", // Set default status
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: user?.id || "", // Always use current user's ID
@@ -1183,17 +1303,54 @@ const LeadsPage = () => {
       gender: "",
       budget: ""
     });
-    setDynamicFields({});
+    setDynamicFields(newDynamicFields);
   };
 
   const handleAddNew = () => {
     setEditingLead(null);
+    
+    // Find default status (check for default field, then "New", then first status)
+    console.log('handleAddNew - Available statuses:', leadStatuses.map((s: LeadStatus) => ({ 
+      name: s.name, 
+      id: s._id, 
+      is_default_status: (s as any).is_default_status,
+      isDefault: (s as any).is_default_status === true 
+    })));
+    
+    const defaultStatus = leadStatuses.find((status: LeadStatus) => 
+      (status as any).is_default_status === true
+    ) || leadStatuses.find((status: LeadStatus) => 
+      status.name.toLowerCase() === 'new'
+    ) || leadStatuses[0];
+    
+    console.log('handleAddNew - Selected default status:', {
+      name: defaultStatus?.name,
+      id: defaultStatus?._id,
+      isFromDefaultField: (defaultStatus as any)?.is_default_status === true,
+      isFromNewName: defaultStatus?.name?.toLowerCase() === 'new',
+      isFirstStatus: leadStatuses[0] === defaultStatus
+    });
+    
+    // Initialize dynamic fields for default status
+    const newDynamicFields: {[key: string]: any} = {};
+    if (defaultStatus && defaultStatus.formFields && defaultStatus.formFields.length > 0) {
+      defaultStatus.formFields.forEach((field: FormField) => {
+        if (field.type === 'checkbox') {
+          // Initialize checkbox fields as empty arrays
+          newDynamicFields[field.name] = [];
+        } else {
+          // Initialize other fields as empty strings
+          newDynamicFields[field.name] = '';
+        }
+      });
+    }
+    
     setFormData({
       name: "",
       email: "",
       phone: "",
       source: "",
-      status: "",
+      status: defaultStatus?._id || "", // Set default status
       notes: "",
       projectId: projects.length > 0 ? projects[0]._id : "", // Use default project
       userId: user?.id || "", // Always use current user's ID
@@ -1205,7 +1362,7 @@ const LeadsPage = () => {
       gender: "",
       budget: ""
     });
-    setDynamicFields({});
+    setDynamicFields(newDynamicFields);
     setIsModalOpen(true);
   };
 
@@ -1639,7 +1796,7 @@ const LeadsPage = () => {
       )}
 
       {/* Add/Edit Modal */}
-      <Modal show={isModalOpen && projects.length > 0} onClose={handleCloseModal} size="xl">
+      <Modal show={isModalOpen && projects.length > 0} onClose={handleCloseModal} size="6xl">
         <Modal.Header>
           {editingLead ? 'Edit Lead' : 'Add New Lead'}
         </Modal.Header>
@@ -1736,6 +1893,18 @@ const LeadsPage = () => {
                     </option>
                   ))}
                 </Select>
+                {formData.status && (
+                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
+                    {(() => {
+                      const selectedStatus = leadStatuses.find(s => s._id === formData.status);
+                      const isDefaultField = selectedStatus && (selectedStatus as any).is_default_status === true;
+                      return isDefaultField 
+                        ? `Default status selected: ${selectedStatus?.name}` 
+                        : `Status selected: ${selectedStatus?.name}`;
+                    })()}
+                  </p>
+                )}
               </div>
             </div>
               </div>
@@ -1887,6 +2056,26 @@ const LeadsPage = () => {
                             required={field.required}
                             className="w-full"
                           />
+                        ) : field.type === 'number' ? (
+                          <TextInput
+                            id={field.name}
+                            type="number"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          />
+                        ) : field.type === 'date' ? (
+                          <TextInput
+                            id={field.name}
+                            type="date"
+                            placeholder={`Enter ${field.name.toLowerCase()}...`}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          />
                         ) : field.type === 'textarea' ? (
                           <Textarea
                             id={field.name}
@@ -1897,6 +2086,60 @@ const LeadsPage = () => {
                             required={field.required}
                             className="w-full"
                           />
+                        ) : field.type === 'select' && field.options && field.options.length > 0 ? (
+                          <Select
+                            id={field.name}
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                            required={field.required}
+                            className="w-full"
+                          >
+                            <option value="">Select {field.name}</option>
+                            {field.options.map((option: string, index: number) => (
+                              <option key={index} value={option}>
+                                {option}
+                              </option>
+                            ))}
+                          </Select>
+                        ) : field.type === 'checkbox' && field.options && field.options.length > 0 ? (
+                          <div className="space-y-2">
+                            {field.options.map((option: string, index: number) => {
+                              const currentValues = dynamicFields[field.name] || [];
+                              const isChecked = Array.isArray(currentValues) 
+                                ? currentValues.includes(option)
+                                : currentValues === option;
+                              
+                              return (
+                                <div key={index} className="flex items-center">
+                                  <input
+                                    type="checkbox"
+                                    id={`${field.name}_${index}`}
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const currentValues = dynamicFields[field.name] || [];
+                                      let newValues;
+                                      
+                                      if (Array.isArray(currentValues)) {
+                                        if (e.target.checked) {
+                                          newValues = [...currentValues, option];
+                                        } else {
+                                          newValues = currentValues.filter((v: string) => v !== option);
+                                        }
+                                      } else {
+                                        newValues = e.target.checked ? [option] : [];
+                                      }
+                                      
+                                      setDynamicFields(prev => ({ ...prev, [field.name]: newValues }));
+                                    }}
+                                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                  />
+                                  <label htmlFor={`${field.name}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                    {option}
+                                  </label>
+                                </div>
+                              );
+                            })}
+                          </div>
                         ) : (
                           <TextInput
                             id={field.name}

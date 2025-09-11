@@ -16,6 +16,7 @@ interface FormField {
   name: string;
   type: string;
   required: boolean;
+  options: string[];
 }
 
 interface LeadStatus {
@@ -28,6 +29,14 @@ interface LeadStatus {
   updatedAt?: string;
 }
 
+interface FormData {
+  sourceName: string;
+  statusName: string;
+  formFields: FormField[];
+  is_final_status: boolean;
+  is_default_status: boolean;
+}
+
 const LeadManagementPage = () => {
   const { token } = useAuth();
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
@@ -35,12 +44,13 @@ const LeadManagementPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("source");
-  const [formData, setFormData] = useState({
+  const [editingItem, setEditingItem] = useState<{ type: 'source' | 'status', id: string, data: any } | null>(null);
+  const [formData, setFormData] = useState<FormData>({
     // Lead Source
     sourceName: "",
     // Lead Status
     statusName: "",
-    formFields: [{ name: "Remark", type: "text", required: true }],
+    formFields: [{ name: "Remark", type: "text", required: true, options: [] }],
     is_final_status: false,
     is_default_status: false
   });
@@ -109,7 +119,7 @@ const LeadManagementPage = () => {
 
     // Check if trying to create a final status when one already exists
     if (activeTab === "status" && formData.is_final_status) {
-      const existingFinalStatus = leadStatuses.find(status => status.is_final_status === true);
+      const existingFinalStatus = leadStatuses.find(status => status.is_final_status === true && status._id !== editingItem?.id);
       if (existingFinalStatus) {
         setAlertMessage({ 
           type: 'error', 
@@ -121,7 +131,7 @@ const LeadManagementPage = () => {
 
     // Check if trying to create a default status when one already exists
     if (activeTab === "status" && formData.is_default_status) {
-      const existingDefaultStatus = leadStatuses.find(status => status.is_default_status === true);
+      const existingDefaultStatus = leadStatuses.find(status => status.is_default_status === true && status._id !== editingItem?.id);
       if (existingDefaultStatus) {
         setAlertMessage({ 
           type: 'error', 
@@ -135,47 +145,96 @@ const LeadManagementPage = () => {
       setIsSubmitting(true);
       
       if (activeTab === "source") {
-        // Create lead source
-        const response = await fetch(API_ENDPOINTS.CREATE_LEAD_SOURCE, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ name: formData.sourceName }),
-        });
+        if (editingItem) {
+          // Update lead source
+          const response = await fetch(API_ENDPOINTS.UPDATE_LEAD_SOURCE(editingItem.id), {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ name: formData.sourceName }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setLeadSources(prev => prev.map(source => 
+            source._id === editingItem.id ? data.leadSource || data : source
+          ));
+          setAlertMessage({ type: 'success', message: 'Lead source updated successfully!' });
+        } else {
+          // Create lead source
+          const response = await fetch(API_ENDPOINTS.CREATE_LEAD_SOURCE, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ name: formData.sourceName }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setLeadSources(prev => [...prev, data.leadSource || data]);
+          setAlertMessage({ type: 'success', message: 'Lead source created successfully!' });
         }
-
-        const data = await response.json();
-        setLeadSources(prev => [...prev, data.leadSource || data]);
-        setAlertMessage({ type: 'success', message: 'Lead source created successfully!' });
         
       } else {
-        // Create lead status
-        const response = await fetch(API_ENDPOINTS.CREATE_LEAD_STATUS, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            name: formData.statusName,
-            formFields: formData.formFields.filter(field => field.name.trim()),
-            is_final_status: formData.is_final_status,
-            is_default_status: formData.is_default_status
-          }),
-        });
+        if (editingItem) {
+          // Update lead status
+          const response = await fetch(API_ENDPOINTS.UPDATE_LEAD_STATUS(editingItem.id), {
+            method: "PUT",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              name: formData.statusName,
+              formFields: formData.formFields.filter(field => field.name.trim()),
+              is_final_status: formData.is_final_status,
+              is_default_status: formData.is_default_status
+            }),
+          });
 
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setLeadStatuses(prev => prev.map(status => 
+            status._id === editingItem.id ? data.leadStatus || data : status
+          ));
+          setAlertMessage({ type: 'success', message: 'Lead status updated successfully!' });
+        } else {
+          // Create lead status
+          const response = await fetch(API_ENDPOINTS.CREATE_LEAD_STATUS, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              name: formData.statusName,
+              formFields: formData.formFields.filter(field => field.name.trim()),
+              is_final_status: formData.is_final_status,
+              is_default_status: formData.is_default_status
+            }),
+          });
+
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+
+          const data = await response.json();
+          setLeadStatuses(prev => [...prev, data.leadStatus || data]);
+          setAlertMessage({ type: 'success', message: 'Lead status created successfully!' });
         }
-
-        const data = await response.json();
-        setLeadStatuses(prev => [...prev, data.leadStatus || data]);
-        setAlertMessage({ type: 'success', message: 'Lead status created successfully!' });
       }
 
       createRefreshEvent();
@@ -225,30 +284,57 @@ const LeadManagementPage = () => {
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
+    setEditingItem(null);
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "Remark", type: "text", required: true }],
+      formFields: [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
       is_final_status: false,
       is_default_status: false
     });
   };
 
   const handleAddNew = () => {
+    setEditingItem(null);
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "Remark", type: "text", required: true }],
+      formFields: [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
       is_final_status: false,
       is_default_status: false
     });
     setIsModalOpen(true);
   };
 
+  const handleEdit = (type: 'source' | 'status', item: any) => {
+    setEditingItem({ type, id: item._id, data: item });
+    setActiveTab(type);
+    
+    if (type === 'source') {
+      setFormData({
+        sourceName: item.name,
+        statusName: "",
+        formFields: [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
+        is_final_status: false,
+        is_default_status: false
+      });
+    } else {
+      setFormData({
+        sourceName: "",
+        statusName: item.name,
+        formFields: item.formFields || [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
+        is_final_status: item.is_final_status || false,
+        is_default_status: item.is_default_status || false
+      });
+    }
+    
+    setIsModalOpen(true);
+  };
+
   const addFormField = () => {
     setFormData(prev => ({
       ...prev,
-      formFields: [...prev.formFields, { name: "", type: "text", required: false }]
+      formFields: [...prev.formFields, { name: "", type: "text", required: false, options: [] as string[] }]
     }));
   };
 
@@ -266,6 +352,44 @@ const LeadManagementPage = () => {
       ...prev,
       formFields: prev.formFields.map((f, i) => 
         i === index ? { ...f, ...field } : f
+      )
+    }));
+  };
+
+  const addOption = (fieldIndex: number) => {
+    setFormData(prev => ({
+      ...prev,
+      formFields: prev.formFields.map((field, i) => 
+        i === fieldIndex 
+          ? { ...field, options: [...field.options, ""] }
+          : field
+      )
+    }));
+  };
+
+  const removeOption = (fieldIndex: number, optionIndex: number) => {
+    setFormData(prev => ({
+      ...prev,
+      formFields: prev.formFields.map((field, i) => 
+        i === fieldIndex 
+          ? { ...field, options: field.options.filter((_, idx) => idx !== optionIndex) }
+          : field
+      )
+    }));
+  };
+
+  const updateOption = (fieldIndex: number, optionIndex: number, value: string) => {
+    setFormData(prev => ({
+      ...prev,
+      formFields: prev.formFields.map((field, i) => 
+        i === fieldIndex 
+          ? { 
+              ...field, 
+              options: field.options.map((opt, idx) => 
+                idx === optionIndex ? value : opt
+              )
+            }
+          : field
       )
     }));
   };
@@ -323,7 +447,7 @@ const LeadManagementPage = () => {
       </div>
 
       {/* Combined Tables */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         {/* Lead Sources Table */}
         <Card>
           <div className="flex items-center justify-between mb-4">
@@ -332,45 +456,61 @@ const LeadManagementPage = () => {
               {leadSources.length} Source{leadSources.length !== 1 ? 's' : ''}
             </Badge>
           </div>
-          <Table>
-            <Table.Head>
-              <Table.HeadCell>Name</Table.HeadCell>
-              <Table.HeadCell>Created</Table.HeadCell>
-              <Table.HeadCell>Actions</Table.HeadCell>
-            </Table.Head>
-            <Table.Body className="divide-y">
-              {leadSources.length === 0 ? (
-                <Table.Row>
-                  <Table.Cell colSpan={3} className="text-center py-4">
-                    <div className="text-gray-500 dark:text-gray-400 text-sm">
-                      No lead sources found
-                    </div>
-                  </Table.Cell>
-                </Table.Row>
-              ) : (
-                leadSources.map((source) => (
-                  <Table.Row key={source._id} className="bg-white dark:border-gray-700 dark:bg-gray-800">
-                    <Table.Cell className="font-medium text-gray-900 dark:text-white">
-                      {source.name}
-                    </Table.Cell>
-                    <Table.Cell className="text-gray-500 dark:text-gray-400">
-                      {new Date(source.createdAt).toLocaleDateString()}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Button
-                        size="sm"
-                        color="failure"
-                        onClick={() => handleDelete('source', source._id)}
-                      >
-                        <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
-                        Delete
-                      </Button>
+          <div className="overflow-x-auto">
+            <Table>
+              <Table.Head>
+                <Table.HeadCell>Name</Table.HeadCell>
+                <Table.HeadCell>Created</Table.HeadCell>
+                <Table.HeadCell>Actions</Table.HeadCell>
+              </Table.Head>
+              <Table.Body className="divide-y">
+                {leadSources.length === 0 ? (
+                  <Table.Row>
+                    <Table.Cell colSpan={3} className="text-center py-8">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-2xl mb-2" />
+                        <p>No lead sources found</p>
+                      </div>
                     </Table.Cell>
                   </Table.Row>
-                ))
-              )}
-            </Table.Body>
-          </Table>
+                ) : (
+                  leadSources.map((source) => (
+                    <Table.Row key={source._id} className="bg-white dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <Table.Cell className="font-medium text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="solar:target-line-duotone" className="text-blue-500" />
+                          {source.name}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell className="text-gray-500 dark:text-gray-400">
+                        {new Date(source.createdAt).toLocaleDateString()}
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            color="info"
+                            onClick={() => handleEdit('source', source)}
+                          >
+                            <Icon icon="solar:pen-line-duotone" className="mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            color="failure"
+                            onClick={() => handleDelete('source', source._id)}
+                          >
+                            <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))
+                )}
+              </Table.Body>
+            </Table>
+          </div>
         </Card>
 
         {/* Lead Statuses Table */}
@@ -381,86 +521,175 @@ const LeadManagementPage = () => {
               {leadStatuses.length} Status{leadStatuses.length !== 1 ? 'es' : ''}
             </Badge>
           </div>
-          <Table>
-            <Table.Head>
-              <Table.HeadCell>Name</Table.HeadCell>
-              <Table.HeadCell>Form Fields</Table.HeadCell>
-              <Table.HeadCell>Type</Table.HeadCell>
-              <Table.HeadCell>Actions</Table.HeadCell>
-            </Table.Head>
-            <Table.Body className="divide-y">
-              {leadStatuses.length === 0 ? (
-                <Table.Row>
-                  <Table.Cell colSpan={4} className="text-center py-4">
-                    <div className="text-gray-500 dark:text-gray-400 text-sm">
-                      No lead statuses found
-                    </div>
-                  </Table.Cell>
-                </Table.Row>
-              ) : (
-                leadStatuses.map((status) => (
-                  <Table.Row key={status._id} className="bg-white dark:border-gray-700 dark:bg-gray-800">
-                    <Table.Cell className="font-medium text-gray-900 dark:text-white">
-                      {status.name}
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="space-y-1">
-                        {status.formFields.map((field, index) => (
-                          <div key={index} className="flex items-center gap-2">
-                            <Badge color="info" size="sm">
-                              {field.name}
-                            </Badge>
-                            <span className="text-xs text-gray-500 dark:text-gray-400">
-                              {field.type} {field.required && '(Required)'}
-                            </span>
-                          </div>
-                        ))}
+          <div className="overflow-x-auto">
+            <Table>
+              <Table.Head>
+                <Table.HeadCell>Name</Table.HeadCell>
+                <Table.HeadCell>Form Fields</Table.HeadCell>
+                <Table.HeadCell>Type</Table.HeadCell>
+                <Table.HeadCell>Actions</Table.HeadCell>
+              </Table.Head>
+              <Table.Body className="divide-y">
+                {leadStatuses.length === 0 ? (
+                  <Table.Row>
+                    <Table.Cell colSpan={4} className="text-center py-8">
+                      <div className="text-gray-500 dark:text-gray-400">
+                        <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-2xl mb-2" />
+                        <p>No lead statuses found</p>
                       </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <div className="flex flex-wrap gap-1">
-                        {status.is_final_status && (
-                          <Badge color="red" size="sm">
-                            <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
-                            Final
-                          </Badge>
-                        )}
-                        {status.is_default_status && (
-                          <Badge color="blue" size="sm">
-                            <Icon icon="solar:star-line-duotone" className="mr-1" />
-                            Default
-                          </Badge>
-                        )}
-                        {!status.is_final_status && !status.is_default_status && (
-                          <Badge color="gray" size="sm">
-                            <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
-                            Active
-                          </Badge>
-                        )}
-                      </div>
-                    </Table.Cell>
-                    <Table.Cell>
-                      <Button
-                        size="sm"
-                        color="failure"
-                        onClick={() => handleDelete('status', status._id)}
-                      >
-                        <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
-                        Delete
-                      </Button>
                     </Table.Cell>
                   </Table.Row>
-                ))
-              )}
-            </Table.Body>
-          </Table>
+                ) : (
+                  leadStatuses.map((status) => (
+                    <Table.Row key={status._id} className="bg-white dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                      <Table.Cell className="font-medium text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="solar:clipboard-list-line-duotone" className="text-green-500" />
+                          {status.name}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="space-y-2 max-w-xs">
+                          {status.formFields.map((field, index) => (
+                            <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg p-2">
+                              <div className="flex items-center gap-2 mb-1">
+                                <Badge color="info" size="sm">
+                                  {field.name}
+                                </Badge>
+                                <span className="text-xs text-gray-500 dark:text-gray-400">
+                                  {field.type} {field.required && '(Required)'}
+                                </span>
+                              </div>
+                              
+                            {/* Show options for select fields */}
+                            {field.type === 'select' && field.options && field.options.length > 0 && (
+                              <div className="mt-2">
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Options:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {field.options.map((option, optionIndex) => (
+                                    <span 
+                                      key={optionIndex}
+                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
+                                    >
+                                      {option}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                            {/* Show options for checkbox fields */}
+                            {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+                              <div className="mt-2">
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Checkbox Options:</div>
+                                <div className="flex flex-wrap gap-1">
+                                  {field.options.map((option, optionIndex) => (
+                                    <span 
+                                      key={optionIndex}
+                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
+                                    >
+                                      ☑ {option}
+                                    </span>
+                                  ))}
+                                </div>
+                              </div>
+                            )}
+
+                              {/* Show field type specific details */}
+                              {field.type === 'checkbox' && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  ✓ Checkbox field
+                                </div>
+                              )}
+                              
+                              {field.type === 'date' && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  📅 Date picker field
+                                </div>
+                              )}
+
+                              {field.type === 'textarea' && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  📝 Multi-line text field
+                                </div>
+                              )}
+
+                              {field.type === 'email' && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  ✉️ Email validation
+                                </div>
+                              )}
+
+                              {field.type === 'phone' && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  📞 Phone number field
+                                </div>
+                              )}
+
+                              {field.type === 'number' && (
+                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
+                                  🔢 Numeric input only
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex flex-wrap gap-1">
+                          {status.is_final_status && (
+                            <Badge color="red" size="sm">
+                              <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
+                              Final
+                            </Badge>
+                          )}
+                          {status.is_default_status && (
+                            <Badge color="blue" size="sm">
+                              <Icon icon="solar:star-line-duotone" className="mr-1" />
+                              Default
+                            </Badge>
+                          )}
+                          {!status.is_final_status && !status.is_default_status && (
+                            <Badge color="gray" size="sm">
+                              <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
+                              Active
+                            </Badge>
+                          )}
+                        </div>
+                      </Table.Cell>
+                      <Table.Cell>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            color="info"
+                            onClick={() => handleEdit('status', status)}
+                          >
+                            <Icon icon="solar:pen-line-duotone" className="mr-1" />
+                            Edit
+                          </Button>
+                          <Button
+                            size="sm"
+                            color="failure"
+                            onClick={() => handleDelete('status', status._id)}
+                          >
+                            <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
+                            Delete
+                          </Button>
+                        </div>
+                      </Table.Cell>
+                    </Table.Row>
+                  ))
+                )}
+              </Table.Body>
+            </Table>
+          </div>
         </Card>
       </div>
 
       {/* Combined Add/Edit Modal */}
       <Modal show={isModalOpen} onClose={handleCloseModal} size="2xl">
         <Modal.Header>
-          Add New Lead Source or Status
+          {editingItem ? `Edit ${editingItem.type === 'source' ? 'Lead Source' : 'Lead Status'}` : 'Add New Lead Source or Status'}
         </Modal.Header>
         <form onSubmit={handleSubmit}>
           <Modal.Body>
@@ -604,49 +833,149 @@ const LeadManagementPage = () => {
                     </Button>
                   </div>
                   
-                  <div className="space-y-3">
+                  <div className="space-y-4">
                     {formData.formFields.map((field, index) => (
-                      <div key={index} className="flex gap-2 items-start">
-                        <div className="flex-1">
-                          <TextInput
-                            placeholder="Field name (e.g., Remark, Budget, Timeline)..."
-                            value={field.name}
-                            onChange={(e) => updateFormField(index, { name: e.target.value })}
-                            required={activeTab === "status"}
-                          />
+                      <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
+                        <div className="flex gap-2 items-start mb-3">
+                          <div className="flex-1">
+                            <TextInput
+                              placeholder="Field name (e.g., Remark, Budget, Timeline)..."
+                              value={field.name}
+                              onChange={(e) => updateFormField(index, { name: e.target.value })}
+                              required={activeTab === "status"}
+                            />
+                          </div>
+                          <div className="w-32">
+                            <Select
+                              value={field.type}
+                              onChange={(e) => updateFormField(index, { type: e.target.value })}
+                            >
+                              {fieldTypes.map(type => (
+                                <option key={type.value} value={type.value}>
+                                  {type.label}
+                                </option>
+                              ))}
+                            </Select>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <input
+                              type="checkbox"
+                              id={`required-${index}`}
+                              checked={field.required}
+                              onChange={(e) => updateFormField(index, { required: e.target.checked })}
+                              className="rounded border-gray-300 text-primary focus:ring-primary"
+                            />
+                            <Label htmlFor={`required-${index}`} value="Required" />
+                          </div>
+                          {formData.formFields.length > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              color="failure"
+                              onClick={() => removeFormField(index)}
+                            >
+                              <Icon icon="solar:trash-bin-trash-line-duotone" />
+                            </Button>
+                          )}
                         </div>
-                        <div className="w-32">
-                          <Select
-                            value={field.type}
-                            onChange={(e) => updateFormField(index, { type: e.target.value })}
-                          >
-                            {fieldTypes.map(type => (
-                              <option key={type.value} value={type.value}>
-                                {type.label}
-                              </option>
-                            ))}
-                          </Select>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <input
-                            type="checkbox"
-                            id={`required-${index}`}
-                            checked={field.required}
-                            onChange={(e) => updateFormField(index, { required: e.target.checked })}
-                            className="rounded border-gray-300 text-primary focus:ring-primary"
-                          />
-                          <Label htmlFor={`required-${index}`} value="Required" />
-                        </div>
-                        {formData.formFields.length > 1 && (
-                          <Button
-                            type="button"
-                            size="sm"
-                            color="failure"
-                            onClick={() => removeFormField(index)}
-                          >
-                            <Icon icon="solar:trash-bin-trash-line-duotone" />
-                          </Button>
+
+                        {/* Options for Select fields */}
+                        {field.type === 'select' && (
+                          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label value="Select Options" className="text-sm font-medium" />
+                              <Button
+                                type="button"
+                                size="sm"
+                                color="gray"
+                                onClick={() => addOption(index)}
+                              >
+                                <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
+                                Add Option
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              {(field.options || []).map((option, optionIndex) => (
+                                <div key={optionIndex} className="flex gap-2 items-center">
+                                  <TextInput
+                                    placeholder="Option value (e.g., Yes, No, Maybe)..."
+                                    value={option}
+                                    onChange={(e) => updateOption(index, optionIndex, e.target.value)}
+                                    className="flex-1"
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    color="failure"
+                                    onClick={() => removeOption(index, optionIndex)}
+                                  >
+                                    <Icon icon="solar:trash-bin-trash-line-duotone" />
+                                  </Button>
+                                </div>
+                              ))}
+                              {(!field.options || field.options.length === 0) && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  No options added yet. Click "Add Option" to add choices for this select field.
+                                </p>
+                              )}
+                            </div>
+                          </div>
                         )}
+
+                        {/* Checkbox Options */}
+                        {field.type === 'checkbox' && (
+                          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                            <div className="flex items-center justify-between mb-2">
+                              <Label value="Checkbox Options" className="text-sm font-medium" />
+                              <Button
+                                type="button"
+                                size="sm"
+                                color="gray"
+                                onClick={() => addOption(index)}
+                              >
+                                <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
+                                Add Option
+                              </Button>
+                            </div>
+                            <div className="space-y-2">
+                              {(field.options || []).map((option, optionIndex) => (
+                                <div key={optionIndex} className="flex gap-2 items-center">
+                                  <TextInput
+                                    placeholder="Checkbox option (e.g., Agree to Terms, Newsletter, etc.)..."
+                                    value={option}
+                                    onChange={(e) => updateOption(index, optionIndex, e.target.value)}
+                                    className="flex-1"
+                                  />
+                                  <Button
+                                    type="button"
+                                    size="sm"
+                                    color="failure"
+                                    onClick={() => removeOption(index, optionIndex)}
+                                  >
+                                    <Icon icon="solar:trash-bin-trash-line-duotone" />
+                                  </Button>
+                                </div>
+                              ))}
+                              {(!field.options || field.options.length === 0) && (
+                                <p className="text-sm text-gray-500 dark:text-gray-400">
+                                  No checkbox options added yet. Click "Add Option" to add choices for this checkbox field.
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Preview of field type */}
+                        <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-700 dark:text-blue-300">
+                          <strong>Preview:</strong> {field.name || 'Field Name'} ({field.type})
+                          {field.type === 'select' && field.options && field.options.length > 0 && (
+                            <span> - Options: {field.options.join(', ')}</span>
+                          )}
+                          {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+                            <span> - Checkbox Options: {field.options.join(', ')}</span>
+                          )}
+                          {field.required && <span className="text-red-500 ml-1">(Required)</span>}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -664,7 +993,7 @@ const LeadManagementPage = () => {
               ) : (
                 <Icon icon="solar:check-circle-line-duotone" className="mr-2" />
               )}
-              Create {activeTab === "source" ? "Lead Source" : "Lead Status"}
+              {editingItem ? 'Update' : 'Create'} {activeTab === "source" ? "Lead Source" : "Lead Status"}
             </Button>
             <Button color="gray" onClick={handleCloseModal}>
               Cancel
