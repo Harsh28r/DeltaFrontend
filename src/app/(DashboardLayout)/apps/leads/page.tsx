@@ -35,6 +35,7 @@ interface Lead {
     _id: string;
     name: string;
     email: string;
+    role?: string;
   } | null;
   leadSource?: {
     _id: string;
@@ -123,6 +124,9 @@ const LeadsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterDateFrom, setFilterDateFrom] = useState<string>("");
+  const [filterDateTo, setFilterDateTo] = useState<string>("");
+  const [datePreset, setDatePreset] = useState<string>("custom");
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [formData, setFormData] = useState({
@@ -1366,13 +1370,85 @@ const LeadsPage = () => {
     setIsModalOpen(true);
   };
 
+  const handleDatePresetChange = (preset: string) => {
+    setDatePreset(preset);
+    const today = new Date();
+    
+    switch (preset) {
+      case "today":
+        const todayStr = today.toISOString().split('T')[0];
+        setFilterDateFrom(todayStr);
+        setFilterDateTo(todayStr);
+        break;
+      case "yesterday":
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        const yesterdayStr = yesterday.toISOString().split('T')[0];
+        setFilterDateFrom(yesterdayStr);
+        setFilterDateTo(yesterdayStr);
+        break;
+      case "thisWeek":
+        const startOfWeek = new Date(today);
+        startOfWeek.setDate(today.getDate() - today.getDay());
+        const endOfWeek = new Date(today);
+        endOfWeek.setDate(today.getDate() + (6 - today.getDay()));
+        setFilterDateFrom(startOfWeek.toISOString().split('T')[0]);
+        setFilterDateTo(endOfWeek.toISOString().split('T')[0]);
+        break;
+      case "lastWeek":
+        const lastWeekStart = new Date(today);
+        lastWeekStart.setDate(today.getDate() - today.getDay() - 7);
+        const lastWeekEnd = new Date(today);
+        lastWeekEnd.setDate(today.getDate() - today.getDay() - 1);
+        setFilterDateFrom(lastWeekStart.toISOString().split('T')[0]);
+        setFilterDateTo(lastWeekEnd.toISOString().split('T')[0]);
+        break;
+      case "thisMonth":
+        const startOfMonth = new Date(today.getFullYear(), today.getMonth(), 1);
+        const endOfMonth = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+        setFilterDateFrom(startOfMonth.toISOString().split('T')[0]);
+        setFilterDateTo(endOfMonth.toISOString().split('T')[0]);
+        break;
+      case "lastMonth":
+        const lastMonthStart = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(today.getFullYear(), today.getMonth(), 0);
+        setFilterDateFrom(lastMonthStart.toISOString().split('T')[0]);
+        setFilterDateTo(lastMonthEnd.toISOString().split('T')[0]);
+        break;
+      case "clear":
+        setFilterDateFrom("");
+        setFilterDateTo("");
+        break;
+      default:
+        // Custom - don't change dates
+        break;
+    }
+  };
+
   const filteredLeads = leads.filter(lead => {
     const matchesSearch = 
       (lead.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesSource = filterSource === "all" || lead.leadSource?._id === filterSource;
     const matchesStatus = filterStatus === "all" || lead.currentStatus?._id === filterStatus;
-    return matchesSearch && matchesSource && matchesStatus;
+    
+    // Date filtering
+    let matchesDate = true;
+    if (filterDateFrom || filterDateTo) {
+      const leadDate = new Date(lead.createdAt);
+      if (filterDateFrom) {
+        const fromDate = new Date(filterDateFrom);
+        fromDate.setHours(0, 0, 0, 0);
+        matchesDate = matchesDate && leadDate >= fromDate;
+      }
+      if (filterDateTo) {
+        const toDate = new Date(filterDateTo);
+        toDate.setHours(23, 59, 59, 999);
+        matchesDate = matchesDate && leadDate <= toDate;
+      }
+    }
+    
+    return matchesSearch && matchesSource && matchesStatus && matchesDate;
   });
 
   if (isLoading || finalPermissions.permissionsLoading) {
@@ -1575,7 +1651,7 @@ const LeadsPage = () => {
 
       {/* Search and Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 lg:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 lg:gap-4">
           <div>
             <TextInput
               placeholder="Search leads..."
@@ -1625,6 +1701,58 @@ const LeadsPage = () => {
               ))}
             </Select>
           </div>
+          <div>
+            <TextInput
+              type="date"
+              value={filterDateFrom}
+              onChange={(e) => setFilterDateFrom(e.target.value)}
+              placeholder="From Date"
+              disabled={projects.length === 0}
+            />
+            <p className="text-sm text-gray-500 mt-1">From Date</p>
+          </div>
+          <div>
+            <TextInput
+              type="date"
+              value={filterDateTo}
+              onChange={(e) => setFilterDateTo(e.target.value)}
+              placeholder="To Date"
+              disabled={projects.length === 0}
+            />
+            <p className="text-sm text-gray-500 mt-1">To Date</p>
+          </div>
+          <div>
+            <Select
+              value={datePreset}
+              onChange={(e) => handleDatePresetChange(e.target.value)}
+              disabled={projects.length === 0}
+            >
+              <option value="custom">Custom Range</option>
+              <option value="today">Today</option>
+              <option value="yesterday">Yesterday</option>
+              <option value="thisWeek">This Week</option>
+              <option value="lastWeek">Last Week</option>
+              <option value="thisMonth">This Month</option>
+              <option value="lastMonth">Last Month</option>
+              <option value="clear">Clear All</option>
+            </Select>
+            <p className="text-sm text-gray-500 mt-1">Quick Filters</p>
+          </div>
+          <div>
+            <Button
+              color="gray"
+              onClick={() => {
+                setFilterDateFrom("");
+                setFilterDateTo("");
+                setDatePreset("custom");
+              }}
+              disabled={projects.length === 0}
+              className="w-full"
+            >
+              <Icon icon="solar:refresh-line-duotone" className="mr-2" />
+              Clear Dates
+            </Button>
+          </div>
           <div className="flex items-center">
             <Badge color="info" size="lg">
               {filteredLeads.length} Lead{filteredLeads.length !== 1 ? 's' : ''}
@@ -1658,13 +1786,14 @@ const LeadsPage = () => {
                   <Table.HeadCell className="min-w-[100px]">Source</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Status</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Project</Table.HeadCell>
+                  <Table.HeadCell className="min-w-[140px]">Assigned To</Table.HeadCell>
                   <Table.HeadCell className="min-w-[100px]">Created</Table.HeadCell>
                   <Table.HeadCell className="min-w-[150px]">Actions</Table.HeadCell>
                 </Table.Head>
                 <Table.Body className="divide-y">
                   {filteredLeads.length === 0 ? (
                     <Table.Row>
-                      <Table.Cell colSpan={8} className="text-center py-8">
+                      <Table.Cell colSpan={9} className="text-center py-8">
                         <div className="text-gray-500 dark:text-gray-400">
                           <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-4xl mb-2" />
                           <p>No leads found</p>
@@ -1723,6 +1852,23 @@ const LeadsPage = () => {
                           <Badge color="purple" size="sm">
                             {lead.projectName || 'N/A'}
                           </Badge>
+                        </Table.Cell>
+                        <Table.Cell>
+                          <div className="text-sm">
+                            <div className="font-medium text-gray-900 dark:text-white">
+                              {lead.user?.name || 'Unassigned'}
+                            </div>
+                            <div className="text-gray-500 dark:text-gray-400 text-xs">
+                              {lead.user?.email || ''}
+                            </div>
+                            {lead.user?.role && (
+                              <div className="mt-1">
+                                <Badge color="blue" size="xs">
+                                  {lead.user.role}
+                                </Badge>
+                              </div>
+                            )}
+                          </div>
                         </Table.Cell>
                         <Table.Cell className="whitespace-nowrap text-gray-500 dark:text-gray-400">
                           {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A'}
@@ -1798,7 +1944,7 @@ const LeadsPage = () => {
       {/* Add/Edit Modal */}
       <Modal show={isModalOpen && projects.length > 0} onClose={handleCloseModal} size="6xl">
         <Modal.Header>
-          {editingLead ? 'Edit Lead' : 'Add New Lead'}
+          {editingLead ? 'change status' : 'Add New Lead'}
         </Modal.Header>
         <form onSubmit={handleSubmit}>
           <Modal.Body className="max-h-[80vh] overflow-y-auto">
@@ -1822,6 +1968,7 @@ const LeadsPage = () => {
                   onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                   required
                       className="w-full"
+                      disabled={!!editingLead}
                 />
               </div>
                   <div className="space-y-2">
@@ -1833,6 +1980,7 @@ const LeadsPage = () => {
                   value={formData.email}
                   onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full"
+                      disabled={!!editingLead}
                 />
               </div>
                   <div className="space-y-2">
@@ -1844,6 +1992,7 @@ const LeadsPage = () => {
                   value={formData.phone}
                   onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="w-full"
+                      disabled={!!editingLead}
                 />
                   </div>
                 </div>
@@ -1868,6 +2017,7 @@ const LeadsPage = () => {
                   onChange={(e) => setFormData({ ...formData, source: e.target.value })}
                   required
                       className="w-full"
+                      disabled={!!editingLead}
                 >
                       <option value="">Select lead source</option>
                   {leadSources.map(source => (
@@ -1925,6 +2075,7 @@ const LeadsPage = () => {
                 onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
                 required
                     className="w-full"
+                    disabled={!!editingLead}
               >
                 <option value="">Select a project</option>
                 {projects.map(project => (
@@ -1939,64 +2090,9 @@ const LeadsPage = () => {
               </p>
                   
                   {/* Debug: Show User ID (only for non-superadmin users) */}
-                  {!isSuperAdmin && (
-                    <div className="mt-4 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                      <div className="flex items-center space-x-2">
-                        <Icon icon="solar:user-id-line-duotone" className="text-gray-500 dark:text-gray-400" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          <strong>User ID:</strong> {formData.userId || 'Not set'}
-                        </span>
-            </div>
-                      <div className="flex items-center space-x-2 mt-1">
-                        <Icon icon="solar:user-line-duotone" className="text-gray-500 dark:text-gray-400" />
-                        <span className="text-sm text-gray-600 dark:text-gray-400">
-                          <strong>User Name:</strong> {user?.name || 'Not available'}
-                        </span>
-                      </div>
-                    </div>
-                  )}
                   
                   {/* Super Admin User Selection */}
-                  {isSuperAdmin && (
-                    <div className="mt-4 space-y-3">
-                      <div className="p-3 bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/20 dark:to-red-900/20 rounded-lg border border-orange-200 dark:border-orange-700">
-                        <div className="flex items-center space-x-2">
-                          <Icon icon="solar:crown-line-duotone" className="text-orange-600 dark:text-orange-400" />
-                          <span className="text-sm font-medium text-orange-800 dark:text-orange-200">
-                            <strong>Super Admin Mode:</strong> Select User for Lead Assignment
-                          </span>
-                        </div>
-                        <p className="text-xs text-orange-600 dark:text-orange-400 mt-1">
-                          As a super admin, you can assign this lead to any user
-                        </p>
-                      </div>
-                      
-                      <div className="space-y-2">
-                        <Label htmlFor="currentUser" value="Current User *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                        
-                        {/* Display current user info directly */}
-                        <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                          <div className="flex items-center space-x-2">
-                            <Icon icon="solar:user-line-duotone" className="text-blue-600 dark:text-blue-400" />
-                            <span className="text-sm text-blue-800 dark:text-blue-200">
-                              <strong>Current User:</strong> {user?.name || 'Unknown User'}
-                            </span>
-                          </div>
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            Email: {user?.email || 'N/A'} | Role: {user?.role || 'N/A'}
-                          </div>
-                          <div className="text-xs text-blue-600 dark:text-blue-400 mt-1">
-                            User ID: {user?.id || 'N/A'}
-                          </div>
-                        </div>
-                        
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
-                          This lead will be assigned to the current user
-                        </p>
-                      </div>
-                    </div>
-                  )}
+               
                 </div>
               </div>
 
@@ -2168,12 +2264,14 @@ const LeadsPage = () => {
                 <div className="space-y-6">
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="leadPriority" value="Lead Priority" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Label htmlFor="leadPriority" value="Lead Priority *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
                         id="leadPriority"
                         value={formData.leadPriority}
                         onChange={(e) => setFormData({ ...formData, leadPriority: e.target.value })}
                         className="w-full"
+                        required
+                        disabled={!!editingLead}
                       >
                         <option value="">Select Priority</option>
                         <option value="Hot">Hot</option>
@@ -2183,12 +2281,14 @@ const LeadsPage = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="propertyType" value="Property Type" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Label htmlFor="propertyType" value="Property Type *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
                         id="propertyType"
                         value={formData.propertyType}
                         onChange={(e) => setFormData({ ...formData, propertyType: e.target.value })}
                         className="w-full"
+                        required
+                        disabled={!!editingLead}
                       >
                         <option value="">Select Property Type</option>
                         <option value="residential">Residential</option>
@@ -2202,12 +2302,14 @@ const LeadsPage = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="configuration" value="Configuration" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Label htmlFor="configuration" value="Configuration *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
                         id="configuration"
                         value={formData.configuration}
                         onChange={(e) => setFormData({ ...formData, configuration: e.target.value })}
                         className="w-full"
+                        required
+                        disabled={!!editingLead}
                       >
                         <option value="">Select Configuration</option>
                         <option value="1 BHK">1 BHK</option>
@@ -2223,12 +2325,14 @@ const LeadsPage = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="fundingMode" value="Funding Mode" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Label htmlFor="fundingMode" value="Funding Mode *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
                         id="fundingMode"
                         value={formData.fundingMode}
                         onChange={(e) => setFormData({ ...formData, fundingMode: e.target.value })}
                         className="w-full"
+                        required
+                        disabled={!!editingLead}
                       >
                         <option value="">Select Funding Mode</option>
                         <option value="Self Funded">Self Funded</option>
@@ -2243,12 +2347,14 @@ const LeadsPage = () => {
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     <div className="space-y-2">
-                      <Label htmlFor="gender" value="Gender" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Label htmlFor="gender" value="Gender *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
                         id="gender"
                         value={formData.gender}
                         onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
                         className="w-full"
+                        required
+                        disabled={!!editingLead}
                       >
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
@@ -2257,12 +2363,14 @@ const LeadsPage = () => {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="budget" value="Budget" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Label htmlFor="budget" value="Budget *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
                         id="budget"
                         value={formData.budget}
                         onChange={(e) => setFormData({ ...formData, budget: e.target.value })}
                         className="w-full"
+                        required
+                        disabled={!!editingLead}
                       >
                         <option value="">Select Budget Range</option>
                         <option value="25-50 Lakhs">25-50 Lakhs</option>
@@ -2279,12 +2387,12 @@ const LeadsPage = () => {
 
               {/* Notes Section */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex items-center mb-6">
+                {/* <div className="flex items-center mb-6">
                   <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
                     <Icon icon="solar:notes-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
                   </div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
-                </div>
+                </div> */}
                 <div className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
@@ -2295,27 +2403,11 @@ const LeadsPage = () => {
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows={4}
                       className="w-full"
+                      
                     />
                   </div>
                   
-                  {/* Status Update Remark - Only show when editing */}
-                  {editingLead && (
-                    <div className="space-y-2">
-                      <Label htmlFor="remark" value="Status Update Remark" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                      <Textarea
-                        id="remark"
-                        placeholder="Enter a remark for status changes (optional)..."
-                        value={formData.remark}
-                        onChange={(e) => setFormData({ ...formData, remark: e.target.value })}
-                rows={3}
-                        className="w-full"
-                      />
-                      <p className="text-xs text-gray-500 dark:text-gray-400">
-                        <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
-                        This remark will be added to the status history when you change the lead status
-                      </p>
-                    </div>
-                  )}
+                 
                 </div>
               </div>
             </div>

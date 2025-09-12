@@ -475,7 +475,7 @@ const LeadManagementPage = () => {
                   </Table.Row>
                 ) : (
                   leadSources.map((source) => (
-                    <Table.Row key={source._id} className="bg-white dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <Table.Row key={source._id} className="bg-gray-50 dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700">
                       <Table.Cell className="font-medium text-gray-900 dark:text-white">
                         <div className="flex items-center gap-2">
                           <Icon icon="solar:target-line-duotone" className="text-blue-500" />
@@ -541,7 +541,7 @@ const LeadManagementPage = () => {
                   </Table.Row>
                 ) : (
                   leadStatuses.map((status) => (
-                    <Table.Row key={status._id} className="bg-white dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <Table.Row key={status._id} className="bg-gray-50 dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700">
                       <Table.Cell className="font-medium text-gray-900 dark:text-white">
                         <div className="flex items-center gap-2">
                           <Icon icon="solar:clipboard-list-line-duotone" className="text-green-500" />
@@ -687,21 +687,31 @@ const LeadManagementPage = () => {
       </div>
 
       {/* Combined Add/Edit Modal */}
-      <Modal show={isModalOpen} onClose={handleCloseModal} size="2xl">
+      <Modal show={isModalOpen} onClose={handleCloseModal} size="4xl">
         <Modal.Header>
-          {editingItem ? `Edit ${editingItem.type === 'source' ? 'Lead Source' : 'Lead Status'}` : 'Add New Lead Source or Status'}
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-2 rounded-lg">
+              <Icon icon="solar:settings-line-duotone" className="text-white text-xl" />
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">
+                {editingItem ? `Edit ${editingItem.type === 'source' ? 'Lead Source' : 'Lead Status'}` : 'Add New Lead Source or Status'}
+              </h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Manage your lead sources and statuses</p>
+            </div>
+          </div>
         </Modal.Header>
         <form onSubmit={handleSubmit}>
-          <Modal.Body>
-            <div className="flex space-x-2 mb-6 border-b border-gray-200 dark:border-gray-700">
+          <Modal.Body className="max-h-[80vh] overflow-y-auto bg-gray-50 dark:bg-gray-800">
+            <div className="flex space-x-1 mb-6 border-b border-gray-200 dark:border-gray-700">
               <Button
                 type="button"
                 color={activeTab === "source" ? "primary" : "gray"}
                 onClick={() => setActiveTab("source")}
-                className={`flex-1 rounded-b-none border-b-2 ${
+                className={`flex-1 rounded-b-none border-b-2 transition-all duration-200 ${
                   activeTab === "source" 
-                    ? "border-primary bg-primary text-white" 
-                    : "border-transparent hover:border-gray-300"
+                    ? "border-blue-500 bg-blue-500 text-white shadow-lg" 
+                    : "border-transparent hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 }`}
               >
                 <Icon icon="solar:target-line-duotone" className="mr-2" />
@@ -711,10 +721,10 @@ const LeadManagementPage = () => {
                 type="button"
                 color={activeTab === "status" ? "primary" : "gray"}
                 onClick={() => setActiveTab("status")}
-                className={`flex-1 rounded-b-none border-b-2 ${
+                className={`flex-1 rounded-b-none border-b-2 transition-all duration-200 ${
                   activeTab === "status" 
-                    ? "border-primary bg-primary text-white" 
-                    : "border-transparent hover:border-gray-300"
+                    ? "border-blue-500 bg-blue-500 text-white shadow-lg" 
+                    : "border-transparent hover:border-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
                 }`}
               >
                 <Icon icon="solar:clipboard-list-line-duotone" className="mr-2" />
@@ -722,133 +732,208 @@ const LeadManagementPage = () => {
               </Button>
             </div>
             {activeTab === "source" && (
-              <div className="space-y-4 pt-4">
-                <div>
-                  <Label htmlFor="sourceName" value="Lead Source Name" />
-                  <TextInput
-                    id="sourceName"
-                    type="text"
-                    placeholder="Enter lead source name (e.g., Direct, Website, Referral)..."
-                    value={formData.sourceName}
-                    onChange={(e) => setFormData({ ...formData, sourceName: e.target.value })}
-                    required={activeTab === "source"}
-                  />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Examples: Direct, Website, Social Media, Referral, Cold Call
-                  </p>
+              <div className="space-y-6 pt-4">
+                <div className="bg-gradient-to-r from-blue-100 to-indigo-100 dark:from-blue-900/20 dark:to-indigo-900/20 rounded-xl border border-blue-300 dark:border-blue-700 p-6">
+                  <div className="flex items-center mb-4">
+                    <div className="bg-blue-100 dark:bg-blue-900/20 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:target-line-duotone" className="text-blue-600 dark:text-blue-400 text-xl" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Lead Source Information</h3>
+                  </div>
+                  <div>
+                    <Label htmlFor="sourceName" value="Lead Source Name *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <TextInput
+                      id="sourceName"
+                      type="text"
+                      placeholder="Enter lead source name (e.g., Direct, Website, Referral)..."
+                      value={formData.sourceName}
+                      onChange={(e) => setFormData({ ...formData, sourceName: e.target.value })}
+                      required={activeTab === "source"}
+                      className="w-full mt-2 bg-white dark:bg-gray-700"
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                      <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                      Examples: Direct, Website, Social Media, Referral, Cold Call
+                    </p>
+                  </div>
                 </div>
               </div>
             )}
 
             {activeTab === "status" && (
-              <div className="space-y-4 pt-4">
-                <div>
-                  <Label htmlFor="statusName" value="Lead Status Name" />
-                  <TextInput
-                    id="statusName"
-                    type="text"
-                    placeholder="Enter lead status name (e.g., New, Contacted, Qualified)..."
-                    value={formData.statusName}
-                    onChange={(e) => setFormData({ ...formData, statusName: e.target.value })}
-                    required={activeTab === "status"}
-                  />
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-                    Examples: New, Contacted, Qualified, Proposal Sent, Closed Won
-                  </p>
+              <div className="space-y-6 pt-4">
+                {/* Basic Status Information */}
+                <div className="bg-gradient-to-r from-green-100 to-blue-100 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl border border-green-300 dark:border-green-700 p-6">
+                  <div className="flex items-center mb-4">
+                    <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:clipboard-list-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Basic Status Information</h3>
+                  </div>
+                  <div>
+                    <Label htmlFor="statusName" value="Lead Status Name *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <TextInput
+                      id="statusName"
+                      type="text"
+                      placeholder="Enter lead status name (e.g., New, Contacted, Qualified)..."
+                      value={formData.statusName}
+                      onChange={(e) => setFormData({ ...formData, statusName: e.target.value })}
+                      required={activeTab === "status"}
+                      className="w-full mt-2 bg-white dark:bg-gray-700"
+                    />
+                    <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+                      <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                      Examples: New, Contacted, Qualified, Proposal Sent, Closed Won
+                    </p>
+                  </div>
                 </div>
                 
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="is_final_status"
-                      checked={formData.is_final_status}
-                      onChange={(e) => setFormData({ ...formData, is_final_status: e.target.checked })}
-                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
-                      disabled={leadStatuses.some(status => status.is_final_status === true)}
-                    />
-                    <Label htmlFor="is_final_status" value="Final Status" />
-                  </div>
-                  {leadStatuses.some(status => status.is_final_status === true) ? (
-                    <div className="flex items-center space-x-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
-                      <Icon icon="solar:danger-triangle-line-duotone" className="text-red-600 dark:text-red-400 text-lg" />
-                      <div>
-                        <p className="text-sm font-medium text-red-800 dark:text-red-200">
-                          Final Status Already Exists
-                        </p>
-                        <p className="text-xs text-red-600 dark:text-red-400">
-                          Only one final status is allowed. Current final status: "{leadStatuses.find(s => s.is_final_status)?.name}"
-                        </p>
-                      </div>
+                {/* Status Type Configuration */}
+                <div className="bg-gradient-to-r from-purple-100 to-pink-100 dark:from-purple-900/20 dark:to-pink-900/20 rounded-xl border border-purple-300 dark:border-purple-700 p-6">
+                  <div className="flex items-center mb-4">
+                    <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:settings-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Check if this is a final status (e.g., Closed Won, Closed Lost)
-                    </p>
-                  )}
-                </div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Status Type Configuration</h3>
+                  </div>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          id="is_final_status"
+                          checked={formData.is_final_status}
+                          onChange={(e) => setFormData({ ...formData, is_final_status: e.target.checked })}
+                          className="w-5 h-5 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 focus:ring-2"
+                          disabled={leadStatuses.some(status => status.is_final_status === true)}
+                        />
+                        <Label htmlFor="is_final_status" value="Final Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      </div>
+                      {leadStatuses.some(status => status.is_final_status === true) ? (
+                        <div className="flex items-start space-x-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
+                          <Icon icon="solar:danger-triangle-line-duotone" className="text-red-600 dark:text-red-400 text-lg mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-red-800 dark:text-red-200">
+                              Final Status Already Exists
+                            </p>
+                            <p className="text-xs text-red-600 dark:text-red-400">
+                              Only one final status is allowed. Current final status: "{leadStatuses.find(s => s.is_final_status)?.name}"
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                          Check if this is a final status (e.g., Closed Won, Closed Lost)
+                        </p>
+                      )}
+                    </div>
 
-                <div className="space-y-2">
-                  <div className="flex items-center space-x-2">
-                    <input
-                      type="checkbox"
-                      id="is_default_status"
-                      checked={formData.is_default_status}
-                      onChange={(e) => setFormData({ ...formData, is_default_status: e.target.checked })}
-                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-primary focus:ring-2"
-                      disabled={leadStatuses.some(status => status.is_default_status === true)}
-                    />
-                    <Label htmlFor="is_default_status" value="Default Status" />
-                  </div>
-                  {leadStatuses.some(status => status.is_default_status === true) ? (
-                    <div className="flex items-center space-x-2 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
-                      <Icon icon="solar:danger-triangle-line-duotone" className="text-blue-600 dark:text-blue-400 text-lg" />
-                      <div>
-                        <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
-                          Default Status Already Exists
-                        </p>
-                        <p className="text-xs text-blue-600 dark:text-blue-400">
-                          Only one default status is allowed. Current default status: "{leadStatuses.find(s => s.is_default_status)?.name}"
-                        </p>
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          id="is_default_status"
+                          checked={formData.is_default_status}
+                          onChange={(e) => setFormData({ ...formData, is_default_status: e.target.checked })}
+                          className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                          disabled={leadStatuses.some(status => status.is_default_status === true)}
+                        />
+                        <Label htmlFor="is_default_status" value="Default Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       </div>
+                      {leadStatuses.some(status => status.is_default_status === true) ? (
+                        <div className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
+                          <Icon icon="solar:danger-triangle-line-duotone" className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+                              Default Status Already Exists
+                            </p>
+                            <p className="text-xs text-blue-600 dark:text-blue-400">
+                              Only one default status is allowed. Current default status: "{leadStatuses.find(s => s.is_default_status)?.name}"
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                          Check if this should be the default status for new leads
+                        </p>
+                      )}
                     </div>
-                  ) : (
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Check if this should be the default status for new leads
-                    </p>
-                  )}
+                  </div>
                 </div>
                 
-                <div>
-                  <div className="flex items-center justify-between mb-2">
-                    <Label value="Custom Form Fields" />
+                {/* Custom Form Fields */}
+                <div className="bg-gradient-to-r from-orange-100 to-yellow-100 dark:from-orange-900/20 dark:to-yellow-900/20 rounded-xl border border-orange-300 dark:border-orange-700 p-6">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center">
+                      <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
+                        <Icon icon="solar:settings-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
+                      </div>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Custom Form Fields</h3>
+                    </div>
                     <Button
                       type="button"
                       size="sm"
-                      color="gray"
+                      color="orange"
                       onClick={addFormField}
+                      className="flex items-center gap-2"
                     >
                       <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
                       Add Field
                     </Button>
                   </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                    <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                    Add custom fields to collect specific information for this status
+                  </p>
                   
                   <div className="space-y-4">
                     {formData.formFields.map((field, index) => (
-                      <div key={index} className="border border-gray-200 dark:border-gray-700 rounded-lg p-4">
-                        <div className="flex gap-2 items-start mb-3">
-                          <div className="flex-1">
+                      <div key={index} className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded-xl p-4 shadow-sm">
+                        <div className="flex items-center justify-between mb-4">
+                          <div className="flex items-center gap-2">
+                            <div className="bg-blue-100 dark:bg-blue-900/20 p-1.5 rounded-lg">
+                              <Icon icon="solar:settings-line-duotone" className="text-blue-600 dark:text-blue-400 text-sm" />
+                            </div>
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                              Field {index + 1}
+                            </span>
+                          </div>
+                          {formData.formFields.length > 1 && (
+                            <Button
+                              type="button"
+                              size="sm"
+                              color="failure"
+                              onClick={() => removeFormField(index)}
+                              className="flex items-center gap-1"
+                            >
+                              <Icon icon="solar:trash-bin-trash-line-duotone" className="text-sm" />
+                              Remove
+                            </Button>
+                          )}
+                        </div>
+                        
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="md:col-span-2">
+                            <Label htmlFor={`field-name-${index}`} value="Field Name *" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block" />
                             <TextInput
+                              id={`field-name-${index}`}
                               placeholder="Field name (e.g., Remark, Budget, Timeline)..."
                               value={field.name}
                               onChange={(e) => updateFormField(index, { name: e.target.value })}
                               required={activeTab === "status"}
+                              className="w-full bg-white dark:bg-gray-700"
                             />
                           </div>
-                          <div className="w-32">
+                          <div>
+                            <Label htmlFor={`field-type-${index}`} value="Field Type *" className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2 block" />
                             <Select
+                              id={`field-type-${index}`}
                               value={field.type}
                               onChange={(e) => updateFormField(index, { type: e.target.value })}
+                              className="w-full bg-white dark:bg-gray-700"
                             >
                               {fieldTypes.map(type => (
                                 <option key={type.value} value={type.value}>
@@ -857,66 +942,66 @@ const LeadManagementPage = () => {
                               ))}
                             </Select>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <input
-                              type="checkbox"
-                              id={`required-${index}`}
-                              checked={field.required}
-                              onChange={(e) => updateFormField(index, { required: e.target.checked })}
-                              className="rounded border-gray-300 text-primary focus:ring-primary"
-                            />
-                            <Label htmlFor={`required-${index}`} value="Required" />
-                          </div>
-                          {formData.formFields.length > 1 && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              color="failure"
-                              onClick={() => removeFormField(index)}
-                            >
-                              <Icon icon="solar:trash-bin-trash-line-duotone" />
-                            </Button>
-                          )}
+                        </div>
+                        
+                        <div className="flex items-center gap-3">
+                          <input
+                            type="checkbox"
+                            id={`required-${index}`}
+                            checked={field.required}
+                            onChange={(e) => updateFormField(index, { required: e.target.checked })}
+                            className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                          />
+                          <Label htmlFor={`required-${index}`} value="Required Field" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                         </div>
 
                         {/* Options for Select fields */}
                         {field.type === 'select' && (
-                          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <Label value="Select Options" className="text-sm font-medium" />
+                          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Icon icon="solar:list-line-duotone" className="text-blue-600 dark:text-blue-400" />
+                                <Label value="Select Options" className="text-sm font-medium text-blue-800 dark:text-blue-200" />
+                              </div>
                               <Button
                                 type="button"
                                 size="sm"
-                                color="gray"
+                                color="blue"
                                 onClick={() => addOption(index)}
+                                className="flex items-center gap-1"
                               >
-                                <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
+                                <Icon icon="solar:add-circle-line-duotone" className="text-sm" />
                                 Add Option
                               </Button>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               {(field.options || []).map((option, optionIndex) => (
                                 <div key={optionIndex} className="flex gap-2 items-center">
                                   <TextInput
                                     placeholder="Option value (e.g., Yes, No, Maybe)..."
                                     value={option}
                                     onChange={(e) => updateOption(index, optionIndex, e.target.value)}
-                                    className="flex-1"
+                                    className="flex-1 bg-white dark:bg-gray-700"
                                   />
                                   <Button
                                     type="button"
                                     size="sm"
                                     color="failure"
                                     onClick={() => removeOption(index, optionIndex)}
+                                    className="flex items-center gap-1"
                                   >
-                                    <Icon icon="solar:trash-bin-trash-line-duotone" />
+                                    <Icon icon="solar:trash-bin-trash-line-duotone" className="text-sm" />
+                                    Remove
                                   </Button>
                                 </div>
                               ))}
                               {(!field.options || field.options.length === 0) && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  No options added yet. Click "Add Option" to add choices for this select field.
-                                </p>
+                                <div className="text-center py-4">
+                                  <Icon icon="solar:info-circle-line-duotone" className="text-blue-400 text-2xl mx-auto mb-2" />
+                                  <p className="text-sm text-blue-600 dark:text-blue-400">
+                                    No options added yet. Click "Add Option" to add choices for this select field.
+                                  </p>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -924,70 +1009,90 @@ const LeadManagementPage = () => {
 
                         {/* Checkbox Options */}
                         {field.type === 'checkbox' && (
-                          <div className="mt-3 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                            <div className="flex items-center justify-between mb-2">
-                              <Label value="Checkbox Options" className="text-sm font-medium" />
+                          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <Icon icon="solar:check-square-line-duotone" className="text-green-600 dark:text-green-400" />
+                                <Label value="Checkbox Options" className="text-sm font-medium text-green-800 dark:text-green-200" />
+                              </div>
                               <Button
                                 type="button"
                                 size="sm"
-                                color="gray"
+                                color="green"
                                 onClick={() => addOption(index)}
+                                className="flex items-center gap-1"
                               >
-                                <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
+                                <Icon icon="solar:add-circle-line-duotone" className="text-sm" />
                                 Add Option
                               </Button>
                             </div>
-                            <div className="space-y-2">
+                            <div className="space-y-3">
                               {(field.options || []).map((option, optionIndex) => (
                                 <div key={optionIndex} className="flex gap-2 items-center">
                                   <TextInput
                                     placeholder="Checkbox option (e.g., Agree to Terms, Newsletter, etc.)..."
                                     value={option}
                                     onChange={(e) => updateOption(index, optionIndex, e.target.value)}
-                                    className="flex-1"
+                                    className="flex-1 bg-white dark:bg-gray-700"
                                   />
                                   <Button
                                     type="button"
                                     size="sm"
                                     color="failure"
                                     onClick={() => removeOption(index, optionIndex)}
+                                    className="flex items-center gap-1"
                                   >
-                                    <Icon icon="solar:trash-bin-trash-line-duotone" />
+                                    <Icon icon="solar:trash-bin-trash-line-duotone" className="text-sm" />
+                                    Remove
                                   </Button>
                                 </div>
                               ))}
                               {(!field.options || field.options.length === 0) && (
-                                <p className="text-sm text-gray-500 dark:text-gray-400">
-                                  No checkbox options added yet. Click "Add Option" to add choices for this checkbox field.
-                                </p>
+                                <div className="text-center py-4">
+                                  <Icon icon="solar:info-circle-line-duotone" className="text-green-400 text-2xl mx-auto mb-2" />
+                                  <p className="text-sm text-green-600 dark:text-green-400">
+                                    No checkbox options added yet. Click "Add Option" to add choices for this checkbox field.
+                                  </p>
+                                </div>
                               )}
                             </div>
                           </div>
                         )}
 
                         {/* Preview of field type */}
-                        <div className="mt-3 p-2 bg-blue-50 dark:bg-blue-900/20 rounded text-xs text-blue-700 dark:text-blue-300">
-                          <strong>Preview:</strong> {field.name || 'Field Name'} ({field.type})
-                          {field.type === 'select' && field.options && field.options.length > 0 && (
-                            <span> - Options: {field.options.join(', ')}</span>
-                          )}
-                          {field.type === 'checkbox' && field.options && field.options.length > 0 && (
-                            <span> - Checkbox Options: {field.options.join(', ')}</span>
-                          )}
-                          {field.required && <span className="text-red-500 ml-1">(Required)</span>}
+                        <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon icon="solar:eye-line-duotone" className="text-gray-600 dark:text-gray-400 text-sm" />
+                            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Field Preview</span>
+                          </div>
+                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                            <span className="font-medium">{field.name || 'Field Name'}</span>
+                            <span className="mx-2">•</span>
+                            <span className="capitalize">{field.type}</span>
+                            {field.required && <span className="ml-2 text-red-500 font-medium">(Required)</span>}
+                            {field.type === 'select' && field.options && field.options.length > 0 && (
+                              <div className="mt-1">
+                                <span className="text-xs text-gray-500">Options: </span>
+                                <span className="text-xs">{field.options.join(', ')}</span>
+                              </div>
+                            )}
+                            {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+                              <div className="mt-1">
+                                <span className="text-xs text-gray-500">Checkbox Options: </span>
+                                <span className="text-xs">{field.options.join(', ')}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </div>
                     ))}
                   </div>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    Add custom fields to collect specific information for this status
-                  </p>
                 </div>
               </div>
             )}
           </Modal.Body>
-          <Modal.Footer>
-            <Button type="submit" disabled={isSubmitting}>
+          <Modal.Footer className="flex flex-col sm:flex-row gap-2">
+            <Button type="submit" disabled={isSubmitting} className="w-full sm:w-auto">
               {isSubmitting ? (
                 <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
               ) : (
@@ -995,7 +1100,8 @@ const LeadManagementPage = () => {
               )}
               {editingItem ? 'Update' : 'Create'} {activeTab === "source" ? "Lead Source" : "Lead Status"}
             </Button>
-            <Button color="gray" onClick={handleCloseModal}>
+            <Button color="gray" onClick={handleCloseModal} className="w-full sm:w-auto">
+              <Icon icon="solar:close-circle-line-duotone" className="mr-2" />
               Cancel
             </Button>
           </Modal.Footer>

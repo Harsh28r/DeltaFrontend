@@ -228,13 +228,17 @@ const LeadDetailPage = () => {
 
   });
 
-  const [statusFormData, setStatusFormData] = useState({
-
+  const [statusFormData, setStatusFormData] = useState<{
+    newStatus: string;
+    statusRemark: string;
+    [key: string]: any; // Added index signature for dynamic fields
+  }>({
     newStatus: '',
-
     statusRemark: ''
-
   });
+  
+  // Dynamic form fields based on selected status
+  const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
 
 
 
@@ -2141,8 +2145,7 @@ const LeadDetailPage = () => {
                                     return (
                                       <div key={index} className="flex items-center gap-2">
                                         <span 
-                                          className={`inline-flex items-center px-3 py-1 rounded-full text-xs ${
-                                            isSelected 
+                                        className={`inline-flex items-center px-3 py-1 rounded-full text-xs ${isSelected
                                               ? 'bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 border border-green-200 dark:border-green-700' 
                                               : 'bg-gray-100 dark:bg-gray-700 text-gray-600 dark:text-gray-400 border border-gray-200 dark:border-gray-600'
                                           }`}
@@ -3726,52 +3729,40 @@ const LeadDetailPage = () => {
 
 
 
-      {/* Change Status Modal */}
-
-      <Modal show={isStatusModalOpen} onClose={handleCloseStatusModal} size="lg">
-
-        <Modal.Header>Change Lead Status</Modal.Header>
-
-        <Modal.Body>
-
-          <div className="space-y-6">
-
-            {/* Current Status Display */}
-
-            <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
-
+      {/* Enhanced Status Update Modal */}
+      <Modal show={isStatusModalOpen} onClose={handleCloseStatusModal} size="6xl">
+        <Modal.Header>
               <div className="flex items-center gap-3">
-
-                <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-lg">
-
-                  <Icon icon="solar:check-circle-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
-
+            <div className="bg-gradient-to-r from-orange-500 to-red-500 p-2 rounded-lg">
+              <Icon icon="solar:refresh-line-duotone" className="text-white text-xl" />
                 </div>
-
                 <div>
-
-                  <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Current Status</h4>
-
-                  <div className="flex items-center gap-2 mt-1">
-
-                    <Badge color="green" size="sm">
-
-                      {lead?.currentStatus?.name || 'No Status'}
-
-                    </Badge>
-
-                    <span className="text-sm text-gray-500 dark:text-gray-400">
-
-                      {lead?.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
-
-                    </span>
-
-                  </div>
-
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Update Lead Status</h2>
+              <p className="text-sm text-gray-600 dark:text-gray-400">Change the status and add additional information</p>
+            </div>
+          </div>
+        </Modal.Header>
+        
+        <Modal.Body className="max-h-[80vh] overflow-y-auto">
+          <div className="space-y-8">
+            {/* Current Status Display */}
+            <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl border border-green-200 dark:border-green-700 p-6">
+              <div className="flex items-center gap-4">
+                <div className="bg-gradient-to-r from-green-500 to-blue-500 p-3 rounded-lg">
+                  <Icon icon="solar:check-circle-line-duotone" className="text-white text-2xl" />
                 </div>
-
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900 dark:text-white">Current Status</h3>
+                  <div className="flex items-center gap-3 mt-2">
+                    <Badge color="green" size="lg">
+                      {lead?.currentStatus?.name || 'No Status'}
+                    </Badge>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">
+                      Last updated: {lead && lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
+                    </span>
+                  </div>
+                </div>
               </div>
-
             </div>
 
 
@@ -4232,6 +4223,9 @@ const LeadDetailPage = () => {
         </Modal.Footer>
 
       </Modal>
+
+
+      
 
     </div>
 
