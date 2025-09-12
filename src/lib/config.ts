@@ -60,6 +60,20 @@ export const API_ENDPOINTS = {
   UPDATE_USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}/effective-permissions`,
   ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
   UPDATE_ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
+  
+  // Channel Partners
+  CHANNEL_PARTNERS: `${API_BASE_URL}/api/channel-partner/`,
+  CHANNEL_PARTNER_BY_ID: (id: string) => `${API_BASE_URL}/api/channel-partner/${id}`,
+  CREATE_CHANNEL_PARTNER: `${API_BASE_URL}/api/channel-partner/`,
+  UPDATE_CHANNEL_PARTNER: (id: string) => `${API_BASE_URL}/api/channel-partner/${id}`,
+  DELETE_CHANNEL_PARTNER: (id: string) => `${API_BASE_URL}/api/channel-partner/${id}`,
+  
+  // CP Sourcing
+  CP_SOURCING: `${API_BASE_URL}/api/cp-sourcing/`,
+  CP_SOURCING_BY_ID: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
+  CREATE_CP_SOURCING: `${API_BASE_URL}/api/cp-sourcing/`,
+  UPDATE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
+  DELETE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
 };
 
 // Create a custom event system for refreshing sidebar data

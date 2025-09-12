@@ -320,6 +320,40 @@ export const useSidebarData = () => {
               ],
             },
             {
+              name: "Channel Partners",
+              id: uniqueId(),
+              icon: "solar:handshake-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "List Partners",
+                  url: "/apps/channel-partners",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Add Partner",
+                  url: "/apps/channel-partners/add",
+                },
+              ],
+            },
+            {
+              name: "CP Sourcing",
+              id: uniqueId(),
+              icon: "solar:target-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "List Sourcing",
+                  url: "/apps/cp-sourcing",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Add Sourcing",
+                  url: "/apps/cp-sourcing/add",
+                },
+              ],
+            },
+            {
               name: "SuperAdmin",
               id: uniqueId(),
               icon: "solar:shield-user-outline",
