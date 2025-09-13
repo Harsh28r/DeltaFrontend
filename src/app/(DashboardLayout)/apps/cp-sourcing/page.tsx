@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config"; // Fixed API_BASE_URL import
+import LocationMap from "@/components/LocationMap";
 
 interface User {
   _id: string;
@@ -16,6 +17,11 @@ interface ChannelPartner {
   _id: string;
   name: string;
   phone: string;
+  location?: string;
+  firmName?: string;
+  address?: string;
+  mahareraNo?: string;
+  pinCode?: string;
 }
 
 interface Project {
@@ -27,6 +33,7 @@ interface Project {
 interface Location {
   lat: number;
   lng: number;
+  placeName?: string; // Add place name field
 }
 
 interface SourcingHistoryItem {
@@ -139,6 +146,13 @@ const CPSourcingPage = () => {
     if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
       return 'N/A';
     }
+    
+    // If place name is available, show it
+    if (location.placeName && location.placeName.trim()) {
+      return location.placeName;
+    }
+    
+    // Fallback to coordinates
     return `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
   };
 
@@ -147,6 +161,25 @@ const CPSourcingPage = () => {
       return project.name;
     }
     return 'Unknown Project';
+  };
+
+  const getLocationDisplay = (sourcing: CPSourcing, latestData: SourcingHistoryItem | null) => {
+    // First try to get place name from latest sourcing data
+    if (latestData?.location?.placeName && latestData.location.placeName.trim()) {
+      return latestData.location.placeName;
+    }
+    
+    // Fallback to channel partner's location
+    if (sourcing.channelPartnerId?.location && sourcing.channelPartnerId.location.trim()) {
+      return sourcing.channelPartnerId.location;
+    }
+    
+    // Fallback to coordinates
+    if (latestData?.location) {
+      return `${latestData.location.lat.toFixed(4)}, ${latestData.location.lng.toFixed(4)}`;
+    }
+    
+    return 'N/A';
   };
 
   const getLatestSourcingData = (sourcing: CPSourcing) => {
@@ -162,22 +195,17 @@ const CPSourcingPage = () => {
 
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) {
-      console.log('No image path provided');
       return '';
     }
-    
-    console.log('Original image path:', imagePath);
     
     // If it's a local file path, convert it to a file:// URL
     if (imagePath.includes('uploads\\') || imagePath.includes('uploads/')) {
       // Convert backslashes to forward slashes for proper URL construction
       const normalizedPath = imagePath.replace(/\\/g, '/');
-      console.log('Normalized path:', normalizedPath);
       
       // For local files, we need to serve them through the backend
       // The backend should serve static files from the uploads directory
       const fullUrl = `${API_BASE_URL}/${normalizedPath}`;
-      console.log('Full image URL:', fullUrl);
       
       return fullUrl;
     }
@@ -216,12 +244,9 @@ const CPSourcingPage = () => {
         className={className}
         crossOrigin="anonymous"
         onError={(e) => {
-          console.log('Image failed to load:', src);
-          console.log('Error details:', e);
           setImageError(true);
         }}
         onLoad={() => {
-          console.log('Image loaded successfully:', src);
           setImageLoaded(true);
         }}
         style={{ 
@@ -256,13 +281,28 @@ const CPSourcingPage = () => {
             onClick={() => {
               // Test if backend is serving static files
               const testUrl = `${API_BASE_URL}/uploads/cpsourcing/test.jpg`;
-              console.log('Testing image URL:', testUrl);
               window.open(testUrl, '_blank');
             }}
             className="flex items-center gap-2"
           >
             <Icon icon="lucide:test-tube" className="w-4 h-4" />
             Test Image
+          </Button>
+          <Button
+            color="green"
+            onClick={() => router.push('/apps/cp-sourcing/test-map')}
+            className="flex items-center gap-2"
+          >
+            <Icon icon="lucide:map" className="w-4 h-4" />
+            Test Map
+          </Button>
+          <Button
+            color="purple"
+            onClick={() => router.push('/apps/cp-sourcing/test-location')}
+            className="flex items-center gap-2"
+          >
+            <Icon icon="lucide:map-pin" className="w-4 h-4" />
+            Test Location
           </Button>
           <Button
             color="orange"
@@ -282,46 +322,6 @@ const CPSourcingPage = () => {
         </Alert>
       )}
 
-      {/* Debug Section - Remove this after fixing */}
-      {cpSourcingList.length > 0 && (
-        <div className="mb-4 p-4 bg-gray-100 rounded-lg">
-          <h3 className="text-sm font-medium text-gray-700 mb-2">Debug Info:</h3>
-          <div className="text-xs text-gray-600 space-y-1">
-            <div>API Base URL: {API_BASE_URL}</div>
-            <div>Environment: {process.env.NODE_ENV}</div>
-            {cpSourcingList[0]?.sourcingHistory?.[0]?.selfie && (
-              <div>
-                Sample Image Path: {cpSourcingList[0].sourcingHistory[0].selfie}
-              </div>
-            )}
-            {cpSourcingList[0]?.sourcingHistory?.[0]?.selfie && (
-              <div>
-                Generated URL: {getImageUrl(cpSourcingList[0].sourcingHistory[0].selfie)}
-              </div>
-            )}
-            <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-              <div className="text-green-800 font-medium">✅ Images are loading but may have display issues:</div>
-              <div className="text-green-700 text-xs mt-1">
-                <strong>Current Image Path:</strong> {cpSourcingList[0]?.sourcingHistory?.[0]?.selfie}
-                <br />
-                <strong>Generated URL:</strong> {cpSourcingList[0]?.sourcingHistory?.[0]?.selfie ? getImageUrl(cpSourcingList[0].sourcingHistory[0].selfie) : 'N/A'}
-                <br />
-                <br />
-                <strong>Test the URL directly:</strong>
-                <br />
-                <a 
-                  href={cpSourcingList[0]?.sourcingHistory?.[0]?.selfie ? getImageUrl(cpSourcingList[0].sourcingHistory[0].selfie) : '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-blue-600 underline"
-                >
-                  {cpSourcingList[0]?.sourcingHistory?.[0]?.selfie ? getImageUrl(cpSourcingList[0].sourcingHistory[0].selfie) : 'N/A'}
-                </a>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
       <Card>
         {cpSourcingList.length === 0 ? (
@@ -346,6 +346,7 @@ const CPSourcingPage = () => {
                 <Table.HeadCell>Phone</Table.HeadCell>
                 <Table.HeadCell>Project</Table.HeadCell>
                 <Table.HeadCell>Latest Location</Table.HeadCell>
+                <Table.HeadCell>Map</Table.HeadCell>
                 <Table.HeadCell>Latest Selfie</Table.HeadCell>
                 <Table.HeadCell>Status</Table.HeadCell>
                 <Table.HeadCell>Last Visit</Table.HeadCell>
@@ -364,7 +365,12 @@ const CPSourcingPage = () => {
                           className="w-8 h-8 rounded-full object-cover"
                           fallbackIcon="lucide:user"
                         />
-                        {sourcing.channelPartnerId?.name || 'Unknown Partner'}
+                        <button
+                          onClick={() => router.push(`/apps/cp-sourcing/${sourcing._id}`)}
+                          className="text-blue-600 hover:text-blue-800 hover:underline"
+                        >
+                          {sourcing.channelPartnerId?.name || 'Unknown Partner'}
+                        </button>
                       </div>
                     </Table.Cell>
                     <Table.Cell>{sourcing.channelPartnerId?.phone || 'N/A'}</Table.Cell>
@@ -375,8 +381,23 @@ const CPSourcingPage = () => {
                     </Table.Cell>
                     <Table.Cell>
                       <span className="text-xs text-gray-500">
-                        {latestData ? formatLocation(latestData.location) : 'N/A'}
+                        {getLocationDisplay(sourcing, latestData)}
                       </span>
+                    </Table.Cell>
+                    <Table.Cell>
+                      {latestData?.location ? (
+                        <LocationMap
+                          location={latestData.location}
+                          height="60px"
+                          width="80px"
+                          showPopup={true}
+                          popupContent={getLocationDisplay(sourcing, latestData)}
+                        />
+                      ) : (
+                        <div className="w-20 h-15 bg-gray-100 rounded flex items-center justify-center">
+                          <Icon icon="lucide:map-pin" className="w-4 h-4 text-gray-400" />
+                        </div>
+                      )}
                     </Table.Cell>
                     <Table.Cell>
                         {latestData?.selfie ? (
@@ -388,20 +409,6 @@ const CPSourcingPage = () => {
                               fallbackIcon="lucide:camera"
                             />
                             <span className="text-xs text-gray-500">Captured</span>
-                            {/* Debug info */}
-                            <div className="text-xs text-gray-400 max-w-xs truncate">
-                              {latestData.selfie}
-                            </div>
-                            {/* Test image display */}
-                            <div className="text-xs">
-                              <img 
-                                src={getImageUrl(latestData.selfie)} 
-                                alt="Test" 
-                                className="w-4 h-4 border border-gray-300"
-                                onLoad={() => console.log('Test image loaded')}
-                                onError={() => console.log('Test image failed')}
-                              />
-                            </div>
                           </div>
                         ) : (
                         <span className="text-xs text-gray-400">No selfie</span>
@@ -421,8 +428,17 @@ const CPSourcingPage = () => {
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
+                          color="gray"
+                          onClick={() => router.push(`/apps/cp-sourcing/${sourcing._id}`)}
+                          title="View Details"
+                        >
+                          <Icon icon="lucide:eye" className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
                           color="blue"
                           onClick={() => router.push(`/apps/cp-sourcing/edit/${sourcing._id}`)}
+                          title="Edit"
                         >
                           <Icon icon="lucide:edit" className="w-3 h-3" />
                         </Button>
@@ -430,6 +446,7 @@ const CPSourcingPage = () => {
                           size="sm"
                           color="failure"
                           onClick={() => setSourcingToDelete(sourcing)}
+                          title="Delete"
                         >
                           <Icon icon="lucide:trash-2" className="w-3 h-3" />
                         </Button>

@@ -16,6 +16,53 @@ import Link from "next/link";
 
 
 
+interface ChannelPartner {
+  _id: string;
+  name: string;
+  phone: string;
+  firmName: string;
+  location: string;
+  address: string;
+  mahareraNo: string;
+  pinCode: string;
+  photo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CPSourcing {
+  _id: string;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  channelPartnerId: {
+    _id: string;
+    name: string;
+    phone: string;
+  };
+  projectId: {
+    _id: string;
+    name: string;
+    location: string;
+  };
+  sourcingHistory: Array<{
+    location: {
+      lat: number;
+      lng: number;
+    };
+    date: string;
+    selfie: string;
+    notes: string;
+    _id: string;
+  }>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
 interface Lead {
 
   _id: string;
@@ -185,6 +232,10 @@ const LeadDetailPage = () => {
 
   const [users, setUsers] = useState<any[]>([]);
 
+  const [channelPartners, setChannelPartners] = useState<ChannelPartner[]>([]);
+
+  const [cpSourcingOptions, setCPSourcingOptions] = useState<CPSourcing[]>([]);
+
   const [isLoading, setIsLoading] = useState(true);
 
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -240,7 +291,51 @@ const LeadDetailPage = () => {
   // Dynamic form fields based on selected status
   const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
 
-
+  // Function to get source name with channel partner info
+  const getSourceName = (lead: Lead) => {
+    console.log('getSourceName Debug:', {
+      leadCustomData: lead.customData,
+      channelPartnerId: lead.customData?.["Channel Partner"],
+      cpSourcingId: lead.customData?.["Channel Partner Sourcing"],
+      channelPartners: channelPartners.length,
+      cpSourcingOptions: cpSourcingOptions.length,
+      leadSource: lead.leadSource
+    });
+    
+    // Check if this is a channel partner by looking at customData
+    const channelPartnerId = lead.customData?.["Channel Partner"];
+    if (channelPartnerId) {
+      // Find the channel partner name
+      const channelPartner = channelPartners.find(cp => cp._id === channelPartnerId);
+      if (channelPartner) {
+        let sourceName = `Channel Partner: ${channelPartner.name}`;
+        
+        // Add CP sourcing info if available
+        const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+        if (cpSourcingId) {
+          const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+          if (cpSourcing) {
+            sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+          }
+        }
+        return sourceName;
+      } else {
+        // If channel partner not found, try to get name from CP sourcing data
+        const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+        if (cpSourcingId) {
+          const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+          if (cpSourcing) {
+            return `Channel Partner: ${cpSourcing.channelPartnerId.name}`;
+          }
+        }
+        return 'Channel Partner';
+      }
+    } else if (lead.leadSource?._id) {
+      // Regular lead source
+      return lead.leadSource?.name || 'N/A';
+    }
+    return 'N/A';
+  };
 
   useEffect(() => {
 
@@ -356,7 +451,7 @@ const LeadDetailPage = () => {
         
       // Fetch additional data for editing
 
-      const [statusesResponse, sourcesResponse, projectsResponse, usersResponse] = await Promise.all([
+      const [statusesResponse, sourcesResponse, projectsResponse, usersResponse, channelPartnersResponse, cpSourcingResponse] = await Promise.all([
 
         fetch(`${API_BASE_URL}/api/lead-statuses`, {
 
@@ -377,6 +472,18 @@ const LeadDetailPage = () => {
         }),
 
         fetch(`${API_BASE_URL}/api/users`, {
+
+          headers: { Authorization: `Bearer ${token}` },
+
+        }),
+
+        fetch(`${API_BASE_URL}/api/channel-partner`, {
+
+          headers: { Authorization: `Bearer ${token}` },
+
+        }),
+
+        fetch(`${API_BASE_URL}/api/cp-sourcing/`, {
 
           headers: { Authorization: `Bearer ${token}` },
 
@@ -455,6 +562,21 @@ const LeadDetailPage = () => {
           console.error('Alternative users API also failed:', altError);
         }
 
+      }
+
+      // Handle channel partners response
+      if (channelPartnersResponse.ok) {
+        const channelPartnersData = await channelPartnersResponse.json();
+        setChannelPartners(channelPartnersData.channelPartners || channelPartnersData || []);
+      }
+
+      // Handle CP sourcing response
+      if (cpSourcingResponse.ok) {
+        const cpSourcingData = await cpSourcingResponse.json();
+        console.log('CP Sourcing API Response:', cpSourcingData);
+        setCPSourcingOptions(cpSourcingData.cpSourcing || cpSourcingData || []);
+      } else {
+        console.error('CP Sourcing API error:', cpSourcingResponse.status, cpSourcingResponse.statusText);
       }
 
     } catch (error) {
@@ -1752,9 +1874,9 @@ const LeadDetailPage = () => {
 
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Source</p>
 
-              <p className="text-lg font-semibold text-gray-900 dark:text-white">
+              <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
 
-                {lead.leadSource?.name || 'N/A'}
+                {lead ? getSourceName(lead) : 'N/A'}
 
               </p>
 
@@ -1770,7 +1892,46 @@ const LeadDetailPage = () => {
 
         </Card>
 
-
+        {/* CP Sourcing Information - Always show if there's CP sourcing data */}
+        {lead?.customData?.["Channel Partner Sourcing"] && (
+          <Card className="p-4 bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 border border-green-200 dark:border-green-700">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-green-700 dark:text-green-300">CP Sourcing Details</p>
+                <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
+                  {(() => {
+                    const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+                    const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+                    console.log('CP Sourcing Debug:', {
+                      cpSourcingId,
+                      cpSourcing,
+                      cpSourcingOptions: cpSourcingOptions.length,
+                      allIds: cpSourcingOptions.map(cp => cp._id)
+                    });
+                    return cpSourcing ? `${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name}` : 'Loading...';
+                  })()}
+                </p>
+                {(() => {
+                  const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+                  const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+                  return cpSourcing ? (
+                    <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
+                      <p>Visits: {cpSourcing.sourcingHistory.length}</p>
+                      <p>Status: {cpSourcing.isActive ? 'Active' : 'Inactive'}</p>
+                    </div>
+                  ) : (
+                    <div className="mt-2 text-xs text-yellow-600 dark:text-yellow-400">
+                      <p>Loading CP sourcing data...</p>
+                    </div>
+                  );
+                })()}
+              </div>
+              <div className="bg-green-100 dark:bg-green-900/20 p-3 rounded-full">
+                <Icon icon="solar:chart-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
+              </div>
+            </div>
+          </Card>
+        )}
 
       </div>
 
@@ -2265,7 +2426,7 @@ const LeadDetailPage = () => {
 
                     <Badge color="blue" size="sm">
 
-                      {lead.leadSource?.name || 'N/A'}
+                      {lead ? getSourceName(lead) : 'N/A'}
 
                     </Badge>
 

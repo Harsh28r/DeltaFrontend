@@ -13,6 +13,53 @@ interface LeadSource {
   name: string;
 }
 
+interface ChannelPartner {
+  _id: string;
+  name: string;
+  phone: string;
+  firmName: string;
+  location: string;
+  address: string;
+  mahareraNo: string;
+  pinCode: string;
+  photo?: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface CPSourcing {
+  _id: string;
+  userId: {
+    _id: string;
+    name: string;
+    email: string;
+  };
+  channelPartnerId: {
+    _id: string;
+    name: string;
+    phone: string;
+  };
+  projectId: {
+    _id: string;
+    name: string;
+    location: string;
+  };
+  sourcingHistory: Array<{
+    location: {
+      lat: number;
+      lng: number;
+    };
+    date: string;
+    selfie: string;
+    notes: string;
+    _id: string;
+  }>;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+  __v: number;
+}
+
 interface FormField {
   name: string;
   type: string;
@@ -118,8 +165,13 @@ const LeadsPage = () => {
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
+  const [channelPartners, setChannelPartners] = useState<ChannelPartner[]>([]);
+  const [cpSourcingOptions, setCPSourcingOptions] = useState<CPSourcing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+
+
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSource, setFilterSource] = useState<string>("all");
@@ -144,7 +196,9 @@ const LeadsPage = () => {
     configuration: "",
     fundingMode: "",
     gender: "",
-    budget: ""
+    budget: "",
+    channelPartner: "", // Channel partner selection
+    channelPartnerSourcing: "" // Channel partner sourcing option
   });
   
   // Dynamic form fields based on selected status
@@ -196,8 +250,11 @@ const LeadsPage = () => {
     return status?.formFields || [];
   };
 
-  // Update dynamic fields when status changes
+  // Update dynamic fields when status changes (disabled for locked default status)
   const handleStatusChange = (statusId: string) => {
+    // Don't allow status changes when dropdown is disabled
+    return;
+    
     setFormData(prev => ({ ...prev, status: statusId }));
     
     // Reset dynamic fields
@@ -217,6 +274,31 @@ const LeadsPage = () => {
     
     setDynamicFields(newDynamicFields);
   };
+
+  const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const newSource = e.target.value;
+    
+    // Check if the selected source is a channel partner (either by ID or manual value)
+    const isChannelPartner = newSource === 'channel-partner' || 
+      leadSources.some(source => source._id === newSource && source.name.toLowerCase() === 'channel partner');
+    
+    setFormData({ 
+      ...formData, 
+      source: newSource,
+      // Clear channel partner fields if not selecting channel partner
+      channelPartner: isChannelPartner ? formData.channelPartner : '',
+      channelPartnerSourcing: isChannelPartner ? formData.channelPartnerSourcing : ''
+    });
+    
+    // Reset dynamic fields when source changes
+    setDynamicFields({});
+    
+    // Clear channel partner selection if not selecting channel partner
+    if (!isChannelPartner) {
+      setFormData({ ...formData, channelPartner: "", channelPartnerSourcing: "" });
+    }
+  };
+
 
   const fetchLeads = async () => {
     if (isLoadingLeads) return;
@@ -256,18 +338,58 @@ const LeadsPage = () => {
   };
 
   const transformLeadData = (leadsData: any[]): Lead[] => {
-    return leadsData.map(lead => ({
+    return leadsData.map(lead => {
+      // Get source name - check if it's a channel partner first
+      let sourceName = 'N/A';
+      
+      // Check if this is a channel partner by looking at customData
+      const channelPartnerId = lead.customData?.["Channel Partner"];
+      if (channelPartnerId) {
+        // Find the channel partner name
+        const channelPartner = channelPartners.find(cp => cp._id === channelPartnerId);
+        if (channelPartner) {
+          sourceName = `Channel Partner: ${channelPartner.name}`;
+          
+          // Add CP sourcing info if available
+          const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+          if (cpSourcingId) {
+            const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+            if (cpSourcing) {
+              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+            }
+          }
+        } else {
+          // If channel partner not found, try to get name from CP sourcing data
+          const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+          if (cpSourcingId) {
+            const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+            if (cpSourcing) {
+              sourceName = `Channel Partner: ${cpSourcing.channelPartnerId.name}`;
+            } else {
+              sourceName = 'Channel Partner';
+            }
+          } else {
+            sourceName = 'Channel Partner';
+          }
+        }
+      } else if (lead.leadSource?._id) {
+        // Regular lead source
+        sourceName = lead.leadSource?.name || 'N/A';
+      }
+
+      return {
       ...lead,
       name: `${lead.customData?.["First Name"] || ''} ${lead.customData?.["Last Name"] || ''}`.trim() || 'N/A',
       email: lead.customData?.["Email"] || 'N/A',
       phone: lead.customData?.["Phone"] || 'N/A',
       company: lead.customData?.["Company"] || 'N/A',
       notes: lead.customData?.["Notes"] || '',
-      source: lead.leadSource?._id || 'N/A',
+        source: sourceName,
       status: lead.currentStatus?._id || 'N/A',
       projectName: lead.project?.name || 'N/A',
       LeadScore: lead.LeadScore || 0 // Set default score if undefined
-    }));
+      };
+    });
   };
 
   const handleLeadsError = (response: Response) => {
@@ -381,6 +503,26 @@ const LeadsPage = () => {
         }
       }
 
+      // Fetch channel partners
+      const channelPartnersResponse = await fetch(API_ENDPOINTS.CHANNEL_PARTNERS, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (channelPartnersResponse.ok) {
+        const channelPartnersData = await channelPartnersResponse.json();
+        const partners = channelPartnersData.channelPartners || channelPartnersData || [];
+        setChannelPartners(partners);
+      }
+
+      // Fetch CP sourcing options
+      const cpSourcingResponse = await fetch(API_ENDPOINTS.CP_SOURCING, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (cpSourcingResponse.ok) {
+        const cpSourcingData = await cpSourcingResponse.json();
+        const sourcingOptions = cpSourcingData.cpSourcing || cpSourcingData || [];
+        setCPSourcingOptions(sourcingOptions);
+      }
+
       // Fetch users (only for super admin)
       if (isSuperAdmin) {
         const usersResponse = await fetch(API_ENDPOINTS.USERS, {
@@ -475,10 +617,22 @@ const LeadsPage = () => {
       return;
     }
     
+    // If channel partner is selected as source, validate channel partner selection
+    const isChannelPartner = formData.source === 'channel-partner' || 
+      leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
+    
+    if (isChannelPartner && !formData.channelPartner) {
+      setAlertMessage({ 
+        type: 'error', 
+        message: 'Please select a channel partner' 
+      });
+      return;
+    }
+    
     if (!formData.status) {
       setAlertMessage({ 
         type: 'error', 
-        message: 'Please select a lead status' 
+        message: 'Default lead status not found. Please refresh the page.' 
       });
       return;
     }
@@ -581,7 +735,9 @@ const LeadsPage = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            leadSource: formData.source,
+            leadSource: (formData.source === 'channel-partner' || 
+              leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) 
+              ? formData.channelPartner : formData.source,
             currentStatus: formData.status,
             customData: {
               "First Name": formData.name.split(' ')[0] || formData.name,
@@ -595,6 +751,8 @@ const LeadsPage = () => {
               "Funding Mode": formData.fundingMode,
               "Gender": formData.gender,
               "Budget": formData.budget,
+              "Channel Partner": formData.channelPartner,
+              "Channel Partner Sourcing": formData.channelPartnerSourcing,
               ...dynamicFields // Include dynamic fields
             },
               userId: formData.userId
@@ -619,7 +777,9 @@ const LeadsPage = () => {
       } else {
         // Create new lead
         const requestBody = {
-          leadSource: formData.source,
+          leadSource: (formData.source === 'channel-partner' || 
+            leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) 
+            ? formData.channelPartner : formData.source,
           currentStatus: formData.status,
           project: formData.projectId, // Add required project field
           customData: {
@@ -634,6 +794,8 @@ const LeadsPage = () => {
             "Funding Mode": formData.fundingMode,
             "Gender": formData.gender,
             "Budget": formData.budget,
+            "Channel Partner": formData.channelPartner,
+            "Channel Partner Sourcing": formData.channelPartnerSourcing,
             ...dynamicFields // Include dynamic fields
           },
           userId: formData.userId
@@ -1242,7 +1404,9 @@ const LeadsPage = () => {
       configuration: lead.customData?.["Configuration"] || '',
       fundingMode: lead.customData?.["Funding Mode"] || '',
       gender: lead.customData?.["Gender"] || '',
-      budget: lead.customData?.["Budget"] || ''
+      budget: lead.customData?.["Budget"] || '',
+      channelPartner: lead.customData?.["Channel Partner"] || '',
+      channelPartnerSourcing: lead.customData?.["Channel Partner Sourcing"] || ''
     });
     
     // Populate dynamic fields from lead's customData
@@ -1305,7 +1469,9 @@ const LeadsPage = () => {
       configuration: "",
       fundingMode: "",
       gender: "",
-      budget: ""
+      budget: "",
+      channelPartner: "",
+      channelPartnerSourcing: ""
     });
     setDynamicFields(newDynamicFields);
   };
@@ -1364,7 +1530,9 @@ const LeadsPage = () => {
       configuration: "",
       fundingMode: "",
       gender: "",
-      budget: ""
+      budget: "",
+      channelPartner: "",
+      channelPartnerSourcing: ""
     });
     setDynamicFields(newDynamicFields);
     setIsModalOpen(true);
@@ -1839,9 +2007,20 @@ const LeadsPage = () => {
                           </div>
                         </Table.Cell>
                         <Table.Cell>
-                          <Badge color="blue" size="sm">
-                            {lead.leadSource?.name || 'N/A'}
-                          </Badge>
+                          <div className="space-y-1">
+                            <div className="text-sm font-medium text-gray-900 dark:text-white">
+                              {lead.source || 'N/A'}
+                            </div>
+                            {lead.customData?.["Channel Partner Sourcing"] && (
+                              <div className="text-xs text-gray-500 dark:text-gray-400">
+                                <span className="font-medium">CP:</span> {(() => {
+                                  const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+                                  const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+                                  return cpSourcing ? `${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name}` : 'N/A';
+                                })()}
+                              </div>
+                            )}
+                          </div>
                         </Table.Cell>
                         <Table.Cell>
                           <Badge color="green" size="sm">
@@ -1944,7 +2123,7 @@ const LeadsPage = () => {
       {/* Add/Edit Modal */}
       <Modal show={isModalOpen && projects.length > 0} onClose={handleCloseModal} size="6xl">
         <Modal.Header>
-          {editingLead ? 'change status' : 'Add New Lead'}
+          {editingLead ? 'Change Lead Status' : 'Add New Lead'}
         </Modal.Header>
         <form onSubmit={handleSubmit}>
           <Modal.Body className="max-h-[80vh] overflow-y-auto">
@@ -2006,7 +2185,12 @@ const LeadsPage = () => {
                   <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-lg mr-3">
                     <Icon icon="solar:chart-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
                   </div>
+                  <div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Lead Details</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Status is automatically set to default and locked
+                    </p>
+                  </div>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
@@ -2014,7 +2198,7 @@ const LeadsPage = () => {
                 <Select
                   id="source"
                   value={formData.source}
-                  onChange={(e) => setFormData({ ...formData, source: e.target.value })}
+                      onChange={handleSourceChange}
                   required
                       className="w-full"
                       disabled={!!editingLead}
@@ -2025,7 +2209,17 @@ const LeadsPage = () => {
                       {source.name}
                     </option>
                   ))}
+                      {!leadSources.some(source => source.name.toLowerCase() === 'channel partner') && (
+                        <option value="channel-partner">Channel Partner</option>
+                      )}
                 </Select>
+                    {(formData.source === 'channel-partner' || 
+                      leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && (
+                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                        <Icon icon="solar:info-circle-line-duotone" className="w-3 h-3" />
+                        Channel partner selected as lead source
+                      </p>
+                    )}
               </div>
                   <div className="space-y-2">
                     <Label htmlFor="status" value="Lead Status *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
@@ -2035,6 +2229,7 @@ const LeadsPage = () => {
                       onChange={(e) => handleStatusChange(e.target.value)}
                   required
                       className="w-full"
+                      disabled={true}
                 >
                       <option value="">Select lead status</option>
                   {leadStatuses.map(status => (
@@ -2043,21 +2238,52 @@ const LeadsPage = () => {
                     </option>
                   ))}
                 </Select>
-                {formData.status && (
-                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                    <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
-                    {(() => {
-                      const selectedStatus = leadStatuses.find(s => s._id === formData.status);
-                      const isDefaultField = selectedStatus && (selectedStatus as any).is_default_status === true;
-                      return isDefaultField 
-                        ? `Default status selected: ${selectedStatus?.name}` 
-                        : `Status selected: ${selectedStatus?.name}`;
-                    })()}
-                  </p>
-                )}
+                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                  <Icon icon="solar:lock-line-duotone" className="w-3 h-3" />
+                  Status is automatically set to default and locked
+                </p>
               </div>
             </div>
+
+                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */}
+                {(formData.source === 'channel-partner' || 
+                  leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="space-y-2">
+                        <Label htmlFor="channelPartner" value="Select Channel Partner *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                        <Select
+                          id="channelPartner"
+                          value={formData.channelPartner}
+                          onChange={(e) => setFormData({ ...formData, channelPartner: e.target.value })}
+                          required
+                          className="w-full"
+                        >
+                          <option value="">Select a channel partner</option>
+                          {channelPartners.map(partner => (
+                            <option key={partner._id} value={partner._id}>
+                              {partner.name} - {partner.firmName} - {partner.phone}
+                            </option>
+                          ))}
+                        </Select>
               </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="channelPartnerSourcing" value="CP Sourcing" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      <Select
+                        id="channelPartnerSourcing"
+                        value={formData.channelPartnerSourcing}
+                        onChange={(e) => setFormData({ ...formData, channelPartnerSourcing: e.target.value })}
+                        className="w-full"
+                      >
+                        <option value="">Select CP sourcing option</option>
+                        {cpSourcingOptions.map(option => (
+                          <option key={option._id} value={option._id}>
+                            {option.channelPartnerId.name} - {option.projectId.name} ({option.sourcingHistory.length} visits)
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+              </div>
+                )}
 
               {/* Project Selection Section */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
@@ -2065,8 +2291,14 @@ const LeadsPage = () => {
                   <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
                     <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
                   </div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Assignment</h3>
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Select the project for this lead
+                    </p>
                 </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
               <Select
@@ -2075,7 +2307,6 @@ const LeadsPage = () => {
                 onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
                 required
                     className="w-full"
-                    disabled={!!editingLead}
               >
                 <option value="">Select a project</option>
                 {projects.map(project => (
@@ -2084,15 +2315,17 @@ const LeadsPage = () => {
                   </option>
                 ))}
               </Select>
-                  <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
-                    <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
-                Default project is selected, but you can change it if needed
-              </p>
-                  
-                  {/* Debug: Show User ID (only for non-superadmin users) */}
-                  
-                  {/* Super Admin User Selection */}
-               
+                {formData.projectId && (
+                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
+                    {(() => {
+                      const selectedProject = projects.find(p => p._id === formData.projectId);
+                      return selectedProject ? `Project: ${selectedProject.name}` : 'Project selected';
+                    })()}
+                  </p>
+                )}
+              </div>
+            </div>
                 </div>
               </div>
 
@@ -2387,27 +2620,27 @@ const LeadsPage = () => {
 
               {/* Notes Section */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                {/* <div className="flex items-center mb-6">
-                  <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
-                    <Icon icon="solar:notes-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
+                <div className="flex items-center mb-6">
+                  <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:notes-line-duotone" className="text-gray-600 dark:text-gray-400 text-xl" />
                   </div>
+                  <div>
                   <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
-                </div> */}
-                <div className="space-y-4">
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Add any additional information about this lead
+                    </p>
+                  </div>
+                </div>
                   <div className="space-y-2">
                     <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
               <Textarea
                 id="notes"
-                      placeholder="Enter additional notes or comments about this lead..."
+                    placeholder="Enter any additional notes about this lead..."
                 value={formData.notes}
                 onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
                       rows={4}
                       className="w-full"
-                      
                     />
-                  </div>
-                  
-                 
                 </div>
               </div>
             </div>

@@ -59,6 +59,9 @@ const EditChannelPartnerPage = () => {
       setIsLoading(true);
       setError(null);
       
+      console.log('Fetching channel partner with ID:', partnerId);
+      console.log('API Endpoint:', API_ENDPOINTS.CHANNEL_PARTNER_BY_ID(partnerId));
+      
       const response = await fetch(API_ENDPOINTS.CHANNEL_PARTNER_BY_ID(partnerId), {
         method: "GET",
         headers: {
@@ -67,22 +70,83 @@ const EditChannelPartnerPage = () => {
         },
       });
 
+      console.log('Response status:', response.status);
+      console.log('Response headers:', response.headers);
+
       if (!response.ok) {
-        throw new Error(`Failed to fetch channel partner: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error Response:', errorText);
+        throw new Error(`Failed to fetch channel partner: ${response.status} - ${errorText}`);
       }
 
       const data = await response.json();
+      console.log('=== RAW API RESPONSE ===');
+      console.log(JSON.stringify(data, null, 2));
+      console.log('=== END RAW RESPONSE ===');
+      
       const partner = data.channelPartner || data;
+      console.log('Partner Data:', partner);
+      console.log('Available fields in partner:', Object.keys(partner));
+      
+      // Check if we have the expected fields
+      if (!partner.name && !partner.phone) {
+        console.error('No valid partner data found. Full response:', data);
+        console.log('Trying to use raw data as fallback...');
+        // Try using the raw data directly
+        const rawPartner = data;
+        if (rawPartner && (rawPartner.name || rawPartner.phone)) {
+          console.log('Using raw data as partner:', rawPartner);
+          setFormData({
+            name: rawPartner.name || "",
+            phone: rawPartner.phone || "",
+            firmName: rawPartner.firmName || "",
+            location: rawPartner.location || "",
+            address: rawPartner.address || "",
+            mahareraNo: rawPartner.mahareraNo || "",
+            pinCode: rawPartner.pinCode || "",
+            photo: rawPartner.photo || "",
+            photoFile: null,
+          });
+          return;
+        }
+        throw new Error('Invalid partner data received from API');
+      }
+      
+      // Map the actual API response fields to our form fields
+      // Try multiple possible field name variations
+      const partnerData = {
+        name: partner.name || partner.Name || partner.fullName || partner.full_name || "",
+        phone: partner.phone || partner.Phone || partner.phoneNumber || partner.phone_number || partner.mobile || partner.Mobile || "",
+        firmName: partner.firmName || partner.FirmName || partner.firm_name || partner.companyName || partner.company_name || partner.company || "",
+        location: partner.location || partner.Location || partner.city || partner.City || partner.area || partner.Area || "",
+        address: partner.address || partner.Address || partner.fullAddress || partner.full_address || partner.streetAddress || partner.street_address || "",
+        mahareraNo: partner.mahareraNo || partner.MahareraNo || partner.maharera_no || partner.registrationNumber || partner.registration_number || partner.regNo || "",
+        pinCode: partner.pinCode || partner.PinCode || partner.pin_code || partner.postalCode || partner.postal_code || partner.zipCode || partner.zip_code || "",
+        photo: partner.photo || partner.Photo || partner.image || partner.Image || partner.avatar || partner.Avatar || "",
+      };
+      
+      console.log('Mapped Partner Data:', partnerData);
+      
+      // Debug each field individually
+      console.log('Field values:');
+      console.log('name:', partner.name, '->', partnerData.name);
+      console.log('phone:', partner.phone, '->', partnerData.phone);
+      console.log('firmName:', partner.firmName, '->', partnerData.firmName);
+      console.log('location:', partner.location, '->', partnerData.location);
+      console.log('address:', partner.address, '->', partnerData.address);
+      console.log('mahareraNo:', partner.mahareraNo, '->', partnerData.mahareraNo);
+      console.log('pinCode:', partner.pinCode, '->', partnerData.pinCode);
+      console.log('photo:', partner.photo, '->', partnerData.photo);
       
       setFormData({
-        name: partner.name || "",
-        phone: partner.phone || "",
-        firmName: partner.firmName || "",
-        location: partner.location || "",
-        address: partner.address || "",
-        mahareraNo: partner.mahareraNo || "",
-        pinCode: partner.pinCode || "",
-        photo: partner.photo || "",
+        name: partnerData.name,
+        phone: partnerData.phone,
+        firmName: partnerData.firmName,
+        location: partnerData.location,
+        address: partnerData.address,
+        mahareraNo: partnerData.mahareraNo,
+        pinCode: partnerData.pinCode,
+        photo: partnerData.photo,
         photoFile: null,
       });
     } catch (err: any) {
@@ -291,6 +355,21 @@ const EditChannelPartnerPage = () => {
         </div>
       </div>
 
+      {/* Debug Section - Remove after fixing */}
+      <div className="mb-4 p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
+        <h3 className="text-sm font-medium text-yellow-800 mb-2">Debug Info:</h3>
+        <div className="text-xs text-yellow-700 space-y-1">
+          <div><strong>Form Data:</strong></div>
+          <div>Name: "{formData.name}"</div>
+          <div>Phone: "{formData.phone}"</div>
+          <div>Firm Name: "{formData.firmName}"</div>
+          <div>Location: "{formData.location}"</div>
+          <div>Address: "{formData.address}"</div>
+          <div>MAHARERA: "{formData.mahareraNo}"</div>
+          <div>PIN Code: "{formData.pinCode}"</div>
+        </div>
+      </div>
+
       <Card className="max-w-4xl">
         <form onSubmit={handleSubmit} className="space-y-6">
           {status.type === "success" && (
@@ -318,7 +397,7 @@ const EditChannelPartnerPage = () => {
                 placeholder="Enter full name"
                 value={formData.name}
                 onChange={handleChange}
-                color={errors.name ? "failure" : "gray"}
+                color={errors.name ? "failure" : "white"}
                 helperText={errors.name}
               />
             </div>

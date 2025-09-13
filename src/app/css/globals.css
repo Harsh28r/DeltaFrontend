@@ -2,6 +2,9 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Leaflet CSS for maps */
+@import 'leaflet/dist/leaflet.css';
+
 
 
 @import './layouts/container.css';

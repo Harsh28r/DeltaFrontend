@@ -1,10 +1,19 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Card, Label, TextInput, Alert, FileInput, Select, Textarea } from "flowbite-react";
+import { Button, Card, Label, TextInput, Alert, Select, Textarea } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS } from "@/lib/config";
+import LocationCapture from "@/components/LocationCapture";
+import LocationMap from "@/components/LocationMap";
+import { LocationData, getCurrentLocation, reverseGeocode } from "@/utils/locationUtils";
+
+// Define LocalLocationData interface with only coordinates
+interface LocalLocationData {
+  lat: number;
+  lng: number;
+}
 
 interface ChannelPartnerData {
   name: string;
@@ -16,17 +25,15 @@ interface ChannelPartnerData {
   pinCode: string;
 }
 
-interface Location {
-  lat: number;
-  lng: number;
-}
+// Use LocationData from utils instead of defining our own
+type Location = LocationData;
 
 interface FormData {
   // Channel Partner Data
   channelPartnerData: ChannelPartnerData;
   // Project and Location
   projectId: string;
-  location: Location;
+  location: LocalLocationData;
   selfie: string;
   selfieFile: File | null;
 }
@@ -40,6 +47,23 @@ interface Project {
   name: string;
   description?: string;
 }
+
+// Helper function to convert LocationData to LocalLocationData
+const convertToLocalLocationData = (location: LocationData): LocalLocationData => {
+  return {
+    lat: location.lat,
+    lng: location.lng
+  };
+};
+
+// Helper functions for location display
+const getDetailedLocationString = (location: LocalLocationData): string => {
+  return `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
+};
+
+const getShortLocationString = (location: LocalLocationData): string => {
+  return `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
+};
 
 const AddCPSourcingPage = () => {
   const router = useRouter();
@@ -64,12 +88,17 @@ const AddCPSourcingPage = () => {
       pinCode: "",
     },
     projectId: "",
-    location: { lat: 0, lng: 0 },
+    location: { 
+      lat: 0, 
+      lng: 0
+    },
     selfie: "",
     selfieFile: null,
   });
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [capturedLocation, setCapturedLocation] = useState<LocalLocationData | null>(null);
+  const [locationError, setLocationError] = useState<string | null>(null);
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -141,45 +170,24 @@ const AddCPSourcingPage = () => {
     }
   };
 
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      // Validate file type
-      if (!file.type.startsWith('image/')) {
-        setErrors(prev => ({
-          ...prev,
-          selfie: "Please select a valid image file"
-        }));
-        return;
-      }
-
-      // Validate file size (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        setErrors(prev => ({
-          ...prev,
-          selfie: "File size must be less than 5MB"
-        }));
-        return;
-      }
-
-      // Create preview URL
-      const previewUrl = URL.createObjectURL(file);
-      setFormData(prev => ({
-        ...prev,
-        selfieFile: file,
-        selfie: previewUrl
-      }));
-
-      // Clear any previous errors
-      if (errors.selfie) {
-        setErrors(prev => ({
-          ...prev,
-          selfie: ""
-        }));
-      }
-    }
+  const handleLocationCaptured = (location: LocationData) => {
+    const localLocation = convertToLocalLocationData(location);
+    setCapturedLocation(localLocation);
+    setLocationError(null);
+    
+    // Update form data with captured location
+    setFormData(prev => ({
+      ...prev,
+      location: localLocation
+    }));
   };
+
+  const handleLocationError = (error: any) => {
+    setLocationError(error.message);
+    setCapturedLocation(null);
+  };
+
+
 
   const removeSelfie = () => {
     if (formData.selfie && formData.selfie.startsWith('blob:')) {
@@ -190,52 +198,38 @@ const AddCPSourcingPage = () => {
       selfie: "",
       selfieFile: null
     }));
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
   };
 
-  const getCurrentLocation = (): Promise<{ lat: number; lng: number }> => {
-    return new Promise((resolve, reject) => {
-      if (!navigator.geolocation) {
-        reject(new Error('Geolocation is not supported by this browser.'));
-        return;
-      }
-
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          resolve({
-            lat: position.coords.latitude,
-            lng: position.coords.longitude
-          });
-        },
-        (error) => {
-          reject(new Error(`Location error: ${error.message}`));
-        },
-        {
-          enableHighAccuracy: true,
-          timeout: 10000,
-          maximumAge: 0
-        }
-      );
-    });
-  };
 
   const startCamera = async () => {
     try {
       setIsCapturing(true);
       
-      // Get location first
+      // Automatically capture detailed location when opening camera
       try {
+        console.log('Capturing detailed location automatically...');
         const location = await getCurrentLocation();
+        
+        // Convert to local location data
+        const localLocation = convertToLocalLocationData(location);
+        
+        // Update form data with enhanced location
         setFormData(prev => ({
           ...prev,
-          location: location
+          location: localLocation
         }));
+        
+        // Update captured location state
+        setCapturedLocation(localLocation);
+        setLocationError(null);
         setLocationPermission('granted');
-      } catch (locationError) {
-        console.warn('Could not get location:', locationError);
+        
+        console.log('Detailed location captured successfully:', location);
+      } catch (locationError: any) {
+        console.warn('Could not get detailed location:', locationError);
+        setLocationError(locationError.message || 'Failed to capture detailed location');
         setLocationPermission('denied');
+        setCapturedLocation(null);
       }
 
       // Start camera
@@ -349,9 +343,9 @@ const AddCPSourcingPage = () => {
       newErrors.projectId = "Project selection is required";
     }
 
-    // Location validation - must be captured with selfie
-    if (formData.location.lat === 0 && formData.location.lng === 0) {
-      newErrors.selfie = "Please capture a selfie to automatically get location coordinates";
+    // Location validation - must be captured
+    if (!capturedLocation || (formData.location.lat === 0 && formData.location.lng === 0)) {
+      newErrors.location = "Please capture your location before submitting";
     }
 
     if (!formData.selfieFile) {
@@ -392,6 +386,8 @@ const AddCPSourcingPage = () => {
       
       // Add other data
       submitData.append('projectId', formData.projectId);
+      
+      // Add location data (coordinates only)
       submitData.append('location[lat]', formData.location.lat.toString());
       submitData.append('location[lng]', formData.location.lng.toString());
       
@@ -433,13 +429,13 @@ const AddCPSourcingPage = () => {
           pinCode: "",
         },
         projectId: "",
-        location: { lat: 0, lng: 0 },
+        location: { 
+          lat: 0, 
+          lng: 0
+        },
         selfie: "",
         selfieFile: null,
       });
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
-      }
 
       // Redirect after a short delay
       setTimeout(() => {
@@ -626,38 +622,22 @@ const AddCPSourcingPage = () => {
                 )}
               </div>
 
-              {/* Location Status */}
+              {/* Location Capture */}
               <div className="space-y-4">
-                <Label value="Location Status" />
-                <div className="p-4 bg-gray-50 rounded-lg">
-                  {locationPermission === 'granted' && formData.location.lat !== 0 ? (
-                    <div className="flex items-center gap-2 text-green-600">
-                      <Icon icon="lucide:check-circle" className="w-5 h-5" />
-                      <div>
-                        <p className="font-medium">Location Captured</p>
-                        <p className="text-sm">
-                          {formData.location.lat.toFixed(4)}, {formData.location.lng.toFixed(4)}
-                        </p>
-                      </div>
-                    </div>
-                  ) : locationPermission === 'denied' ? (
-                    <div className="flex items-center gap-2 text-yellow-600">
-                      <Icon icon="lucide:alert-triangle" className="w-5 h-5" />
-                      <div>
-                        <p className="font-medium">Location Access Denied</p>
-                        <p className="text-sm">Please enable location access to capture coordinates</p>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-gray-600">
-                      <Icon icon="lucide:map-pin" className="w-5 h-5" />
-                      <div>
-                        <p className="font-medium">Location Not Captured</p>
-                        <p className="text-sm">Location will be captured when you take a selfie</p>
-                      </div>
-                    </div>
-                  )}
-                </div>
+                <Label value="Location Capture *" />
+                <LocationCapture
+                  onLocationCaptured={handleLocationCaptured}
+                  onLocationError={handleLocationError}
+                  initialLocation={capturedLocation}
+                  showMap={true}
+                  className="w-full"
+                />
+                {locationError && (
+                  <Alert color="failure" className="mt-2">
+                    <Icon icon="lucide:alert-circle" className="w-4 h-4" />
+                    <span className="ml-2">{locationError}</span>
+                  </Alert>
+                )}
               </div>
             </div>
           </div>
@@ -670,6 +650,78 @@ const AddCPSourcingPage = () => {
               <div className="space-y-4">
                 {isCapturing ? (
                   <div className="space-y-4">
+                    {/* Location Capture Status */}
+                    {capturedLocation ? (
+                      <div className="space-y-4">
+                        <div className="bg-green-50 border border-green-200 rounded-lg p-3">
+                          <div className="flex items-center gap-2 text-green-800">
+                            <Icon icon="lucide:check-circle" className="w-5 h-5" />
+                            <span className="font-medium">Detailed Location Captured Successfully</span>
+                          </div>
+                          <p className="text-sm text-green-700 mt-1">
+                            {getDetailedLocationString(capturedLocation)}
+                          </p>
+                        </div>
+                        
+                        {/* Location Information */}
+                        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                          <h4 className="text-sm font-medium text-blue-800 mb-3 flex items-center gap-2">
+                            <Icon icon="lucide:map-pin" className="w-4 h-4" />
+                            Location Coordinates
+                          </h4>
+                          <div className="text-xs">
+                            <div><span className="font-medium text-blue-700">Coordinates:</span> {capturedLocation.lat.toFixed(4)}, {capturedLocation.lng.toFixed(4)}</div>
+                          </div>
+                        </div>
+                        
+                        {/* Interactive Map */}
+                        <div className="bg-gray-50 border border-gray-200 rounded-lg p-3">
+                          <h4 className="text-sm font-medium text-gray-700 mb-2 flex items-center gap-2">
+                            <Icon icon="lucide:map" className="w-4 h-4" />
+                            Location Map
+                          </h4>
+                          <LocationMap
+                            location={capturedLocation}
+                            height="200px"
+                            width="100%"
+                            showPopup={true}
+                            popupContent={getDetailedLocationString(capturedLocation)}
+                            className="rounded-lg"
+                          />
+                        </div>
+                      </div>
+                    ) : locationError ? (
+                      <div className="bg-red-50 border border-red-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-red-800">
+                          <Icon icon="lucide:alert-circle" className="w-5 h-5" />
+                          <span className="font-medium">Location Capture Failed</span>
+                        </div>
+                        <p className="text-sm text-red-700 mt-1">{locationError}</p>
+                      </div>
+                    ) : (
+                      <div className="bg-blue-50 border border-blue-200 rounded-lg p-3">
+                        <div className="flex items-center gap-2 text-blue-800">
+                          <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
+                          <span className="font-medium">Capturing Detailed Location...</span>
+                        </div>
+                        <p className="text-sm text-blue-700 mt-1">Getting precise coordinates, address details, and reverse geocoding information...</p>
+                        <div className="mt-2 text-xs text-blue-600">
+                          <div className="flex items-center gap-1">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse"></div>
+                            <span>Getting GPS coordinates</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.2s'}}></div>
+                            <span>Reverse geocoding address</span>
+                          </div>
+                          <div className="flex items-center gap-1 mt-1">
+                            <div className="w-2 h-2 bg-blue-400 rounded-full animate-pulse" style={{animationDelay: '0.4s'}}></div>
+                            <span>Extracting building and landmark details</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="relative bg-black rounded-lg overflow-hidden">
                       <video
                         ref={videoRef}
@@ -767,37 +819,22 @@ const AddCPSourcingPage = () => {
                           className="flex items-center gap-2 px-8 py-4"
                         >
                           <Icon icon="lucide:camera" className="w-6 h-6" />
-                          Capture Selfie with Camera
+                          Capture Selfie with Detailed Location
                         </Button>
                         <div className="text-center">
-                          <p className="text-sm text-gray-600 mb-2">Or upload from device:</p>
-                          <Label
-                            htmlFor="selfie-upload"
-                            className="flex h-24 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
-                          >
-                            <div className="flex flex-col items-center justify-center">
-                              <Icon
-                                icon="lucide:upload"
-                                className="w-6 h-6 text-gray-400 mb-1"
-                              />
-                              <p className="text-xs text-gray-500">
-                                Upload from device
-                              </p>
-                            </div>
-                            <FileInput
-                              id="selfie-upload"
-                              ref={fileInputRef}
-                              onChange={handleFileChange}
-                              accept="image/*"
-                              className="hidden"
-                            />
-                          </Label>
+                          <p className="text-sm text-blue-600 mb-2 flex items-center justify-center gap-1">
+                            <Icon icon="lucide:map-pin" className="w-4 h-4" />
+                            Detailed location will be captured automatically
+                          </p>
+                          <p className="text-xs text-gray-600 mb-2">
+                            Including building names, streets, landmarks, and exact address
+                          </p>
                         </div>
                       </div>
                     </div>
                     <div className="text-center">
                       <p className="text-xs text-gray-500">
-                        Camera will automatically capture your location coordinates
+                        Camera will automatically capture detailed location including building names, streets, landmarks, and exact address
                       </p>
                     </div>
                   </div>

@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS } from "@/lib/config";
+import { getSelfieUrl, cleanupObjectUrl } from "@/utils/cpSourcingUtils";
 
 interface ChannelPartner {
   _id: string;
@@ -28,6 +29,7 @@ const ChannelPartnersPage = () => {
   const [error, setError] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [selectedPartner, setSelectedPartner] = useState<ChannelPartner | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Fetch channel partners
   useEffect(() => {
@@ -72,6 +74,7 @@ const ChannelPartnersPage = () => {
     if (!selectedPartner) return;
 
     try {
+      setIsDeleting(true);
       const response = await fetch(API_ENDPOINTS.DELETE_CHANNEL_PARTNER(selectedPartner._id), {
         method: "DELETE",
         headers: {
@@ -81,16 +84,20 @@ const ChannelPartnersPage = () => {
       });
 
       if (!response.ok) {
-        throw new Error(`Failed to delete channel partner: ${response.status}`);
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to delete channel partner: ${response.status}`);
       }
 
       // Remove from local state
       setChannelPartners(prev => prev.filter(p => p._id !== selectedPartner._id));
       setDeleteModalOpen(false);
       setSelectedPartner(null);
+      setError(null); // Clear any previous errors
     } catch (err: any) {
       console.error("Error deleting channel partner:", err);
       setError(err.message || "Failed to delete channel partner");
+    } finally {
+      setIsDeleting(false);
     }
   };
 
@@ -196,8 +203,17 @@ const ChannelPartnersPage = () => {
                       <div className="flex items-center gap-2">
                         <Button
                           size="sm"
+                          color="gray"
+                          onClick={() => router.push(`/apps/channel-partners/${partner._id}`)}
+                          title="View Details"
+                        >
+                          <Icon icon="lucide:eye" className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="sm"
                           color="blue"
                           onClick={() => router.push(`/apps/channel-partners/edit/${partner._id}`)}
+                          title="Edit"
                         >
                           <Icon icon="lucide:edit" className="w-3 h-3" />
                         </Button>
@@ -205,6 +221,7 @@ const ChannelPartnersPage = () => {
                           size="sm"
                           color="failure"
                           onClick={() => handleDelete(partner)}
+                          title="Delete"
                         >
                           <Icon icon="lucide:trash-2" className="w-3 h-3" />
                         </Button>
@@ -234,11 +251,18 @@ const ChannelPartnersPage = () => {
           </div>
         </Modal.Body>
         <Modal.Footer>
-          <Button color="gray" onClick={() => setDeleteModalOpen(false)}>
+          <Button color="gray" onClick={() => setDeleteModalOpen(false)} disabled={isDeleting}>
             Cancel
           </Button>
-          <Button color="failure" onClick={confirmDelete}>
-            Delete Channel Partner
+          <Button color="failure" onClick={confirmDelete} disabled={isDeleting}>
+            {isDeleting ? (
+              <>
+                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                Deleting...
+              </>
+            ) : (
+              'Delete Channel Partner'
+            )}
           </Button>
         </Modal.Footer>
       </Modal>

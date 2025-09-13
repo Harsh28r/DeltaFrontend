@@ -74,6 +74,7 @@ export const API_ENDPOINTS = {
   CREATE_CP_SOURCING: `${API_BASE_URL}/api/cp-sourcing/`,
   UPDATE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
   DELETE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
+  CP_SOURCING_SELFIE: (id: string, index: number) => `${API_BASE_URL}/api/cp-sourcing/${id}/selfie/${index}`,
 };
 
 // Create a custom event system for refreshing sidebar data
