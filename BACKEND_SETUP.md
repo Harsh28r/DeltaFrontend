@@ -65,3 +65,4 @@ After adding the static file serving:
 ### Current Image URLs:
 - Frontend generates: `http://localhost:5000/uploads/cpsourcing/1757666859015-live-selfie.jpeg`
 - Backend should serve from: `./uploads/cpsourcing/1757666859015-live-selfie.jpeg`
+
