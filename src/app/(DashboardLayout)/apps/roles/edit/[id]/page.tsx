@@ -1,3 +1,5 @@
+// NOTE: duplicate implementation removed below. Keeping the comprehensive edit UI that follows.
+
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button, Card, Label, TextInput, Select } from "flowbite-react";
@@ -89,8 +91,11 @@ const EditRolePage = () => {
   useEffect(() => {
     // Fetch role data from backend
     const fetchRole = async () => {
-      if (!token) return;
-      
+      if (!token) {
+        setError("Authentication required");
+        setIsLoading(false);
+        return;
+      }
       try {
         const response = await fetch(API_ENDPOINTS.ROLE_BY_ID(roleId), {
           method: "GET",
@@ -99,30 +104,39 @@ const EditRolePage = () => {
             Authorization: `Bearer ${token}`,
           },
         });
-        
         if (response.ok) {
-          const data = await response.json();
-          setFormData(data.role || data);
-        } else {
-          const errorData = await response.json();
-          console.error("Failed to fetch role:", errorData.message);
-          if (errorData.message === "No token, authorization denied") {
-            setError("Authentication failed. Please log in again.");
-          } else {
-            router.push("/apps/roles");
+          // Try parse JSON; fallback to text if necessary
+          let data: any = null;
+          try {
+            data = await response.json();
+          } catch (_) {
+            data = null;
           }
-          return;
+          const role = data?.role ?? data;
+          if (role && role._id) {
+            setFormData(role);
+            setError(null);
+          } else {
+            setError("Unexpected response shape from server. Role not found in payload.");
+          }
+        } else {
+          // Read response body as text for better diagnostics
+          let bodyText = "";
+          try {
+            bodyText = await response.text();
+          } catch (_) {}
+          console.error("Failed to fetch role:", response.status, response.statusText, bodyText);
+          setError(`Failed to load role (${response.status}). ${bodyText || response.statusText}`);
         }
       } catch (error) {
         console.error("Error fetching role:", error);
-        router.push("/apps/roles");
+        setError("Network error loading role");
       } finally {
         setIsLoading(false);
       }
     };
-
     fetchRole();
-  }, [roleId, router, token]);
+  }, [roleId, token]);
 
   const handleInputChange = (field: string, value: string | number) => {
     setFormData(prev => ({
@@ -172,9 +186,10 @@ const EditRolePage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // Success - trigger sidebar refresh and redirect to roles list
+        // Success - trigger sidebar refresh and show success inline (no redirect)
         createRefreshEvent();
-        router.push("/apps/roles");
+        setError(null);
+        // Optionally show a transient success indicator by briefly disabling the button
       } else {
         // Handle error response
         if (data.message === "Role already exists") {
@@ -243,11 +258,11 @@ const EditRolePage = () => {
                     value={formData.level}
                     onChange={(e) => handleInputChange("level", parseInt(e.target.value))}
                   >
-                    <option value={1}>Level 1 - Junior</option>
-                    <option value={2}>Level 2 - Intermediate</option>
-                    <option value={3}>Level 3 - Senior</option>
-                    <option value={4}>Level 4 - Lead</option>
-                    <option value={5}>Level 5 - Manager</option>
+                    <option value={1}>Level 1 </option>
+                    <option value={2}>Level 2 </option>
+                    <option value={3}>Level 3</option>
+                    <option value={4}>Level 4 </option>
+                    {/* <option value={5}>Level 5 - Manager</option>     */}
                   </Select>
                 </div>
 

@@ -76,6 +76,11 @@ const AddCPSourcingPage = () => {
   const [isCapturing, setIsCapturing] = useState(false);
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [locationPermission, setLocationPermission] = useState<'granted' | 'denied' | 'prompt'>('prompt');
+  const [isCheckingCPPhone, setIsCheckingCPPhone] = useState(false);
+  const [cpAutoFilled, setCpAutoFilled] = useState(false);
+  const phoneLookupCacheRef = useRef<Record<string, any>>({});
+  const phoneDebounceRef = useRef<any>(null);
+  const phoneAbortRef = useRef<AbortController | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     channelPartnerData: {
@@ -154,6 +159,11 @@ const AddCPSourcingPage = () => {
           [field]: value
         }
       }));
+
+      // If phone changes, allow editing other fields again
+      if (field === 'phone') {
+        setCpAutoFilled(false);
+      }
     } else {
       setFormData(prev => ({
         ...prev,
@@ -168,6 +178,68 @@ const AddCPSourcingPage = () => {
         [name]: ""
       }));
     }
+  };
+
+  const lookupCPByPhone = async (digits: string) => {
+    if (!token) return;
+    // Cache hit
+    const cached = phoneLookupCacheRef.current[digits];
+    if (cached) {
+      applyCPMatch(cached);
+      return;
+    }
+
+    if (phoneAbortRef.current) {
+      phoneAbortRef.current.abort();
+    }
+    const controller = new AbortController();
+    phoneAbortRef.current = controller;
+
+    setIsCheckingCPPhone(true);
+    try {
+      const resp = await fetch(`${API_ENDPOINTS.CHANNEL_PARTNERS}?phone=${encodeURIComponent(digits)}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${token}`,
+        },
+        signal: controller.signal,
+      });
+      if (!resp.ok) {
+        setCpAutoFilled(false);
+        return;
+      }
+      const data = await resp.json().catch(() => ({}));
+      const list = data.channelPartners || data || [];
+      const match = Array.isArray(list) ? list.find((p: any) => (p?.phone || '').replace(/\D/g, '') === digits) : null;
+      if (match) {
+        phoneLookupCacheRef.current[digits] = match;
+        applyCPMatch(match);
+      } else {
+        setCpAutoFilled(false);
+      }
+    } catch (e) {
+      // ignore aborted/other errors
+    } finally {
+      setIsCheckingCPPhone(false);
+    }
+  };
+
+  const applyCPMatch = (match: any) => {
+    setFormData(prev => ({
+      ...prev,
+      channelPartnerData: {
+        ...prev.channelPartnerData,
+        name: match.name || prev.channelPartnerData.name,
+        firmName: match.firmName || prev.channelPartnerData.firmName,
+        location: match.location || prev.channelPartnerData.location,
+        address: match.address || prev.channelPartnerData.address,
+        mahareraNo: match.mahareraNo || prev.channelPartnerData.mahareraNo,
+        pinCode: match.pinCode || prev.channelPartnerData.pinCode,
+        phone: match.phone || prev.channelPartnerData.phone,
+      }
+    }));
+    setCpAutoFilled(true);
   };
 
   const handleLocationCaptured = (location: LocationData) => {
@@ -487,6 +559,42 @@ const AddCPSourcingPage = () => {
           <div className="space-y-6">
             <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Channel Partner Information</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+
+
+              
+              {/* Phone */}
+              <div>
+                <Label htmlFor="channelPartnerData.phone" value="Phone Number *" />
+                <TextInput
+                  id="channelPartnerData.phone"
+                  name="channelPartnerData.phone"
+                  type="tel"
+                  placeholder="Enter 10-digit phone number"
+                  value={formData.channelPartnerData.phone}
+                  onChange={(e) => {
+                    handleChange(e);
+                    const digits = e.target.value.replace(/\D/g, "");
+                    // Debounce lookup while typing for faster perceived response
+                    if (phoneDebounceRef.current) clearTimeout(phoneDebounceRef.current);
+                    if (digits.length === 10) {
+                      phoneDebounceRef.current = setTimeout(() => lookupCPByPhone(digits), 200);
+                    }
+                  }}
+                  onBlur={() => {
+                    const digits = formData.channelPartnerData.phone.replace(/\D/g, "");
+                    if (digits.length === 10) lookupCPByPhone(digits);
+                  }}
+                  color={errors['channelPartnerData.phone'] ? "failure" : "gray"}
+                  helperText={errors['channelPartnerData.phone']}
+                />
+                {isCheckingCPPhone && (
+                  <p className="text-xs text-gray-500 mt-1">Checking channel partners…</p>
+                )}
+                {cpAutoFilled && !isCheckingCPPhone && (
+                  <p className="text-xs text-blue-600 mt-1">Existing channel partner found. Details auto-filled.</p>
+                )}
+              </div>
+              
               {/* Name */}
               <div>
                 <Label htmlFor="channelPartnerData.name" value="Partner Name *" />
@@ -497,25 +605,12 @@ const AddCPSourcingPage = () => {
                   placeholder="Enter partner name"
                   value={formData.channelPartnerData.name}
                   onChange={handleChange}
+                  disabled={cpAutoFilled}
                   color={errors['channelPartnerData.name'] ? "failure" : "gray"}
                   helperText={errors['channelPartnerData.name']}
                 />
               </div>
 
-              {/* Phone */}
-              <div>
-                <Label htmlFor="channelPartnerData.phone" value="Phone Number *" />
-                <TextInput
-                  id="channelPartnerData.phone"
-                  name="channelPartnerData.phone"
-                  type="tel"
-                  placeholder="Enter 10-digit phone number"
-                  value={formData.channelPartnerData.phone}
-                  onChange={handleChange}
-                  color={errors['channelPartnerData.phone'] ? "failure" : "gray"}
-                  helperText={errors['channelPartnerData.phone']}
-                />
-              </div>
 
               {/* Firm Name */}
               <div>
@@ -527,6 +622,7 @@ const AddCPSourcingPage = () => {
                   placeholder="Enter firm/company name"
                   value={formData.channelPartnerData.firmName}
                   onChange={handleChange}
+                  disabled={cpAutoFilled}
                   color={errors['channelPartnerData.firmName'] ? "failure" : "gray"}
                   helperText={errors['channelPartnerData.firmName']}
                 />
@@ -542,6 +638,7 @@ const AddCPSourcingPage = () => {
                   placeholder="Enter city/location"
                   value={formData.channelPartnerData.location}
                   onChange={handleChange}
+                  disabled={cpAutoFilled}
                   color={errors['channelPartnerData.location'] ? "failure" : "gray"}
                   helperText={errors['channelPartnerData.location']}
                 />
@@ -557,6 +654,7 @@ const AddCPSourcingPage = () => {
                   placeholder="Enter complete address"
                   value={formData.channelPartnerData.address}
                   onChange={handleChange}
+                  disabled={cpAutoFilled}
                   color={errors['channelPartnerData.address'] ? "failure" : "gray"}
                   helperText={errors['channelPartnerData.address']}
                 />
@@ -572,6 +670,7 @@ const AddCPSourcingPage = () => {
                   placeholder="Enter MAHARERA registration number (optional)"
                   value={formData.channelPartnerData.mahareraNo}
                   onChange={handleChange}
+                  disabled={cpAutoFilled}
                   color={errors['channelPartnerData.mahareraNo'] ? "failure" : "gray"}
                   helperText={errors['channelPartnerData.mahareraNo'] || "Optional field"}
                 />
@@ -587,6 +686,7 @@ const AddCPSourcingPage = () => {
                   placeholder="Enter 6-digit PIN code"
                   value={formData.channelPartnerData.pinCode}
                   onChange={handleChange}
+                  disabled={cpAutoFilled}
                   color={errors['channelPartnerData.pinCode'] ? "failure" : "gray"}
                   helperText={errors['channelPartnerData.pinCode']}
                 />

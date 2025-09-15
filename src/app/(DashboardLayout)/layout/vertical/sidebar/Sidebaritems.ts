@@ -298,23 +298,23 @@ export const useSidebarData = () => {
               ],
             },
             {
-              name: "Lead Sources",
+              name: "Leads",
               id: uniqueId(),
               icon: "solar:target-line-duotone",
               children: [
                 {
                   id: uniqueId(),
-                  name: "Lead Management",
+                  name: "Leads Management",
                   url: "/apps/lead-management",
                 },
                 {
                   id: uniqueId(),
-                  name: "Leads",
+                  name: "All Leads",
                   url: "/apps/leads",
                 },
                 {
                   id: uniqueId(),
-                  name: "Lead Activities",
+                  name: "Leads Activities",
                   url: "/apps/lead-activities",
                 },
               ],

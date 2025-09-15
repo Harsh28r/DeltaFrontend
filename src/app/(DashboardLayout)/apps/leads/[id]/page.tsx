@@ -1725,7 +1725,7 @@ const LeadDetailPage = () => {
 
           </Button>
 
-          <Button
+          {/* <Button
 
             color="warning"
 
@@ -1739,7 +1739,7 @@ const LeadDetailPage = () => {
 
             Change Status
 
-          </Button>
+          </Button> */}
 
           <Button
 

@@ -77,6 +77,7 @@ export const API_ENDPOINTS = {
   CP_SOURCING_SELFIE: (id: string, index: number) => `${API_BASE_URL}/api/cp-sourcing/${id}/selfie/${index}`,
 };
 
+
 // Create a custom event system for refreshing sidebar data
 export const createRefreshEvent = () => {
   if (typeof window !== 'undefined') {

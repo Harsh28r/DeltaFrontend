@@ -92,6 +92,14 @@ interface Lead {
     _id: string;
     name: string;
   } | null;
+  cpSourcingId?: {
+    _id: string;
+    name: string;
+  } | null;
+  channelPartner?: {
+    _id: string;
+    name: string;
+  } | null;
   project?: {
     _id: string;
     name: string;
@@ -198,7 +206,7 @@ const LeadsPage = () => {
     gender: "",
     budget: "",
     channelPartner: "", // Channel partner selection
-    channelPartnerSourcing: "" // Channel partner sourcing option
+    cpSourcingId: "" // Channel partner sourcing option
   });
   
   // Dynamic form fields based on selected status
@@ -282,21 +290,16 @@ const LeadsPage = () => {
     const isChannelPartner = newSource === 'channel-partner' || 
       leadSources.some(source => source._id === newSource && source.name.toLowerCase() === 'channel partner');
     
-    setFormData({ 
-      ...formData, 
+    // Single functional update to prevent stale overwrites
+    setFormData(prev => ({ 
+      ...prev, 
       source: newSource,
-      // Clear channel partner fields if not selecting channel partner
-      channelPartner: isChannelPartner ? formData.channelPartner : '',
-      channelPartnerSourcing: isChannelPartner ? formData.channelPartnerSourcing : ''
-    });
+      channelPartner: isChannelPartner ? prev.channelPartner : '',
+      cpSourcingId: isChannelPartner ? prev.cpSourcingId : ''
+    }));
     
     // Reset dynamic fields when source changes
     setDynamicFields({});
-    
-    // Clear channel partner selection if not selecting channel partner
-    if (!isChannelPartner) {
-      setFormData({ ...formData, channelPartner: "", channelPartnerSourcing: "" });
-    }
   };
 
 
@@ -311,6 +314,7 @@ const LeadsPage = () => {
       
       if (leadsResponse.ok) {
         const leadsData = await leadsResponse.json();
+        console.log('Leads Data:', leadsData);
         const leadsArray = leadsData.leads || leadsData || [];
         const transformedLeads = transformLeadData(leadsArray);
         setLeads(transformedLeads);
@@ -339,55 +343,59 @@ const LeadsPage = () => {
 
   const transformLeadData = (leadsData: any[]): Lead[] => {
     return leadsData.map(lead => {
-      // Get source name - check if it's a channel partner first
+      // Determine source name prioritizing top-level relations first
       let sourceName = 'N/A';
-      
-      // Check if this is a channel partner by looking at customData
-      const channelPartnerId = lead.customData?.["Channel Partner"];
-      if (channelPartnerId) {
-        // Find the channel partner name
-        const channelPartner = channelPartners.find(cp => cp._id === channelPartnerId);
-        if (channelPartner) {
-          sourceName = `Channel Partner: ${channelPartner.name}`;
-          
-          // Add CP sourcing info if available
-          const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-          if (cpSourcingId) {
-            const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
-            if (cpSourcing) {
-              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
-            }
-          }
+
+      // Prefer top-level populated channelPartner
+      if (lead.channelPartner) {
+        const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
+        const cpName = cpObj?.name;
+        if (cpName) {
+          sourceName = `Channel Partner: ${cpName}`;
         } else {
-          // If channel partner not found, try to get name from CP sourcing data
-          const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-          if (cpSourcingId) {
-            const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
-            if (cpSourcing) {
-              sourceName = `Channel Partner: ${cpSourcing.channelPartnerId.name}`;
-            } else {
-              sourceName = 'Channel Partner';
-            }
+          // fallback to custom data id mapping
+          const cpIdFromCustom = lead.customData?.["Channel Partner"];
+          const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+          if (cp) sourceName = `Channel Partner: ${cp.name}`;
+          else sourceName = 'Channel Partner';
+        }
+
+        // Append sourcing info if available
+        const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+        if (cpSourcingRef) {
+          let cpSourcing: any = null;
+          if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
+            cpSourcing = cpSourcingRef;
           } else {
-            sourceName = 'Channel Partner';
+            cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingRef);
+          }
+          if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
+            sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
           }
         }
       } else if (lead.leadSource?._id) {
         // Regular lead source
         sourceName = lead.leadSource?.name || 'N/A';
+      } else {
+        // Final fallback: infer from customData if present
+        const cpIdFromCustom = lead.customData?.["Channel Partner"];
+        if (cpIdFromCustom) {
+          const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+          sourceName = cp ? `Channel Partner: ${cp.name}` : 'Channel Partner';
+        }
       }
 
       return {
-      ...lead,
-      name: `${lead.customData?.["First Name"] || ''} ${lead.customData?.["Last Name"] || ''}`.trim() || 'N/A',
-      email: lead.customData?.["Email"] || 'N/A',
-      phone: lead.customData?.["Phone"] || 'N/A',
-      company: lead.customData?.["Company"] || 'N/A',
-      notes: lead.customData?.["Notes"] || '',
+        ...lead,
+        name: `${lead.customData?.["First Name"] || ''} ${lead.customData?.["Last Name"] || ''}`.trim() || 'N/A',
+        email: lead.customData?.["Email"] || 'N/A',
+        phone: lead.customData?.["Phone"] || 'N/A',
+        company: lead.customData?.["Company"] || 'N/A',
+        notes: lead.customData?.["Notes"] || '',
         source: sourceName,
-      status: lead.currentStatus?._id || 'N/A',
-      projectName: lead.project?.name || 'N/A',
-      LeadScore: lead.LeadScore || 0 // Set default score if undefined
+        status: lead.currentStatus?._id || 'N/A',
+        projectName: lead.project?.name || 'N/A',
+        LeadScore: lead.LeadScore || 0
       };
     });
   };
@@ -735,10 +743,12 @@ const LeadsPage = () => {
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({
-            leadSource: (formData.source === 'channel-partner' || 
-              leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) 
-              ? formData.channelPartner : formData.source,
+            // Always send the selected lead source id (do not replace with CP id)
+            leadSource: formData.source,
             currentStatus: formData.status,
+            // Send CP details only if provided
+            channelPartner: formData.channelPartner || undefined,
+            cpSourcingId: formData.cpSourcingId || undefined,
             customData: {
               "First Name": formData.name.split(' ')[0] || formData.name,
               "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
@@ -752,7 +762,7 @@ const LeadsPage = () => {
               "Gender": formData.gender,
               "Budget": formData.budget,
               "Channel Partner": formData.channelPartner,
-              "Channel Partner Sourcing": formData.channelPartnerSourcing,
+              "Channel Partner Sourcing": formData.cpSourcingId,
               ...dynamicFields // Include dynamic fields
             },
               userId: formData.userId
@@ -777,11 +787,12 @@ const LeadsPage = () => {
       } else {
         // Create new lead
         const requestBody = {
-          leadSource: (formData.source === 'channel-partner' || 
-            leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) 
-            ? formData.channelPartner : formData.source,
+          // Always send the selected lead source id (do not replace with CP id)
+          leadSource: formData.source,
           currentStatus: formData.status,
           project: formData.projectId, // Add required project field
+          channelPartner: formData.channelPartner || undefined,
+          cpSourcingId: formData.cpSourcingId || undefined,
           customData: {
             "First Name": formData.name.split(' ')[0] || formData.name,
             "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
@@ -794,8 +805,8 @@ const LeadsPage = () => {
             "Funding Mode": formData.fundingMode,
             "Gender": formData.gender,
             "Budget": formData.budget,
-            "Channel Partner": formData.channelPartner,
-            "Channel Partner Sourcing": formData.channelPartnerSourcing,
+            // "Channel Partner": formData.channelPartner,
+            // "Channel Partner Sourcing": formData.cpSourcingId,
             ...dynamicFields // Include dynamic fields
           },
           userId: formData.userId
@@ -1406,7 +1417,7 @@ const LeadsPage = () => {
       gender: lead.customData?.["Gender"] || '',
       budget: lead.customData?.["Budget"] || '',
       channelPartner: lead.customData?.["Channel Partner"] || '',
-      channelPartnerSourcing: lead.customData?.["Channel Partner Sourcing"] || ''
+      cpSourcingId: lead.customData?.["Channel Partner Sourcing"] || ''
     });
     
     // Populate dynamic fields from lead's customData
@@ -1471,7 +1482,7 @@ const LeadsPage = () => {
       gender: "",
       budget: "",
       channelPartner: "",
-      channelPartnerSourcing: ""
+      cpSourcingId: ""
     });
     setDynamicFields(newDynamicFields);
   };
@@ -1532,7 +1543,7 @@ const LeadsPage = () => {
       gender: "",
       budget: "",
       channelPartner: "",
-      channelPartnerSourcing: ""
+      cpSourcingId: ""
     });
     setDynamicFields(newDynamicFields);
     setIsModalOpen(true);
@@ -2011,10 +2022,10 @@ const LeadsPage = () => {
                             <div className="text-sm font-medium text-gray-900 dark:text-white">
                               {lead.source || 'N/A'}
                             </div>
-                            {lead.customData?.["Channel Partner Sourcing"] && (
+                            {(lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"]) && (
                               <div className="text-xs text-gray-500 dark:text-gray-400">
                                 <span className="font-medium">CP:</span> {(() => {
-                                  const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+                                  const cpSourcingId = (typeof lead.cpSourcingId === 'object' && lead.cpSourcingId ? lead.cpSourcingId._id : lead.cpSourcingId) || lead.customData?.["Channel Partner Sourcing"]; 
                                   const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
                                   return cpSourcing ? `${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name}` : 'N/A';
                                 })()}
@@ -2269,9 +2280,9 @@ const LeadsPage = () => {
                     <div className="space-y-2">
                       <Label htmlFor="channelPartnerSourcing" value="CP Sourcing" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       <Select
-                        id="channelPartnerSourcing"
-                        value={formData.channelPartnerSourcing}
-                        onChange={(e) => setFormData({ ...formData, channelPartnerSourcing: e.target.value })}
+                        id="cpSourcingId"
+                        value={formData.cpSourcingId}
+                        onChange={(e) => setFormData({ ...formData, cpSourcingId: e.target.value })}
                         className="w-full"
                       >
                         <option value="">Select CP sourcing option</option>

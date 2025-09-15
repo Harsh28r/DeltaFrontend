@@ -19,6 +19,7 @@ interface ChannelPartner {
   photo?: string;
   createdAt: string;
   updatedAt: string;
+  status: string;
 }
 
 const ChannelPartnersPage = () => {
@@ -168,6 +169,7 @@ const ChannelPartnersPage = () => {
                 <Table.HeadCell>Phone</Table.HeadCell>
                 <Table.HeadCell>Location</Table.HeadCell>
                 <Table.HeadCell>MAHARERA No.</Table.HeadCell>
+                <Table.HeadCell>Status</Table.HeadCell>
                 <Table.HeadCell>Created</Table.HeadCell>
                 <Table.HeadCell>Actions</Table.HeadCell>
               </Table.Head>
@@ -196,6 +198,11 @@ const ChannelPartnersPage = () => {
                     <Table.Cell>
                       <Badge color="blue" size="sm">
                         {partner.mahareraNo}
+                      </Badge>
+                    </Table.Cell>
+                    <Table.Cell>
+                      <Badge color="blue" size="sm">
+                        {partner.status}
                       </Badge>
                     </Table.Cell>
                     <Table.Cell>{formatDate(partner.createdAt)}</Table.Cell>

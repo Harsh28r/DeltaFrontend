@@ -137,9 +137,7 @@ const AddChannelPartnerPage = () => {
       newErrors.address = "Address is required";
     }
 
-    if (!formData.mahareraNo.trim()) {
-      newErrors.mahareraNo = "MAHARERA number is required";
-    }
+    // MAHARERA number is optional
 
     if (!formData.pinCode.trim()) {
       newErrors.pinCode = "PIN code is required";
@@ -341,9 +339,9 @@ const AddChannelPartnerPage = () => {
               />
             </div>
 
-            {/* MAHARERA Number */}
+            {/* MAHARERA Number (Optional) */}
             <div>
-              <Label htmlFor="mahareraNo" value="MAHARERA Number *" />
+              <Label htmlFor="mahareraNo" value="MAHARERA Number (Optional)" />
               <TextInput
                 id="mahareraNo"
                 name="mahareraNo"
