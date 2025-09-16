@@ -1,5 +1,5 @@
 "use client";
-import React from 'react';
+import React, { useEffect } from 'react';
 import dynamic from 'next/dynamic';
 import { Icon } from '@iconify/react';
 
@@ -32,6 +32,24 @@ const LocationMap: React.FC<LocationMapProps> = ({
   showPopup = true,
   popupContent
 }) => {
+  // Fix Leaflet default icon paths
+  useEffect(() => {
+    if (typeof window !== 'undefined' && (window as any).L) {
+      try {
+        // @ts-ignore
+        delete (window as any).L.Icon.Default.prototype._getIconUrl;
+        // @ts-ignore
+        (window as any).L.Icon.Default.mergeOptions({
+          iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+          iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+          shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+        });
+      } catch (error) {
+        console.warn('Failed to configure Leaflet icons:', error);
+      }
+    }
+  }, []);
+
   // Don't render if location is invalid
   if (!location || typeof location.lat !== 'number' || typeof location.lng !== 'number') {
     return (

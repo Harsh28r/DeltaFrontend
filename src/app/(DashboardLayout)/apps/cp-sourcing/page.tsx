@@ -198,7 +198,7 @@ const CPSourcingPage = () => {
       return '';
     }
     
-    // If it's a local file path, convert it to a file:// URL
+    // If it's a local file path, convert it to a proper URL
     if (imagePath.includes('uploads\\') || imagePath.includes('uploads/')) {
       // Convert backslashes to forward slashes for proper URL construction
       const normalizedPath = imagePath.replace(/\\/g, '/');
@@ -215,8 +215,13 @@ const CPSourcingPage = () => {
       return imagePath;
     }
     
-    // Default fallback
-    return imagePath;
+    // If it's a relative path, prepend the API base URL
+    if (imagePath.startsWith('/')) {
+      return `${API_BASE_URL}${imagePath}`;
+    }
+    
+    // Default fallback - assume it's a relative path
+    return `${API_BASE_URL}/${imagePath}`;
   };
 
   // Component to handle image display with fallback
@@ -244,6 +249,7 @@ const CPSourcingPage = () => {
         className={className}
         crossOrigin="anonymous"
         onError={(e) => {
+          console.warn(`Failed to load image: ${src}`);
           setImageError(true);
         }}
         onLoad={() => {

@@ -27,37 +27,10 @@ interface ChannelPartner {
   updatedAt: string;
 }
 
-interface CPSourcing {
+interface CPSourcingUser {
   _id: string;
-  userId: {
-    _id: string;
-    name: string;
-    email: string;
-  };
-  channelPartnerId: {
-    _id: string;
-    name: string;
-    phone: string;
-  };
-  projectId: {
-    _id: string;
-    name: string;
-    location: string;
-  };
-  sourcingHistory: Array<{
-    location: {
-      lat: number;
-      lng: number;
-    };
-    date: string;
-    selfie: string;
-    notes: string;
-    _id: string;
-  }>;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
-  __v: number;
+  name: string;
+  email: string;
 }
 
 interface FormField {
@@ -174,7 +147,7 @@ const LeadsPage = () => {
   const [projects, setProjects] = useState<Project[]>([]);
   const [users, setUsers] = useState<User[]>([]);
   const [channelPartners, setChannelPartners] = useState<ChannelPartner[]>([]);
-  const [cpSourcingOptions, setCPSourcingOptions] = useState<CPSourcing[]>([]);
+  const [cpSourcingOptions, setCPSourcingOptions] = useState<CPSourcingUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
@@ -222,6 +195,7 @@ const LeadsPage = () => {
   const [isTransferring, setIsTransferring] = useState(false);
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [isLoadingCPSourcing, setIsLoadingCPSourcing] = useState(false);
 
   useEffect(() => {
     if (token) {
@@ -283,6 +257,39 @@ const LeadsPage = () => {
     setDynamicFields(newDynamicFields);
   };
 
+  // Function to fetch CP sourcing users for a specific channel partner and project
+  const fetchCPSourcingOptions = async (channelPartnerId: string, projectId: string) => {
+    if (!channelPartnerId || !projectId) {
+      setCPSourcingOptions([]);
+      return;
+    }
+
+    try {
+      setIsLoadingCPSourcing(true);
+      const response = await fetch(
+        `http://localhost:5000/api/cp-sourcing/unique-users?projectId=${projectId}&channelPartnerId=${channelPartnerId}`,
+        {
+          headers: { Authorization: `Bearer ${token}` },
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        // The API returns an array of users directly
+        const sourcingOptions = Array.isArray(data) ? data : [];
+        setCPSourcingOptions(sourcingOptions);
+      } else {
+        console.error('Failed to fetch CP sourcing users:', response.statusText);
+        setCPSourcingOptions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching CP sourcing users:', error);
+      setCPSourcingOptions([]);
+    } finally {
+      setIsLoadingCPSourcing(false);
+    }
+  };
+
   const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSource = e.target.value;
     
@@ -300,6 +307,44 @@ const LeadsPage = () => {
     
     // Reset dynamic fields when source changes
     setDynamicFields({});
+  };
+
+  // Handler for channel partner change
+  const handleChannelPartnerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const channelPartnerId = e.target.value;
+    const projectId = formData.projectId;
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      channelPartner: channelPartnerId,
+      cpSourcingId: '' // Reset CP sourcing when channel partner changes
+    }));
+    
+    // Fetch CP sourcing options for the selected channel partner and project
+    if (channelPartnerId && projectId) {
+      fetchCPSourcingOptions(channelPartnerId, projectId);
+    } else {
+      setCPSourcingOptions([]);
+    }
+  };
+
+  // Handler for project change
+  const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const projectId = e.target.value;
+    const channelPartnerId = formData.channelPartner;
+    
+    setFormData(prev => ({ 
+      ...prev, 
+      projectId: projectId,
+      cpSourcingId: '' // Reset CP sourcing when project changes
+    }));
+    
+    // If a channel partner is already selected, fetch CP sourcing options for the new project
+    if (channelPartnerId && projectId) {
+      fetchCPSourcingOptions(channelPartnerId, projectId);
+    } else {
+      setCPSourcingOptions([]);
+    }
   };
 
 
@@ -521,15 +566,9 @@ const LeadsPage = () => {
         setChannelPartners(partners);
       }
 
-      // Fetch CP sourcing options
-      const cpSourcingResponse = await fetch(API_ENDPOINTS.CP_SOURCING, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (cpSourcingResponse.ok) {
-        const cpSourcingData = await cpSourcingResponse.json();
-        const sourcingOptions = cpSourcingData.cpSourcing || cpSourcingData || [];
-        setCPSourcingOptions(sourcingOptions);
-      }
+      // Fetch CP sourcing options - will be fetched dynamically when channel partner is selected
+      // Initial empty state
+      setCPSourcingOptions([]);
 
       // Fetch users (only for super admin)
       if (isSuperAdmin) {
@@ -2024,10 +2063,10 @@ const LeadsPage = () => {
                             </div>
                             {(lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"]) && (
                               <div className="text-xs text-gray-500 dark:text-gray-400">
-                                <span className="font-medium">CP:</span> {(() => {
+                                <span className="font-medium">CP User:</span> {(() => {
                                   const cpSourcingId = (typeof lead.cpSourcingId === 'object' && lead.cpSourcingId ? lead.cpSourcingId._id : lead.cpSourcingId) || lead.customData?.["Channel Partner Sourcing"]; 
-                                  const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
-                                  return cpSourcing ? `${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name}` : 'N/A';
+                                  const cpUser = cpSourcingOptions.find(user => user._id === cpSourcingId);
+                                  return cpUser ? `${cpUser.name} (${cpUser.email})` : 'N/A';
                                 })()}
                               </div>
                             )}
@@ -2214,11 +2253,14 @@ const LeadsPage = () => {
                       className="w-full"
                       disabled={!!editingLead}
                 >
+                  console.log(leadSources)
                       <option value="">Select lead source</option>
                   {leadSources.map(source => (
                     <option key={source._id} value={source._id}>
+                      
                       {source.name}
                     </option>
+
                   ))}
                       {!leadSources.some(source => source.name.toLowerCase() === 'channel partner') && (
                         <option value="channel-partner">Channel Partner</option>
@@ -2256,46 +2298,6 @@ const LeadsPage = () => {
               </div>
             </div>
 
-                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */}
-                {(formData.source === 'channel-partner' || 
-                  leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      <div className="space-y-2">
-                        <Label htmlFor="channelPartner" value="Select Channel Partner *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                        <Select
-                          id="channelPartner"
-                          value={formData.channelPartner}
-                          onChange={(e) => setFormData({ ...formData, channelPartner: e.target.value })}
-                          required
-                          className="w-full"
-                        >
-                          <option value="">Select a channel partner</option>
-                          {channelPartners.map(partner => (
-                            <option key={partner._id} value={partner._id}>
-                              {partner.name} - {partner.firmName} - {partner.phone}
-                            </option>
-                          ))}
-                        </Select>
-              </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="channelPartnerSourcing" value="CP Sourcing" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                      <Select
-                        id="cpSourcingId"
-                        value={formData.cpSourcingId}
-                        onChange={(e) => setFormData({ ...formData, cpSourcingId: e.target.value })}
-                        className="w-full"
-                      >
-                        <option value="">Select CP sourcing option</option>
-                        {cpSourcingOptions.map(option => (
-                          <option key={option._id} value={option._id}>
-                            {option.channelPartnerId.name} - {option.projectId.name} ({option.sourcingHistory.length} visits)
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-              </div>
-                )}
-
               {/* Project Selection Section */}
               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
                 <div className="flex items-center mb-6">
@@ -2315,7 +2317,7 @@ const LeadsPage = () => {
               <Select
                 id="projectId"
                 value={formData.projectId}
-                onChange={(e) => setFormData({ ...formData, projectId: e.target.value })}
+                onChange={handleProjectChange}
                 required
                     className="w-full"
               >
@@ -2338,6 +2340,80 @@ const LeadsPage = () => {
               </div>
             </div>
                 </div>
+
+                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */}
+                {(formData.source === 'channel-partner' || 
+                  leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && (
+                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                    <div className="flex items-center mb-6">
+                      <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
+                        <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
+                      </div>
+                      <div>
+                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Channel Partner Selection</h3>
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          Select channel partner and CP sourcing user
+                        </p>
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div className="space-y-2">
+                          <Label htmlFor="channelPartner" value="Select Channel Partner *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                          <Select
+                            id="channelPartner"
+                            value={formData.channelPartner}
+                            onChange={handleChannelPartnerChange}
+                            required
+                            className="w-full"
+                          >
+                            <option value="">Select a channel partner</option>
+                            {channelPartners.map(partner => (
+                              <option key={partner._id} value={partner._id}>
+                                {partner.name} - {partner.firmName} - {partner.phone}
+                              </option>
+                            ))}
+                          </Select>
+                </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="channelPartnerSourcing" value="CP Sourcing User" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                        <Select
+                          id="cpSourcingId"
+                          value={formData.cpSourcingId}
+                          onChange={(e) => setFormData({ ...formData, cpSourcingId: e.target.value })}
+                          className="w-full"
+                          disabled={isLoadingCPSourcing || !formData.channelPartner || !formData.projectId}
+                        >
+                          <option value="">
+                            {!formData.channelPartner || !formData.projectId 
+                              ? "Select channel partner and project first"
+                              : isLoadingCPSourcing 
+                                ? "Loading users..."
+                                : "Select CP sourcing user"
+                            }
+                          </option>
+                          {cpSourcingOptions.map(user => (
+                            <option key={user._id} value={user._id}>
+                              {user.name} ({user.email})
+                            </option>
+                          ))}
+                        </Select>
+                        {isLoadingCPSourcing && (
+                          <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                            <Icon icon="solar:refresh-line-duotone" className="w-3 h-3 animate-spin" />
+                            Loading users...
+                          </p>
+                        )}
+                        {!isLoadingCPSourcing && cpSourcingOptions.length === 0 && formData.channelPartner && formData.projectId && (
+                          <p className="text-xs text-gray-500 dark:text-gray-400">
+                            No users found for this channel partner and project combination
+                          </p>
+                        )}
+                      </div>
+                </div>
+                  </div>
+                )}
+
+             
               </div>
 
               {/* Dynamic Fields based on selected status */}

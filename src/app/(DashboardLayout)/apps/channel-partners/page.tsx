@@ -19,7 +19,7 @@ interface ChannelPartner {
   photo?: string;
   createdAt: string;
   updatedAt: string;
-  status: string;
+  isActive: boolean;
 }
 
 const ChannelPartnersPage = () => {
@@ -57,7 +57,8 @@ const ChannelPartnersPage = () => {
       }
 
       const data = await response.json();
-      setChannelPartners(data.channelPartners || data || []);
+      const partners = data.channelPartners || data || [];
+      setChannelPartners(partners);
     } catch (err: any) {
       console.error("Error fetching channel partners:", err);
       setError(err.message || "Failed to fetch channel partners");
@@ -180,7 +181,7 @@ const ChannelPartnersPage = () => {
                       <div className="flex items-center gap-3">
                         {partner.photo ? (
                           <img
-                            src={partner.photo}
+                            src={`http://localhost:5000/api/channel-partner/${partner._id}/photo`}
                             alt={partner.name}
                             className="w-8 h-8 rounded-full object-cover"
                           />
@@ -201,8 +202,11 @@ const ChannelPartnersPage = () => {
                       </Badge>
                     </Table.Cell>
                     <Table.Cell>
-                      <Badge color="blue" size="sm">
-                        {partner.status}
+                      <Badge 
+                        color={partner.isActive ? 'success' : 'failure'} 
+                        size="sm"
+                      >
+                        {partner.isActive ? 'Active' : 'Inactive'}
                       </Badge>
                     </Table.Cell>
                     <Table.Cell>{formatDate(partner.createdAt)}</Table.Cell>

@@ -8,9 +8,9 @@ const FullLogo = () => {
   return (
     <Link href={"/"}>
       {/* Dark Logo   */}
-      <Image src={Logo} alt="logo" className="block dark:hidden" />
+      <Image src={Logo} alt="logo" className="block dark:hidden" priority />
       {/* Light Logo  */}
-      <Image src={Logowhite} alt="logo" className="hidden dark:block" />
+      <Image src={Logowhite} alt="logo" className="hidden dark:block" priority />
     </Link>
   );
 };

@@ -1,11 +1,11 @@
-
 "use client";
 import React, { useState, useEffect } from "react";
 import { Button, Card, Badge, Alert, Modal, Table } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
+import LocationMap from "@/components/LocationMap";
 
 interface User {
   _id: string;
@@ -13,80 +13,67 @@ interface User {
   email: string;
 }
 
-interface Lead {
-  _id: string;
-  user: User;
-  project: string;
-  channelPartner: string;
-  leadSource: string;
-  currentStatus: string;
-  customData: {
-    "First Name": string;
-    "Last Name": string;
-    Email: string;
-    Phone: string;
-    Notes: string;
-    "Lead Priority": string;
-    "Property Type": string;
-    Configuration: string;
-    "Funding Mode": string;
-    Gender: string;
-    Budget: string;
-    Remark: string;
-    "Channel Partner"?: string;
-  };
-  cpSourcingId: {
-    _id: string;
-    projectId: string;
-  };
-  statusHistory: any[];
-  createdAt: string;
-  updatedAt: string;
-}
-
 interface ChannelPartner {
   _id: string;
   name: string;
   phone: string;
-  firmName: string;
-  location: string;
-  address: string;
-  mahareraNo: string;
-  pinCode: string;
-  photo?: string;
-  isActive: boolean;
-  createdBy: User;
-  updatedBy: User;
-  createdAt: string;
-  updatedAt: string;
-  leads?: Lead[];
 }
 
-const ChannelPartnerDetailPage = () => {
+interface Project {
+  _id: string;
+  name: string;
+  location: string;
+}
+
+interface Location {
+  lat: number;
+  lng: number;
+}
+
+interface SourcingHistoryItem {
+  _id: string;
+  location: Location;
+  date: string;
+  selfie: string;
+  notes: string;
+}
+
+interface CPSourcing {
+  _id: string;
+  userId: User;
+  channelPartnerId: ChannelPartner;
+  projectId: Project;
+  sourcingHistory: SourcingHistoryItem[];
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
+const CPSourcingDetailPage = () => {
   const router = useRouter();
   const params = useParams();
   const { token } = useAuth();
-  const partnerId = params.id as string;
+  const sourcingId = params.id as string;
 
-  const [partner, setPartner] = useState<ChannelPartner | null>(null);
+  const [sourcing, setSourcing] = useState<CPSourcing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
   useEffect(() => {
-    if (token && partnerId) {
-      fetchPartnerDetails();
+    if (token && sourcingId) {
+      fetchSourcingDetails();
     }
-  }, [token, partnerId]);
+  }, [token, sourcingId]);
 
-  const fetchPartnerDetails = async () => {
+  const fetchSourcingDetails = async () => {
     try {
       setIsLoading(true);
       setError(null);
 
       const response = await fetch(
-        `${API_ENDPOINTS.CHANNEL_PARTNER_BY_ID(partnerId)}`,
+        `${API_ENDPOINTS.CP_SOURCING_BY_ID(sourcingId)}`,
         {
           method: "GET",
           headers: {
@@ -97,21 +84,21 @@ const ChannelPartnerDetailPage = () => {
       );
 
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("CP Sourcing record not found");
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.message ||
-            `Failed to fetch channel partner details: ${response.status}`
+            `Failed to fetch CP sourcing details: ${response.status}`
         );
       }
 
       const data = await response.json();
-      setPartner({
-        ...data.channelPartner,
-        leads: data.leads,
-      });
+      setSourcing(data);
     } catch (err: any) {
-      console.error("Error fetching channel partner details:", err);
-      setError(err.message || "Failed to fetch channel partner details");
+      console.error("Error fetching CP sourcing details:", err);
+      setError(err.message || "Failed to fetch CP sourcing details");
     } finally {
       setIsLoading(false);
     }
@@ -122,12 +109,12 @@ const ChannelPartnerDetailPage = () => {
   };
 
   const confirmDelete = async () => {
-    if (!partner) return;
+    if (!sourcing) return;
 
     try {
       setIsDeleting(true);
       const response = await fetch(
-        API_ENDPOINTS.DELETE_CHANNEL_PARTNER(partner._id),
+        API_ENDPOINTS.DELETE_CP_SOURCING(sourcing._id),
         {
           method: "DELETE",
           headers: {
@@ -140,14 +127,14 @@ const ChannelPartnerDetailPage = () => {
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
-          errorData.message || `Failed to delete channel partner: ${response.status}`
+          errorData.message || `Failed to delete CP sourcing: ${response.status}`
         );
       }
 
-      router.push("/apps/channel-partners");
+      router.push("/apps/cp-sourcing");
     } catch (err: any) {
-      console.error("Error deleting channel partner:", err);
-      setError(err.message || "Failed to delete channel partner");
+      console.error("Error deleting CP sourcing:", err);
+      setError(err.message || "Failed to delete CP sourcing");
     } finally {
       setIsDeleting(false);
       setDeleteModalOpen(false);
@@ -166,6 +153,71 @@ const ChannelPartnerDetailPage = () => {
     } catch (error) {
       return "Invalid Date";
     }
+  };
+
+  const getImageUrl = (imagePath: string | undefined) => {
+    if (!imagePath) {
+      return '';
+    }
+    
+    // If it's a local file path, convert it to a proper URL
+    if (imagePath.includes('uploads\\') || imagePath.includes('uploads/')) {
+      // Convert backslashes to forward slashes for proper URL construction
+      const normalizedPath = imagePath.replace(/\\/g, '/');
+      
+      // For local files, we need to serve them through the backend
+      const fullUrl = `${API_BASE_URL}/${normalizedPath}`;
+      
+      return fullUrl;
+    }
+    
+    // If it's already a full URL, return as is
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('file://')) {
+      return imagePath;
+    }
+    
+    // If it's a relative path, prepend the API base URL
+    if (imagePath.startsWith('/')) {
+      return `${API_BASE_URL}${imagePath}`;
+    }
+    
+    // Default fallback - assume it's a relative path
+    return `${API_BASE_URL}/${imagePath}`;
+  };
+
+  // Component to handle image display with fallback
+  const ImageDisplay = ({ src, alt, className, fallbackIcon = "lucide:camera" }: {
+    src: string | undefined;
+    alt: string;
+    className: string;
+    fallbackIcon?: string;
+  }) => {
+    const [imageError, setImageError] = useState(false);
+
+    if (!src || imageError) {
+      return (
+        <div className={`${className} bg-orange-100 rounded-full flex items-center justify-center`}>
+          <Icon icon={fallbackIcon} className="w-4 h-4 text-orange-600" />
+        </div>
+      );
+    }
+
+    return (
+      <img
+        src={src}
+        alt={alt}
+        className={className}
+        crossOrigin="anonymous"
+        onError={(e) => {
+          console.warn(`Failed to load image: ${src}`);
+          setImageError(true);
+        }}
+        style={{ 
+          objectFit: 'cover',
+          borderRadius: '50%'
+        }}
+      />
+    );
   };
 
   if (isLoading) {
@@ -192,12 +244,12 @@ const ChannelPartnerDetailPage = () => {
     );
   }
 
-  if (!partner) {
+  if (!sourcing) {
     return (
       <div className="p-6">
         <Alert color="failure" className="mb-4">
           <Icon icon="lucide:alert-circle" className="w-4 h-4" />
-          <span className="ml-2">Channel partner not found</span>
+          <span className="ml-2">CP Sourcing record not found</span>
         </Alert>
         <Button color="gray" onClick={() => router.back()}>
           Go Back
@@ -205,6 +257,8 @@ const ChannelPartnerDetailPage = () => {
       </div>
     );
   }
+
+  const latestSourcing = sourcing.sourcingHistory[sourcing.sourcingHistory.length - 1];
 
   return (
     <div className="p-6">
@@ -221,15 +275,17 @@ const ChannelPartnerDetailPage = () => {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-gray-900">
-              Channel Partner Details
+              CP Sourcing Details
             </h1>
-            <p className="text-gray-600">{partner.name}</p>
+            <p className="text-gray-600">
+              {sourcing.channelPartnerId.name} - {sourcing.projectId.name}
+            </p>
           </div>
         </div>
         <div className="flex gap-2">
           <Button
             color="orange"
-            onClick={() => router.push(`/apps/channel-partners/edit/${partner._id}`)}
+            onClick={() => router.push(`/apps/cp-sourcing/edit/${sourcing._id}`)}
             className="flex items-center gap-2"
           >
             <Icon icon="lucide:edit" className="w-4 h-4" />
@@ -250,108 +306,89 @@ const ChannelPartnerDetailPage = () => {
         <div className="lg:col-span-2">
           <Card className="mb-6">
             <div className="flex items-center gap-3 mb-4">
-              <Icon icon="lucide:user" className="w-6 h-6 text-orange-500" />
+              <Icon icon="lucide:users" className="w-6 h-6 text-orange-500" />
               <h2 className="text-xl font-semibold text-gray-900">
-                Partner Information
+                Sourcing Information
               </h2>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
-                <label className="text-sm font-medium text-gray-500">Name</label>
-                <p className="text-gray-900">{partner.name}</p>
+                <label className="text-sm font-medium text-gray-500">Channel Partner</label>
+                <p className="text-gray-900 font-medium">{sourcing.channelPartnerId.name}</p>
+                <p className="text-sm text-gray-600">{sourcing.channelPartnerId.phone}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">Phone</label>
-                <p className="text-gray-900">{partner.phone}</p>
+                <label className="text-sm font-medium text-gray-500">Project</label>
+                <p className="text-gray-900 font-medium">{sourcing.projectId.name}</p>
+                <p className="text-sm text-gray-600">{sourcing.projectId.location}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Firm Name
-                </label>
-                <p className="text-gray-900">{partner.firmName}</p>
+                <label className="text-sm font-medium text-gray-500">User</label>
+                <p className="text-gray-900">{sourcing.userId.name}</p>
+                <p className="text-sm text-gray-600">{sourcing.userId.email}</p>
               </div>
               <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Location
-                </label>
-                <p className="text-gray-900">{partner.location}</p>
-              </div>
-              <div className="md:col-span-2">
-                <label className="text-sm font-medium text-gray-500">
-                  Address
-                </label>
-                <p className="text-gray-900">{partner.address}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  MAHARERA Number
-                </label>
-                <p className="text-gray-900">{partner.mahareraNo}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  PIN Code
-                </label>
-                <p className="text-gray-900">{partner.pinCode}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Status
-                </label>
-                <Badge color={partner.isActive ? "success" : "failure"}>
-                  {partner.isActive ? "Active" : "Inactive"}
+                <label className="text-sm font-medium text-gray-500">Status</label>
+                <Badge color={sourcing.isActive ? "success" : "failure"}>
+                  {sourcing.isActive ? "Active" : "Inactive"}
                 </Badge>
               </div>
             </div>
           </Card>
 
-          {partner.leads && partner.leads.length > 0 && (
+          {sourcing.sourcingHistory && sourcing.sourcingHistory.length > 0 && (
             <Card className="mb-6">
-              <div className="flex items-center gap-3 mb-4">
-                <Icon
-                  icon="lucide:users"
-                  className="w-6 h-6 text-orange-500"
-                />
-                <h2 className="text-xl font-semibold text-gray-900">
-                  Leads in {partner.name}'s Bucket
-                </h2>
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <Icon
+                    icon="lucide:map-pin"
+                    className="w-6 h-6 text-orange-500"
+                  />
+                  <h2 className="text-xl font-semibold text-gray-900">
+                    Sourcing History
+                  </h2>
+                </div>
+                <Badge color="blue" size="sm">
+                  {sourcing.sourcingHistory.length} visits
+                </Badge>
               </div>
               <Table>
                 <Table.Head>
-                  <Table.HeadCell>Name</Table.HeadCell>
-                  <Table.HeadCell>Email</Table.HeadCell>
-                  <Table.HeadCell>Phone</Table.HeadCell>
-                  <Table.HeadCell>Property Type</Table.HeadCell>
-                  <Table.HeadCell>Budget</Table.HeadCell>
-                  <Table.HeadCell>Status</Table.HeadCell>
-                  <Table.HeadCell>Created At</Table.HeadCell>
+                  <Table.HeadCell>Date</Table.HeadCell>
+                  <Table.HeadCell>Location</Table.HeadCell>
+                  <Table.HeadCell>Selfie</Table.HeadCell>
+                  <Table.HeadCell>Notes</Table.HeadCell>
                 </Table.Head>
                 <Table.Body>
-                  {partner.leads.map((lead) => (
-                    <Table.Row key={lead._id}>
+                  {sourcing.sourcingHistory.map((item, index) => (
+                    <Table.Row key={item._id}>
+                      <Table.Cell>{formatDate(item.date)}</Table.Cell>
                       <Table.Cell>
-                        {`${lead.customData["First Name"] || ""} ${lead.customData["Last Name"] || ""}`.trim() || "N/A"}
+                        <div className="flex items-center gap-2">
+                          <LocationMap
+                            location={item.location}
+                            height="40px"
+                            width="60px"
+                            showPopup={false}
+                          />
+                          <span className="text-xs text-gray-500">
+                            {item.location.lat.toFixed(4)}, {item.location.lng.toFixed(4)}
+                          </span>
+                        </div>
                       </Table.Cell>
-                      <Table.Cell>{lead.customData.Email || "N/A"}</Table.Cell>
-                      <Table.Cell>{lead.customData.Phone || "N/A"}</Table.Cell>
-                      <Table.Cell>{lead.customData["Property Type"] || "N/A"}</Table.Cell>
-                      <Table.Cell>{lead.customData.Budget || "N/A"}</Table.Cell>
                       <Table.Cell>
-                        <Badge
-                          color={
-                            lead.customData["Lead Priority"] === "Hot"
-                              ? "failure"
-                              : lead.customData["Lead Priority"] === "Warm"
-                              ? "warning"
-                              : lead.customData["Lead Priority"]
-                              ? "info"
-                              : "gray"
-                          }
-                        >
-                          {lead.customData["Lead Priority"] || "N/A"}
-                        </Badge>
+                        <ImageDisplay
+                          src={getImageUrl(item.selfie)}
+                          alt={`Selfie ${index + 1}`}
+                          className="w-8 h-8 rounded-full object-cover"
+                          fallbackIcon="lucide:camera"
+                        />
                       </Table.Cell>
-                      <Table.Cell>{formatDate(lead.createdAt)}</Table.Cell>
+                      <Table.Cell>
+                        <span className="text-sm text-gray-600">
+                          {item.notes || "No notes"}
+                        </span>
+                      </Table.Cell>
                     </Table.Row>
                   ))}
                 </Table.Body>
@@ -361,16 +398,16 @@ const ChannelPartnerDetailPage = () => {
         </div>
 
         <div className="space-y-6">
-          {partner.photo && (
+          {latestSourcing?.selfie && (
             <Card>
               <div className="flex items-center gap-3 mb-4">
                 <Icon icon="lucide:camera" className="w-6 h-6 text-orange-500" />
-                <h3 className="text-lg font-semibold text-gray-900">Photo</h3>
+                <h3 className="text-lg font-semibold text-gray-900">Latest Selfie</h3>
               </div>
               <div className="text-center">
                 <img
-                  src={partner.photo}
-                  alt={partner.name}
+                  src={getImageUrl(latestSourcing.selfie)}
+                  alt="Latest Selfie"
                   className="w-full h-48 object-cover rounded-lg border border-gray-300"
                   onError={(e) => {
                     const target = e.target as HTMLImageElement;
@@ -391,73 +428,33 @@ const ChannelPartnerDetailPage = () => {
             <div className="space-y-3">
               <div>
                 <label className="text-sm font-medium text-gray-500">
-                  Partner ID
+                  Sourcing ID
                 </label>
-                <p className="text-gray-900 font-mono text-sm">{partner._id}</p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Created By
-                </label>
-                <p className="text-gray-900 text-sm">{partner.createdBy.name}</p>
+                <p className="text-gray-900 font-mono text-sm">{sourcing._id}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">
                   Created
                 </label>
                 <p className="text-gray-900 text-sm">
-                  {formatDate(partner.createdAt)}
+                  {formatDate(sourcing.createdAt)}
                 </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Updated By
-                </label>
-                <p className="text-gray-900 text-sm">{partner.updatedBy.name}</p>
               </div>
               <div>
                 <label className="text-sm font-medium text-gray-500">
                   Last Updated
                 </label>
                 <p className="text-gray-900 text-sm">
-                  {formatDate(partner.updatedAt)}
+                  {formatDate(sourcing.updatedAt)}
                 </p>
               </div>
             </div>
-          </Card>
-
-          <Card>
-            <div className="flex items-center gap-3 mb-4">
-              <Icon
-                icon="lucide:database"
-                className="w-6 h-6 text-blue-500"
-              />
-              <h3 className="text-lg font-semibold text-gray-900">
-                API Information
-              </h3>
-            </div>
-            {/* <div className="space-y-3">
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  API Endpoint
-                </label>
-                <p className="text-gray-900 font-mono text-xs break-all bg-gray-100 p-2 rounded">
-                  {`${API_ENDPOINTS.CHANNEL_PARTNER_BY_ID(partnerId)}`}
-                </p>
-              </div>
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Method
-                </label>
-                <p className="text-gray-900">GET</p>
-              </div>
-            </div> */}
           </Card>
         </div>
       </div>
 
       <Modal show={deleteModalOpen} onClose={() => setDeleteModalOpen(false)}>
-        <Modal.Header>Delete Channel Partner</Modal.Header>
+        <Modal.Header>Delete CP Sourcing Record</Modal.Header>
         <Modal.Body>
           <div className="text-center">
             <Icon
@@ -465,24 +462,22 @@ const ChannelPartnerDetailPage = () => {
               className="w-16 h-16 text-red-500 mx-auto mb-4"
             />
             <h3 className="text-lg font-medium text-gray-900 mb-2">
-              Are you sure you want to delete this channel partner?
+              Are you sure you want to delete this CP sourcing record?
             </h3>
             <p className="text-gray-600 mb-4">
-              This action cannot be undone. This will permanently delete{" "}
-              <strong>{partner.name}</strong> and all associated data.
+              This action cannot be undone. This will permanently delete the sourcing record for{" "}
+              <strong>{sourcing.channelPartnerId.name}</strong> and project{" "}
+              <strong>{sourcing.projectId.name}</strong>.
             </p>
             <div className="bg-gray-50 p-4 rounded-lg text-left">
               <p>
-                <strong>Name:</strong> {partner.name}
+                <strong>Channel Partner:</strong> {sourcing.channelPartnerId.name}
               </p>
               <p>
-                <strong>Firm:</strong> {partner.firmName}
+                <strong>Project:</strong> {sourcing.projectId.name}
               </p>
               <p>
-                <strong>Phone:</strong> {partner.phone}
-              </p>
-              <p>
-                <strong>Location:</strong> {partner.location}
+                <strong>Visits:</strong> {sourcing.sourcingHistory.length}
               </p>
             </div>
           </div>
@@ -502,7 +497,7 @@ const ChannelPartnerDetailPage = () => {
                 Deleting...
               </>
             ) : (
-              "Delete Channel Partner"
+              "Delete CP Sourcing Record"
             )}
           </Button>
         </Modal.Footer>
@@ -511,4 +506,4 @@ const ChannelPartnerDetailPage = () => {
   );
 };
 
-export default ChannelPartnerDetailPage;
+export default CPSourcingDetailPage;

@@ -251,9 +251,7 @@ const EditChannelPartnerPage = () => {
       newErrors.address = "Address is required";
     }
 
-    if (!formData.mahareraNo.trim()) {
-      newErrors.mahareraNo = "MAHARERA number is required";
-    }
+    // MAHARERA is optional - no validation needed
 
     if (!formData.pinCode.trim()) {
       newErrors.pinCode = "PIN code is required";
@@ -281,20 +279,15 @@ const EditChannelPartnerPage = () => {
         throw new Error("No token found. Please sign in first.");
       }
 
-      // Prepare form data for API
+      // First, update the channel partner without photo
       const submitData = new FormData();
       submitData.append('name', formData.name.trim());
       submitData.append('phone', formData.phone.trim());
       submitData.append('firmName', formData.firmName.trim());
       submitData.append('location', formData.location.trim());
       submitData.append('address', formData.address.trim());
-      submitData.append('mahareraNo', formData.mahareraNo.trim());
+      submitData.append('mahareraNo', formData.mahareraNo.trim() || 'Not Available');
       submitData.append('pinCode', formData.pinCode.trim());
-      
-      // Add photo file if available
-      if (formData.photoFile) {
-        submitData.append('photo', formData.photoFile);
-      }
 
       const response = await fetch(API_ENDPOINTS.UPDATE_CHANNEL_PARTNER(partnerId), {
         method: "PUT",
@@ -312,6 +305,34 @@ const EditChannelPartnerPage = () => {
       }
 
       const data = await response.json().catch(() => null);
+      
+      // If there's a photo file, upload it separately
+      if (formData.photoFile) {
+        try {
+          const photoData = new FormData();
+          photoData.append('photo', formData.photoFile);
+
+          const photoResponse = await fetch(API_ENDPOINTS.UPLOAD_CHANNEL_PARTNER_PHOTO(partnerId), {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: photoData,
+            credentials: "include",
+            mode: "cors",
+          });
+
+          if (!photoResponse.ok) {
+            console.warn("Photo upload failed, but channel partner was updated successfully");
+          } else {
+            console.log("Photo uploaded successfully");
+          }
+        } catch (photoError) {
+          console.warn("Photo upload failed:", photoError);
+          // Don't throw error here, channel partner was updated successfully
+        }
+      }
+      
       setStatus({ type: "success", message: "Channel partner updated successfully!" });
 
       // Redirect after a short delay
@@ -462,9 +483,9 @@ const EditChannelPartnerPage = () => {
               />
             </div>
 
-            {/* MAHARERA Number */}
+            {/* MAHARERA Number (Optional) */}
             <div>
-              <Label htmlFor="mahareraNo" value="MAHARERA Number *" />
+              <Label htmlFor="mahareraNo" value="MAHARERA Number (Optional)" />
               <TextInput
                 id="mahareraNo"
                 name="mahareraNo"

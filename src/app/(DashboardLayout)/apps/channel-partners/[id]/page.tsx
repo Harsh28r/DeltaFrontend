@@ -20,19 +20,19 @@ interface Lead {
   leadSource: string;
   currentStatus: string;
   customData: {
-    FirstName: string;
-    LastName: string;
+    "First Name": string;
+    "Last Name": string;
     Email: string;
     Phone: string;
     Notes: string;
-    LeadPriority: string;
-    PropertyType: string;
+    "Lead Priority": string;
+    "Property Type": string;
     Configuration: string;
-    FundingMode: string;
+    "Funding Mode": string;
     Gender: string;
     Budget: string;
     Remark: string;
-    ChannelPartner?: string;
+    "Channel Partner"?: string;
   };
   cpSourcingId: {
     _id: string;
@@ -96,6 +96,9 @@ const ChannelPartnerDetailPage = () => {
       );
 
       if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error("Channel Partner not found");
+        }
         const errorData = await response.json().catch(() => ({}));
         throw new Error(
           errorData.message ||
@@ -305,9 +308,9 @@ const ChannelPartnerDetailPage = () => {
             </div>
           </Card>
 
-          {partner.leads && partner.leads.length > 0 && (
-            <Card className="mb-6">
-              <div className="flex items-center gap-3 mb-4">
+          <Card className="mb-6">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-3">
                 <Icon
                   icon="lucide:users"
                   className="w-6 h-6 text-orange-500"
@@ -316,48 +319,63 @@ const ChannelPartnerDetailPage = () => {
                   Leads in {partner.name}'s Bucket
                 </h2>
               </div>
-              <Table>
-                <Table.Head>
-                  <Table.HeadCell>Name</Table.HeadCell>
-                  <Table.HeadCell>Email</Table.HeadCell>
-                  <Table.HeadCell>Phone</Table.HeadCell>
-                  <Table.HeadCell>Property Type</Table.HeadCell>
-                  <Table.HeadCell>Budget</Table.HeadCell>
-                  <Table.HeadCell>Status</Table.HeadCell>
-                  <Table.HeadCell>Created At</Table.HeadCell>
-                </Table.Head>
-                <Table.Body>
-                  {partner.leads.map((lead) => (
-                    <Table.Row key={lead._id}>
-                      <Table.Cell>
-                        {`${lead.customData.FirstName} ${lead.customData.LastName}`.trim() || "N/A"}
-                      </Table.Cell>
-                      <Table.Cell>{lead.customData.Email || "N/A"}</Table.Cell>
-                      <Table.Cell>{lead.customData.Phone || "N/A"}</Table.Cell>
-                      <Table.Cell>{lead.customData.PropertyType || "N/A"}</Table.Cell>
-                      <Table.Cell>{lead.customData.Budget || "N/A"}</Table.Cell>
-                      <Table.Cell>
-                        <Badge
-                          color={
-                            lead.customData.LeadPriority === "Hot"
-                              ? "failure"
-                              : lead.customData.LeadPriority === "Warm"
-                              ? "warning"
-                              : lead.customData.LeadPriority
-                              ? "info"
-                              : "gray"
-                          }
-                        >
-                          {lead.customData.LeadPriority || "N/A"}
-                        </Badge>
-                      </Table.Cell>
-                      <Table.Cell>{formatDate(lead.createdAt)}</Table.Cell>
-                    </Table.Row>
-                  ))}
-                </Table.Body>
-              </Table>
-            </Card>
-          )}
+              <Badge color="blue" size="sm">
+                {partner.leads?.length || 0} leads
+              </Badge>
+            </div>
+            
+            {partner.leads && partner.leads.length > 0 ? (
+              <div className="overflow-x-auto">
+                <Table hoverable>
+                  <Table.Head>
+                    <Table.HeadCell>Name</Table.HeadCell>
+                    <Table.HeadCell>Email</Table.HeadCell>
+                    <Table.HeadCell>Phone</Table.HeadCell>
+                    <Table.HeadCell>Property Type</Table.HeadCell>
+                    <Table.HeadCell>Budget</Table.HeadCell>
+                    <Table.HeadCell>Priority</Table.HeadCell>
+                    <Table.HeadCell>Created At</Table.HeadCell>
+                  </Table.Head>
+                  <Table.Body className="divide-y">
+                    {partner.leads.map((lead) => (
+                      <Table.Row key={lead._id} className="bg-white dark:border-gray-700 dark:bg-gray-800">
+                        <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
+                          {`${lead.customData["First Name"]} ${lead.customData["Last Name"]}`.trim() || "N/A"}
+                        </Table.Cell>
+                        <Table.Cell>{lead.customData.Email || "N/A"}</Table.Cell>
+                        <Table.Cell>{lead.customData.Phone || "N/A"}</Table.Cell>
+                        <Table.Cell>{lead.customData["Property Type"] || "N/A"}</Table.Cell>
+                        <Table.Cell>{lead.customData.Budget || "N/A"}</Table.Cell>
+                        <Table.Cell>
+                          <Badge
+                            color={
+                              lead.customData["Lead Priority"] === "Hot"
+                                ? "failure"
+                                : lead.customData["Lead Priority"] === "Warm"
+                                ? "warning"
+                                : lead.customData["Lead Priority"]
+                                ? "info"
+                                : "gray"
+                            }
+                            size="sm"
+                          >
+                            {lead.customData["Lead Priority"] || "N/A"}
+                          </Badge>
+                        </Table.Cell>
+                        <Table.Cell>{formatDate(lead.createdAt)}</Table.Cell>
+                      </Table.Row>
+                    ))}
+                  </Table.Body>
+                </Table>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <Icon icon="lucide:users" className="w-12 h-12 text-gray-400 mx-auto mb-3" />
+                <h3 className="text-lg font-medium text-gray-900 mb-2">No Leads Yet</h3>
+                <p className="text-gray-600">This channel partner doesn't have any leads in their bucket yet.</p>
+              </div>
+            )}
+          </Card>
         </div>
 
         <div className="space-y-6">
@@ -369,7 +387,7 @@ const ChannelPartnerDetailPage = () => {
               </div>
               <div className="text-center">
                 <img
-                  src={partner.photo}
+                  src={`http://localhost:5000/api/channel-partner/${partner._id}/photo`}
                   alt={partner.name}
                   className="w-full h-48 object-cover rounded-lg border border-gray-300"
                   onError={(e) => {
@@ -426,33 +444,6 @@ const ChannelPartnerDetailPage = () => {
             </div>
           </Card>
 
-          <Card>
-            <div className="flex items-center gap-3 mb-4">
-              <Icon
-                icon="lucide:database"
-                className="w-6 h-6 text-blue-500"
-              />
-              <h3 className="text-lg font-semibold text-gray-900">
-                API Information
-              </h3>
-            </div>
-            <div className="space-y-3">
-              {/* <div>
-                <label className="text-sm font-medium text-gray-500">
-                  API Endpoint
-                </label>
-                <p className="text-gray-900 font-mono text-xs break-all bg-gray-100 p-2 rounded">
-                  {`http://localhost:5000/api/channel-partner/${partnerId}`}
-                </p>
-              </div> */}
-              <div>
-                <label className="text-sm font-medium text-gray-500">
-                  Method
-                </label>
-                <p className="text-gray-900">GET</p>
-              </div>
-            </div>
-          </Card>
         </div>
       </div>
 

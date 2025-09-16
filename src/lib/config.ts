@@ -67,6 +67,7 @@ export const API_ENDPOINTS = {
   CREATE_CHANNEL_PARTNER: `${API_BASE_URL}/api/channel-partner/`,
   UPDATE_CHANNEL_PARTNER: (id: string) => `${API_BASE_URL}/api/channel-partner/${id}`,
   DELETE_CHANNEL_PARTNER: (id: string) => `${API_BASE_URL}/api/channel-partner/${id}`,
+  UPLOAD_CHANNEL_PARTNER_PHOTO: (id: string) => `${API_BASE_URL}/api/channel-partner/${id}/photo`,
   
   // CP Sourcing
   CP_SOURCING: `${API_BASE_URL}/api/cp-sourcing/`,

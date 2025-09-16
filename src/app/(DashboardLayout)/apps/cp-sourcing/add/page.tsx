@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect, useRef } from "react";
-import { Button, Card, Label, TextInput, Alert, Select, Textarea } from "flowbite-react";
+import { Button, Card, Label, TextInput, Alert, Select, Textarea, Modal, FileInput } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
@@ -23,6 +23,8 @@ interface ChannelPartnerData {
   address: string;
   mahareraNo: string;
   pinCode: string;
+  photo?: string;
+  isActive?: boolean;
 }
 
 // Use LocationData from utils instead of defining our own
@@ -81,6 +83,24 @@ const AddCPSourcingPage = () => {
   const phoneLookupCacheRef = useRef<Record<string, any>>({});
   const phoneDebounceRef = useRef<any>(null);
   const phoneAbortRef = useRef<AbortController | null>(null);
+  
+  // Edit modal states
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [isEditingCP, setIsEditingCP] = useState(false);
+  const [editCPData, setEditCPData] = useState<ChannelPartnerData>({
+    name: "",
+    phone: "",
+    firmName: "",
+    location: "",
+    address: "",
+    mahareraNo: "",
+    pinCode: "",
+  });
+  const [editCPPhoto, setEditCPPhoto] = useState<string>("");
+  const [editCPPhotoFile, setEditCPPhotoFile] = useState<File | null>(null);
+  const [editCPErrors, setEditCPErrors] = useState<FormErrors>({});
+  const [editCPStatus, setEditCPStatus] = useState<{ type: "idle" | "success" | "error"; message?: string }>({ type: "idle" });
+  const [currentCPId, setCurrentCPId] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<FormData>({
     channelPartnerData: {
@@ -91,6 +111,7 @@ const AddCPSourcingPage = () => {
       address: "",
       mahareraNo: "",
       pinCode: "",
+      photo: "",
     },
     projectId: "",
     location: { 
@@ -240,6 +261,222 @@ const AddCPSourcingPage = () => {
       }
     }));
     setCpAutoFilled(true);
+    setCurrentCPId(match._id); // Store the CP ID for editing
+  };
+
+  // Edit CP handlers
+  const openEditModal = () => {
+    if (!currentCPId) return;
+    
+    // Set edit data from current form data
+    setEditCPData({ ...formData.channelPartnerData });
+    setEditCPPhoto(formData.channelPartnerData.photo || "");
+    setEditCPPhotoFile(null);
+    setEditCPErrors({});
+    setEditCPStatus({ type: "idle" });
+    setEditModalOpen(true);
+  };
+
+  const closeEditModal = () => {
+    setEditModalOpen(false);
+    setEditCPData({
+      name: "",
+      phone: "",
+      firmName: "",
+      location: "",
+      address: "",
+      mahareraNo: "",
+      pinCode: "",
+    });
+    setEditCPPhoto("");
+    setEditCPPhotoFile(null);
+    setEditCPErrors({});
+    setEditCPStatus({ type: "idle" });
+  };
+
+  const handleEditCPChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setEditCPData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    
+    // Clear error when user starts typing
+    if (editCPErrors[name]) {
+      setEditCPErrors(prev => ({
+        ...prev,
+        [name]: ""
+      }));
+    }
+  };
+
+  const handleEditCPFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      // Validate file type
+      if (!file.type.startsWith('image/')) {
+        setEditCPErrors(prev => ({
+          ...prev,
+          photo: "Please select a valid image file"
+        }));
+        return;
+      }
+
+      // Validate file size (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        setEditCPErrors(prev => ({
+          ...prev,
+          photo: "File size must be less than 5MB"
+        }));
+        return;
+      }
+
+      // Create preview URL
+      const previewUrl = URL.createObjectURL(file);
+      setEditCPPhotoFile(file);
+      setEditCPPhoto(previewUrl);
+
+      // Clear any previous errors
+      if (editCPErrors.photo) {
+        setEditCPErrors(prev => ({
+          ...prev,
+          photo: ""
+        }));
+      }
+    }
+  };
+
+  const removeEditCPPhoto = () => {
+    if (editCPPhoto && editCPPhoto.startsWith('blob:')) {
+      URL.revokeObjectURL(editCPPhoto);
+    }
+    setEditCPPhoto("");
+    setEditCPPhotoFile(null);
+  };
+
+  const validateEditCPForm = (): boolean => {
+    const newErrors: FormErrors = {};
+
+    if (!editCPData.name.trim()) {
+      newErrors.name = "Name is required";
+    }
+
+    if (!editCPData.phone.trim()) {
+      newErrors.phone = "Phone number is required";
+    } else if (!/^[0-9]{10}$/.test(editCPData.phone.replace(/\D/g, ""))) {
+      newErrors.phone = "Please enter a valid 10-digit phone number";
+    }
+
+    if (!editCPData.firmName.trim()) {
+      newErrors.firmName = "Firm name is required";
+    }
+
+    if (!editCPData.location.trim()) {
+      newErrors.location = "Location is required";
+    }
+
+    if (!editCPData.address.trim()) {
+      newErrors.address = "Address is required";
+    }
+
+    if (!editCPData.pinCode.trim()) {
+      newErrors.pinCode = "PIN code is required";
+    } else if (!/^[0-9]{6}$/.test(editCPData.pinCode)) {
+      newErrors.pinCode = "Please enter a valid 6-digit PIN code";
+    }
+
+    setEditCPErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleEditCPSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!validateEditCPForm()) {
+      return;
+    }
+
+    if (isEditingCP || !currentCPId) return;
+    setIsEditingCP(true);
+    setEditCPStatus({ type: "idle" });
+
+    try {
+      if (!token) {
+        throw new Error("No token found. Please sign in first.");
+      }
+
+      // First, update the channel partner without photo
+      const submitData = new FormData();
+      submitData.append('name', editCPData.name.trim());
+      submitData.append('phone', editCPData.phone.trim());
+      submitData.append('firmName', editCPData.firmName.trim());
+      submitData.append('location', editCPData.location.trim());
+      submitData.append('address', editCPData.address.trim());
+      submitData.append('mahareraNo', editCPData.mahareraNo.trim() || '');
+      submitData.append('pinCode', editCPData.pinCode.trim());
+
+      const response = await fetch(API_ENDPOINTS.UPDATE_CHANNEL_PARTNER(currentCPId), {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: submitData,
+        credentials: "include",
+        mode: "cors",
+      });
+
+      if (!response.ok) {
+        const errorBody = await response.json().catch(() => ({}));
+        throw new Error(errorBody?.message || `Request failed with ${response.status}`);
+      }
+
+      // If there's a photo file, upload it separately
+      if (editCPPhotoFile) {
+        try {
+          const photoData = new FormData();
+          photoData.append('photo', editCPPhotoFile);
+
+          const photoResponse = await fetch(API_ENDPOINTS.UPLOAD_CHANNEL_PARTNER_PHOTO(currentCPId), {
+            method: "POST",
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },
+            body: photoData,
+            credentials: "include",
+            mode: "cors",
+          });
+
+          if (!photoResponse.ok) {
+            console.warn("Photo upload failed, but channel partner was updated successfully");
+          } else {
+            console.log("Photo uploaded successfully");
+          }
+        } catch (photoError) {
+          console.warn("Photo upload failed:", photoError);
+          // Don't throw error here, channel partner was updated successfully
+        }
+      }
+
+      setEditCPStatus({ type: "success", message: "Channel partner updated successfully!" });
+
+      // Update the main form data with edited values
+      setFormData(prev => ({
+        ...prev,
+        channelPartnerData: {
+          ...editCPData
+        }
+      }));
+
+      // Close modal after a short delay
+      setTimeout(() => {
+        closeEditModal();
+      }, 1500);
+
+    } catch (err: any) {
+      setEditCPStatus({ type: "error", message: err?.message || "Something went wrong." });
+    } finally {
+      setIsEditingCP(false);
+    }
   };
 
   const handleLocationCaptured = (location: LocationData) => {
@@ -453,7 +690,7 @@ const AddCPSourcingPage = () => {
       submitData.append('channelPartnerData[firmName]', formData.channelPartnerData.firmName.trim());
       submitData.append('channelPartnerData[location]', formData.channelPartnerData.location.trim());
       submitData.append('channelPartnerData[address]', formData.channelPartnerData.address.trim());
-      submitData.append('channelPartnerData[mahareraNo]', formData.channelPartnerData.mahareraNo.trim());
+      submitData.append('channelPartnerData[mahareraNo]', formData.channelPartnerData.mahareraNo.trim() || 'Not Available');
       submitData.append('channelPartnerData[pinCode]', formData.channelPartnerData.pinCode.trim());
       
       // Add other data
@@ -499,6 +736,7 @@ const AddCPSourcingPage = () => {
           address: "",
           mahareraNo: "",
           pinCode: "",
+          photo: "",
         },
         projectId: "",
         location: { 
@@ -557,7 +795,20 @@ const AddCPSourcingPage = () => {
 
           {/* Channel Partner Information Section */}
           <div className="space-y-6">
-            <h3 className="text-lg font-semibold text-gray-900 border-b pb-2">Channel Partner Information</h3>
+            <div className="flex justify-between items-center border-b pb-2">
+              <h3 className="text-lg font-semibold text-gray-900">Channel Partner Information</h3>
+              {cpAutoFilled && currentCPId && (
+                <Button
+                  size="sm"
+                  color="blue"
+                  onClick={openEditModal}
+                  className="flex items-center gap-2"
+                >
+                  <Icon icon="lucide:edit" className="w-4 h-4" />
+                  Edit Details
+                </Button>
+              )}
+            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
 
 
@@ -660,7 +911,7 @@ const AddCPSourcingPage = () => {
                 />
               </div>
 
-              {/* MAHARERA Number */}
+              {/* MAHARERA Number (Optional) */}
               <div>
                 <Label htmlFor="channelPartnerData.mahareraNo" value="MAHARERA Number (Optional)" />
                 <TextInput
@@ -984,6 +1235,225 @@ const AddCPSourcingPage = () => {
           </div>
         </form>
       </Card>
+
+      {/* Edit Channel Partner Modal */}
+      <Modal show={editModalOpen} onClose={closeEditModal} size="4xl">
+        <Modal.Header>Edit Channel Partner Details</Modal.Header>
+        <Modal.Body>
+          <form onSubmit={handleEditCPSubmit} className="space-y-6">
+            {editCPStatus.type === "success" && (
+              <Alert color="success" className="mb-4">
+                <Icon icon="lucide:check-circle" className="w-4 h-4" />
+                <span className="ml-2">{editCPStatus.message}</span>
+              </Alert>
+            )}
+
+            {editCPStatus.type === "error" && (
+              <Alert color="failure" className="mb-4">
+                <Icon icon="lucide:alert-circle" className="w-4 h-4" />
+                <span className="ml-2">{editCPStatus.message}</span>
+              </Alert>
+            )}
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Name */}
+              <div>
+                <Label htmlFor="edit-name" value="Name *" />
+                <TextInput
+                  id="edit-name"
+                  name="name"
+                  type="text"
+                  placeholder="Enter full name"
+                  value={editCPData.name}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.name ? "failure" : "gray"}
+                  helperText={editCPErrors.name}
+                />
+              </div>
+
+              {/* Phone */}
+              <div>
+                <Label htmlFor="edit-phone" value="Phone Number *" />
+                <TextInput
+                  id="edit-phone"
+                  name="phone"
+                  type="tel"
+                  placeholder="Enter 10-digit phone number"
+                  value={editCPData.phone}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.phone ? "failure" : "gray"}
+                  helperText={editCPErrors.phone}
+                />
+              </div>
+
+              {/* Firm Name */}
+              <div>
+                <Label htmlFor="edit-firmName" value="Firm Name *" />
+                <TextInput
+                  id="edit-firmName"
+                  name="firmName"
+                  type="text"
+                  placeholder="Enter firm/company name"
+                  value={editCPData.firmName}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.firmName ? "failure" : "gray"}
+                  helperText={editCPErrors.firmName}
+                />
+              </div>
+
+              {/* Location */}
+              <div>
+                <Label htmlFor="edit-location" value="Location *" />
+                <TextInput
+                  id="edit-location"
+                  name="location"
+                  type="text"
+                  placeholder="Enter city/location"
+                  value={editCPData.location}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.location ? "failure" : "gray"}
+                  helperText={editCPErrors.location}
+                />
+              </div>
+
+              {/* Address */}
+              <div className="md:col-span-2">
+                <Label htmlFor="edit-address" value="Address *" />
+                <TextInput
+                  id="edit-address"
+                  name="address"
+                  type="text"
+                  placeholder="Enter complete address"
+                  value={editCPData.address}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.address ? "failure" : "gray"}
+                  helperText={editCPErrors.address}
+                />
+              </div>
+
+              {/* MAHARERA Number (Optional) */}
+              <div>
+                <Label htmlFor="edit-mahareraNo" value="MAHARERA Number (Optional)" />
+                <TextInput
+                  id="edit-mahareraNo"
+                  name="mahareraNo"
+                  type="text"
+                  placeholder="Enter MAHARERA registration number"
+                  value={editCPData.mahareraNo}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.mahareraNo ? "failure" : "gray"}
+                  helperText={editCPErrors.mahareraNo || "Optional field"}
+                />
+              </div>
+
+              {/* PIN Code */}
+              <div>
+                <Label htmlFor="edit-pinCode" value="PIN Code *" />
+                <TextInput
+                  id="edit-pinCode"
+                  name="pinCode"
+                  type="text"
+                  placeholder="Enter 6-digit PIN code"
+                  value={editCPData.pinCode}
+                  onChange={handleEditCPChange}
+                  color={editCPErrors.pinCode ? "failure" : "gray"}
+                  helperText={editCPErrors.pinCode}
+                />
+              </div>
+
+              {/* Photo Upload */}
+              <div className="md:col-span-2">
+                <Label htmlFor="edit-photo" value="Photo (Optional)" />
+                <div className="space-y-4">
+                  {editCPPhoto ? (
+                    <div className="flex items-center gap-4">
+                      <div className="relative">
+                        <img
+                          src={editCPPhoto}
+                          alt="Preview"
+                          className="w-20 h-20 object-cover rounded-lg border border-gray-300"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-600">
+                          {editCPPhotoFile ? editCPPhotoFile.name : "Current photo"}
+                        </p>
+                        <Button
+                          size="sm"
+                          color="failure"
+                          onClick={removeEditCPPhoto}
+                          className="mt-2"
+                        >
+                          <Icon icon="lucide:trash-2" className="w-3 h-3 mr-1" />
+                          Remove
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex w-full items-center justify-center">
+                      <Label
+                        htmlFor="edit-photo-upload"
+                        className="flex h-32 w-full cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 hover:bg-gray-100"
+                      >
+                        <div className="flex flex-col items-center justify-center pb-6 pt-5">
+                          <Icon
+                            icon="lucide:cloud-upload"
+                            className="w-8 h-8 text-gray-400 mb-2"
+                          />
+                          <p className="mb-2 text-sm text-gray-500">
+                            <span className="font-semibold">Click to upload</span> or drag and drop
+                          </p>
+                          <p className="text-xs text-gray-500">
+                            PNG, JPG, GIF up to 5MB
+                          </p>
+                        </div>
+                        <FileInput
+                          id="edit-photo-upload"
+                          onChange={handleEditCPFileChange}
+                          accept="image/*"
+                          className="hidden"
+                        />
+                      </Label>
+                    </div>
+                  )}
+                  {editCPErrors.photo && (
+                    <p className="text-sm text-red-600">{editCPErrors.photo}</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end gap-4 pt-6 border-t">
+              <Button
+                type="button"
+                color="gray"
+                onClick={closeEditModal}
+                disabled={isEditingCP}
+              >
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                color="orange"
+                disabled={isEditingCP}
+                className="flex items-center gap-2"
+              >
+                {isEditingCP ? (
+                  <>
+                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                    Updating...
+                  </>
+                ) : (
+                  <>
+                    <Icon icon="lucide:save" className="w-4 h-4" />
+                    Update Channel Partner
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </Modal.Body>
+      </Modal>
     </div>
   );
 };
