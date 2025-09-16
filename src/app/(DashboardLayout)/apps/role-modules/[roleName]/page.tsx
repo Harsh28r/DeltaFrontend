@@ -44,7 +44,7 @@ const RoleModulePage = () => {
   const [projectAssignments, setProjectAssignments] = useState<{[key: string]: {projectId: string, projectName: string}}>({});
   const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
 
-  const roleName = params.roleName as string;
+  const roleName = decodeURIComponent(params.roleName as string);
 
   // Fetch users from backend
   useEffect(() => {

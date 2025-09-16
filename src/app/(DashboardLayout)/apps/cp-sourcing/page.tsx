@@ -193,7 +193,7 @@ const CPSourcingPage = () => {
     return null;
   };
 
-  const getImageUrl = (imagePath: string | undefined) => {
+  const getImageUrl = (imagePath: string | undefined, sourcingId?: string, index?: number) => {
     if (!imagePath) {
       return '';
     }
@@ -220,6 +220,11 @@ const CPSourcingPage = () => {
       return `${API_BASE_URL}${imagePath}`;
     }
     
+    // For selfie images, use the specific selfie API endpoint
+    if (sourcingId && typeof index === 'number') {
+      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
+    }
+    
     // Default fallback - assume it's a relative path
     return `${API_BASE_URL}/${imagePath}`;
   };
@@ -233,10 +238,60 @@ const CPSourcingPage = () => {
   }) => {
     const [imageError, setImageError] = useState(false);
     const [imageLoaded, setImageLoaded] = useState(false);
+    const [imageSrc, setImageSrc] = useState<string | undefined>(src);
+    const [isLoading, setIsLoading] = useState(false);
 
-    if (!src || imageError) {
+    // Handle authenticated image loading
+    const loadAuthenticatedImage = async (url: string) => {
+      try {
+        setIsLoading(true);
+        console.log('Loading authenticated image:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+
+        console.log('Image response status:', response.status);
+        if (response.ok) {
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          console.log('Image loaded successfully, blob URL created');
+          setImageSrc(objectUrl);
+        } else {
+          console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
+          setImageError(true);
+        }
+      } catch (error) {
+        console.warn(`Error loading authenticated image: ${url}`, error);
+        setImageError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Check if this is an authenticated API endpoint
+    React.useEffect(() => {
+      if (src && src.includes('/api/cp-sourcing/') && src.includes('/selfie/')) {
+        loadAuthenticatedImage(src);
+      } else {
+        setImageSrc(src);
+      }
+    }, [src, token]);
+
+    if (isLoading) {
       return (
-        <div className={`${className} bg-orange-100 rounded-full flex items-center justify-center`}>
+        <div className={`${className} bg-gray-100 rounded-lg flex items-center justify-center`}>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+        </div>
+      );
+    }
+
+    if (!imageSrc || imageError) {
+      return (
+        <div className={`${className} bg-orange-100 rounded-lg flex items-center justify-center`}>
           <Icon icon={fallbackIcon} className="w-4 h-4 text-orange-600" />
         </div>
       );
@@ -244,7 +299,7 @@ const CPSourcingPage = () => {
 
     return (
       <img
-        src={src}
+        src={imageSrc}
         alt={alt}
         className={className}
         crossOrigin="anonymous"
@@ -282,34 +337,6 @@ const CPSourcingPage = () => {
           <p className="text-gray-600">Manage channel partner sourcing activities</p>
         </div>
         <div className="flex gap-2">
-          <Button
-            color="blue"
-            onClick={() => {
-              // Test if backend is serving static files
-              const testUrl = `${API_BASE_URL}/uploads/cpsourcing/test.jpg`;
-              window.open(testUrl, '_blank');
-            }}
-            className="flex items-center gap-2"
-          >
-            <Icon icon="lucide:test-tube" className="w-4 h-4" />
-            Test Image
-          </Button>
-          <Button
-            color="green"
-            onClick={() => router.push('/apps/cp-sourcing/test-map')}
-            className="flex items-center gap-2"
-          >
-            <Icon icon="lucide:map" className="w-4 h-4" />
-            Test Map
-          </Button>
-          <Button
-            color="purple"
-            onClick={() => router.push('/apps/cp-sourcing/test-location')}
-            className="flex items-center gap-2"
-          >
-            <Icon icon="lucide:map-pin" className="w-4 h-4" />
-            Test Location
-          </Button>
           <Button
             color="orange"
             onClick={() => router.push('/apps/cp-sourcing/add')}
@@ -366,7 +393,7 @@ const CPSourcingPage = () => {
                     <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-3">
                         <ImageDisplay
-                          src={latestData?.selfie ? getImageUrl(latestData.selfie) : undefined}
+                          src={latestData?.selfie ? getImageUrl(latestData.selfie, sourcing._id, sourcing.sourcingHistory.length - 1) : undefined}
                           alt={sourcing.channelPartnerId?.name || 'Channel Partner'}
                           className="w-8 h-8 rounded-full object-cover"
                           fallbackIcon="lucide:user"
@@ -409,7 +436,7 @@ const CPSourcingPage = () => {
                         {latestData?.selfie ? (
                           <div className="flex items-center gap-2">
                             <ImageDisplay
-                              src={getImageUrl(latestData.selfie)}
+                              src={getImageUrl(latestData.selfie, sourcing._id, sourcing.sourcingHistory.length - 1)}
                               alt="Latest Selfie"
                               className="w-8 h-8 rounded-full object-cover"
                               fallbackIcon="lucide:camera"

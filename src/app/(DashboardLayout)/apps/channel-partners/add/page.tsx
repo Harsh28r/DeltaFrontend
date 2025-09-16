@@ -172,7 +172,7 @@ const AddChannelPartnerPage = () => {
       submitData.append('firmName', formData.firmName.trim());
       submitData.append('location', formData.location.trim());
       submitData.append('address', formData.address.trim());
-      submitData.append('mahareraNo', formData.mahareraNo.trim());
+      submitData.append('mahareraNo', formData.mahareraNo.trim() || 'Not Available');
       submitData.append('pinCode', formData.pinCode.trim());
       
       // Add photo file if available

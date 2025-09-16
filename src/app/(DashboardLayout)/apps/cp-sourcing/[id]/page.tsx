@@ -155,20 +155,14 @@ const CPSourcingDetailPage = () => {
     }
   };
 
-  const getImageUrl = (imagePath: string | undefined) => {
+  const getImageUrl = (imagePath: string | undefined, index?: number) => {
     if (!imagePath) {
       return '';
     }
     
-    // If it's a local file path, convert it to a proper URL
-    if (imagePath.includes('uploads\\') || imagePath.includes('uploads/')) {
-      // Convert backslashes to forward slashes for proper URL construction
-      const normalizedPath = imagePath.replace(/\\/g, '/');
-      
-      // For local files, we need to serve them through the backend
-      const fullUrl = `${API_BASE_URL}/${normalizedPath}`;
-      
-      return fullUrl;
+    // For selfie images, use the specific selfie API endpoint first
+    if (typeof index === 'number') {
+      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
     }
     
     // If it's already a full URL, return as is
@@ -179,6 +173,11 @@ const CPSourcingDetailPage = () => {
     // If it's a relative path, prepend the API base URL
     if (imagePath.startsWith('/')) {
       return `${API_BASE_URL}${imagePath}`;
+    }
+    
+    // For any other image path (including uploads), use the selfie API endpoint if we have an index
+    if (imagePath && typeof index === 'number') {
+      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
     }
     
     // Default fallback - assume it's a relative path
@@ -193,10 +192,60 @@ const CPSourcingDetailPage = () => {
     fallbackIcon?: string;
   }) => {
     const [imageError, setImageError] = useState(false);
+    const [imageSrc, setImageSrc] = useState<string | undefined>(src);
+    const [isLoading, setIsLoading] = useState(false);
 
-    if (!src || imageError) {
+    // Handle authenticated image loading
+    const loadAuthenticatedImage = async (url: string) => {
+      try {
+        setIsLoading(true);
+        console.log('Loading authenticated image:', url);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
+
+        console.log('Image response status:', response.status);
+        if (response.ok) {
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          console.log('Image loaded successfully, blob URL created');
+          setImageSrc(objectUrl);
+        } else {
+          console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
+          setImageError(true);
+        }
+      } catch (error) {
+        console.warn(`Error loading authenticated image: ${url}`, error);
+        setImageError(true);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    // Check if this is an authenticated API endpoint
+    React.useEffect(() => {
+      if (src && src.includes('/api/cp-sourcing/') && src.includes('/selfie/')) {
+        loadAuthenticatedImage(src);
+      } else {
+        setImageSrc(src);
+      }
+    }, [src, token]);
+
+    if (isLoading) {
       return (
-        <div className={`${className} bg-orange-100 rounded-full flex items-center justify-center`}>
+        <div className={`${className} bg-gray-100 rounded-lg flex items-center justify-center`}>
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
+        </div>
+      );
+    }
+
+    if (!imageSrc || imageError) {
+      return (
+        <div className={`${className} bg-orange-100 rounded-lg flex items-center justify-center`}>
           <Icon icon={fallbackIcon} className="w-4 h-4 text-orange-600" />
         </div>
       );
@@ -204,7 +253,7 @@ const CPSourcingDetailPage = () => {
 
     return (
       <img
-        src={src}
+        src={imageSrc}
         alt={alt}
         className={className}
         crossOrigin="anonymous"
@@ -377,12 +426,16 @@ const CPSourcingDetailPage = () => {
                         </div>
                       </Table.Cell>
                       <Table.Cell>
-                        <ImageDisplay
-                          src={getImageUrl(item.selfie)}
-                          alt={`Selfie ${index + 1}`}
-                          className="w-8 h-8 rounded-full object-cover"
-                          fallbackIcon="lucide:camera"
-                        />
+                        <div className="flex flex-col items-center gap-2">
+                          <ImageDisplay
+                            src={getImageUrl(item.selfie, index)}
+                            alt={`Selfie ${index + 1}`}
+                            className="w-16 h-16 rounded-lg object-cover border border-gray-300"
+                            fallbackIcon="lucide:camera"
+                          />
+                          <span className="text-xs text-gray-500">Selfie {index + 1}</span>
+                          <span className="text-xs text-gray-400">{formatDate(item.date)}</span>
+                        </div>
                       </Table.Cell>
                       <Table.Cell>
                         <span className="text-sm text-gray-600">
@@ -405,15 +458,20 @@ const CPSourcingDetailPage = () => {
                 <h3 className="text-lg font-semibold text-gray-900">Latest Selfie</h3>
               </div>
               <div className="text-center">
-                <img
-                  src={getImageUrl(latestSourcing.selfie)}
+                <ImageDisplay
+                  src={getImageUrl(latestSourcing.selfie, sourcing.sourcingHistory.length - 1)}
                   alt="Latest Selfie"
                   className="w-full h-48 object-cover rounded-lg border border-gray-300"
-                  onError={(e) => {
-                    const target = e.target as HTMLImageElement;
-                    target.style.display = "none";
-                  }}
+                  fallbackIcon="lucide:camera"
                 />
+                <div className="mt-3">
+                  <p className="text-sm font-medium text-gray-900">
+                    {sourcing.channelPartnerId.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatDate(latestSourcing.date)}
+                  </p>
+                </div>
               </div>
             </Card>
           )}
