@@ -45,6 +45,7 @@ interface CPSourcingUser {
   _id: string;
   name: string;
   email: string;
+  userId?: string;
 }
 
 interface FormField {
@@ -292,7 +293,7 @@ const LeadsPage = () => {
     try {
       setIsLoadingCPSourcing(true);
       const response = await fetch(
-        `http://localhost:5000/api/cp-sourcing/unique-users?projectId=${projectId}&channelPartnerId=${channelPartnerId}`,
+        API_ENDPOINTS.CP_SOURCING_UNIQUE_USERS(projectId, channelPartnerId),
         {
           headers: { Authorization: `Bearer ${token}` },
         }
@@ -300,9 +301,26 @@ const LeadsPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        // The API returns an array of users directly
-        const sourcingOptions = Array.isArray(data) ? data : [];
-        setCPSourcingOptions(sourcingOptions);
+        // Normalize to unique user list with stable ids (prefer user._id)
+        const rawList = Array.isArray(data) ? data : (Array.isArray((data as any)?.users) ? (data as any).users : []);
+        const uniqueUsers = new Map<string, CPSourcingUser>();
+        rawList.forEach((item: any) => {
+          const user = item?.user || item;
+          const id: string | undefined = user?._id || item?.userId || item?._id;
+          const name: string = user?.name || item?.name || '';
+          const email: string = user?.email || item?.email || '';
+          const userId: string | undefined = user?._id || item?.userId;
+          if (!id) return;
+          uniqueUsers.set(id, { _id: id, userId, name, email });
+        });
+        const normalized = Array.from(uniqueUsers.values());
+        // Merge into existing options so table lookups keep working
+        setCPSourcingOptions(prev => {
+          const map = new Map<string, CPSourcingUser>();
+          prev.forEach(u => map.set(u._id, u));
+          normalized.forEach(u => map.set(u._id, u));
+          return Array.from(map.values());
+        });
       } else {
         console.error('Failed to fetch CP sourcing users:', response.statusText);
         setCPSourcingOptions([]);
@@ -319,7 +337,7 @@ const LeadsPage = () => {
     if (!token) return;
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/cp-sourcing/unique-users-all`, {
+      const response = await fetch(API_ENDPOINTS.CP_SOURCING_UNIQUE_USERS_ALL, {
         headers: { Authorization: `Bearer ${token}` },
       });
 
@@ -2130,8 +2148,17 @@ const LeadsPage = () => {
                             {(lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"]) && (
                               <div className="text-xs text-gray-500 dark:text-gray-400">
                                 <span className="font-medium">CP User:</span> {(() => {
-                                  const cpSourcingId = (typeof lead.cpSourcingId === 'object' && lead.cpSourcingId ? lead.cpSourcingId._id : lead.cpSourcingId) || lead.customData?.["Channel Partner Sourcing"]; 
-                                  const cpUser = cpSourcingOptions.find(user => user._id === cpSourcingId);
+                                  const cpRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+                                  // Try multiple shapes: object with user, object with _id, plain userId, plain _id
+                                  const refId = typeof cpRef === 'object' && cpRef
+                                    ? (cpRef.user?._id || cpRef._id)
+                                    : cpRef;
+                                  // Attempt lookups by _id first
+                                  let cpUser = cpSourcingOptions.find(u => u._id === refId);
+                                  // Fallback: if we have userId separate
+                                  if (!cpUser) {
+                                    cpUser = cpSourcingOptions.find(u => u.userId === refId);
+                                  }
                                   return cpUser ? `${cpUser.name} (${cpUser.email})` : 'N/A';
                                 })()}
                               </div>
@@ -2293,6 +2320,50 @@ const LeadsPage = () => {
                 </div>
               </div>
 
+               {/* Project Selection Section */}
+               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                  <div className="flex items-center mb-6">
+                    <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Select the project for this lead
+                      </p>
+                  </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+              <Select
+                id="projectId"
+                value={formData.projectId}
+                onChange={handleProjectChange}
+                required
+                    className="w-full"
+                    disabled={!!editingLead}
+              >
+                <option value="">Select a project</option>
+                {projects.map(project => (
+                  <option key={project._id} value={project._id}>
+                    {project.name}
+                  </option>
+                ))}
+              </Select>
+                {formData.projectId && (
+                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                    <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
+                    {(() => {
+                      const selectedProject = projects.find(p => p._id === formData.projectId);
+                      return selectedProject ? `Project: ${selectedProject.name}` : 'Project selected';
+                    })()}
+                  </p>
+                )}
+              </div>
+            </div>
+                </div>
+
 
 
               {/* Lead Details Section */}
@@ -2364,51 +2435,7 @@ const LeadsPage = () => {
               </div>
             </div>
 
-              {/* Project Selection Section */}
-              {formData.status !== (leadStatuses.find(s => s.name.toLowerCase() === 'new')?._id || '') && (
-                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                  <div className="flex items-center mb-6">
-                    <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
-                      <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Select the project for this lead
-                      </p>
-                  </div>
-                  </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-              <Select
-                id="projectId"
-                value={formData.projectId}
-                onChange={handleProjectChange}
-                required
-                    className="w-full"
-                    disabled={!!editingLead}
-              >
-                <option value="">Select a project</option>
-                {projects.map(project => (
-                  <option key={project._id} value={project._id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
-                {formData.projectId && (
-                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                    <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
-                    {(() => {
-                      const selectedProject = projects.find(p => p._id === formData.projectId);
-                      return selectedProject ? `Project: ${selectedProject.name}` : 'Project selected';
-                    })()}
-                  </p>
-                )}
-              </div>
-            </div>
-                </div>
-              )}
+             
 
                 {/* Channel Partner Fields - Only show when Channel Partner is selected as source */} 
                 {((formData.source === 'channel-partner' || 

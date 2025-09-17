@@ -439,7 +439,7 @@ const LeadDetailPage = () => {
         
       // Fetch additional data for editing
 
-      const [statusesResponse, sourcesResponse, projectsResponse, usersResponse, channelPartnersResponse, cpSourcingResponse] = await Promise.all([
+      const [statusesResponse, sourcesResponse, projectsResponse, channelPartnersResponse, cpSourcingResponse] = await Promise.all([
 
         fetch(`${API_BASE_URL}/api/lead-statuses`, {
 
@@ -454,12 +454,6 @@ const LeadDetailPage = () => {
         }),
 
         fetch(`${API_BASE_URL}/api/projects`, {
-
-          headers: { Authorization: `Bearer ${token}` },
-
-        }),
-
-        fetch(`${API_BASE_URL}/api/users`, {
 
           headers: { Authorization: `Bearer ${token}` },
 
@@ -505,52 +499,57 @@ const LeadDetailPage = () => {
 
         const projectsData = await projectsResponse.json();
 
-        setProjects(projectsData.projects || projectsData || []);
+        const projectsArray = projectsData.projects || projectsData || [];
+        setProjects(projectsArray);
 
-      }
-
-
-
-      if (usersResponse.ok) {
-
-        const usersData = await usersResponse.json();
-
-        console.log('Users API response:', usersData);
-        console.log('Users data structure:', {
-          hasUsers: !!usersData.users,
-          usersLength: usersData.users?.length || 0,
-          isArray: Array.isArray(usersData.users),
-          isArrayData: Array.isArray(usersData),
-          allKeys: Object.keys(usersData)
-        });
-
-        const usersArray = usersData.users || usersData || [];
-        console.log('Setting users array:', usersArray);
-        setUsers(usersArray);
-
-      } else {
-
-        console.error('Users API error:', usersResponse.status, usersResponse.statusText);
-        const errorText = await usersResponse.text();
-        console.error('Users API error details:', errorText);
-        
-        // Try alternative users endpoint
-        try {
-          console.log('Trying alternative users endpoint...');
-          const altUsersResponse = await fetch(`${API_BASE_URL}/api/user`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          
-          if (altUsersResponse.ok) {
-            const altUsersData = await altUsersResponse.json();
-            console.log('Alternative users API response:', altUsersData);
-            setUsers(altUsersData.users || altUsersData || []);
+        // Derive users from projects (owner, members, managers)
+        const allUsers = new Map<string, any>();
+        projectsArray.forEach((project: any) => {
+          if (project.owner) {
+            allUsers.set(project.owner._id, {
+              _id: project.owner._id,
+              name: project.owner.name,
+              email: project.owner.email,
+              role: project.owner.role,
+              level: project.owner.level,
+              mobile: project.owner.mobile,
+              companyName: project.owner.companyName
+            });
           }
-        } catch (altError) {
-          console.error('Alternative users API also failed:', altError);
-        }
+          if (project.members && Array.isArray(project.members)) {
+            project.members.forEach((member: any) => {
+              allUsers.set(member._id, {
+                _id: member._id,
+                name: member.name,
+                email: member.email,
+                role: member.role,
+                level: member.level,
+                mobile: member.mobile,
+                companyName: member.companyName
+              });
+            });
+          }
+          if (project.managers && Array.isArray(project.managers)) {
+            project.managers.forEach((manager: any) => {
+              allUsers.set(manager._id, {
+                _id: manager._id,
+                name: manager.name,
+                email: manager.email,
+                role: manager.role,
+                level: manager.level,
+                mobile: manager.mobile,
+                companyName: manager.companyName
+              });
+            });
+          }
+        });
+        setUsers(Array.from(allUsers.values()));
 
       }
+
+
+
+      // Users are derived from projects above; no separate users API call
 
       // Handle channel partners response
       if (channelPartnersResponse.ok) {
