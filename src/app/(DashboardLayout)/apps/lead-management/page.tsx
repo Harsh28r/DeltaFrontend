@@ -45,12 +45,15 @@ const LeadManagementPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("source");
   const [editingItem, setEditingItem] = useState<{ type: 'source' | 'status', id: string, data: any } | null>(null);
+  const defaultFormFields: FormField[] = [{ name: "Remark", type: "text", required: true, options: [] as string[] }];
+  const nextMeetingDateField: FormField = { name: "Next Meeting Date", type: "date", required: true, options: [] };
+
   const [formData, setFormData] = useState<FormData>({
     // Lead Source
     sourceName: "",
     // Lead Status
     statusName: "",
-    formFields: [{ name: "Remark", type: "text", required: true, options: [] }],
+    formFields: defaultFormFields,
     is_final_status: false,
     is_default_status: false
   });
@@ -63,6 +66,8 @@ const LeadManagementPage = () => {
     { value: "email", label: "Email" },
     { value: "phone", label: "Phone" },
     { value: "date", label: "Date" },
+    { value: "datetime", label: "Date Time" },
+    { value: "time", label: "Time" },
     { value: "textarea", label: "Text Area" },
     { value: "select", label: "Select" },
     { value: "checkbox", label: "Checkbox" },
@@ -288,7 +293,7 @@ const LeadManagementPage = () => {
     setFormData({
       sourceName: "",
       statusName: "",
-      formFields: [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
+      formFields: defaultFormFields,
       is_final_status: false,
       is_default_status: false
     });
@@ -296,12 +301,17 @@ const LeadManagementPage = () => {
 
   const handleAddNew = () => {
     setEditingItem(null);
-    setFormData({
-      sourceName: "",
-      statusName: "",
-      formFields: [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
-      is_final_status: false,
-      is_default_status: false
+    setFormData(prev => {
+      // When adding a new status, it's not a final status by default.
+      // The date field will be added dynamically if the user checks 'Final Status'.
+      return {
+        ...prev,
+        sourceName: "",
+        statusName: "",
+        formFields: defaultFormFields,
+        is_final_status: false,
+        is_default_status: false
+      };
     });
     setIsModalOpen(true);
   };
@@ -314,16 +324,24 @@ const LeadManagementPage = () => {
       setFormData({
         sourceName: item.name,
         statusName: "",
-        formFields: [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
+        formFields: defaultFormFields,
         is_final_status: false,
         is_default_status: false
       });
     } else {
+      let fields = item.formFields || defaultFormFields;
+      const isFinalStatus = item.is_final_status || false;
+      
+      if (isFinalStatus && !fields.some((field: FormField) => field.name === nextMeetingDateField.name)) {
+        fields = [...fields, nextMeetingDateField];
+      } else if (!isFinalStatus && fields.some((field: FormField) => field.name === nextMeetingDateField.name)) {
+        fields = fields.filter((field: FormField) => field.name !== nextMeetingDateField.name);
+      }
       setFormData({
         sourceName: "",
         statusName: item.name,
-        formFields: item.formFields || [{ name: "Remark", type: "text", required: true, options: [] as string[] }],
-        is_final_status: item.is_final_status || false,
+        formFields: fields,
+        is_final_status: isFinalStatus,
         is_default_status: item.is_default_status || false
       });
     }
@@ -804,9 +822,18 @@ const LeadManagementPage = () => {
                           type="checkbox"
                           id="is_final_status"
                           checked={formData.is_final_status}
-                          onChange={(e) => setFormData({ ...formData, is_final_status: e.target.checked })}
+                          onChange={(e) => {
+                            const isChecked = e.target.checked;
+                            setFormData(prev => {
+                              let updatedFormFields = prev.formFields.filter(field => field.name !== nextMeetingDateField.name); // Always remove first to avoid duplicates
+                              if (isChecked) {
+                                updatedFormFields = [...updatedFormFields, nextMeetingDateField];
+                              }
+                              return { ...prev, is_final_status: isChecked, formFields: updatedFormFields };
+                            });
+                          }}
                           className="w-5 h-5 text-red-600 bg-gray-100 border-gray-300 rounded focus:ring-red-500 focus:ring-2"
-                          disabled={leadStatuses.some(status => status.is_final_status === true)}
+                          disabled={leadStatuses.some(status => status.is_final_status === true && status._id !== editingItem?.id)}
                         />
                         <Label htmlFor="is_final_status" value="Final Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       </div>

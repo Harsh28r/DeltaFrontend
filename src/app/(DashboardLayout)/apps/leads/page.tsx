@@ -8,6 +8,20 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { useLeadPermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/app/types/permissions";
 
+const formatDateToDDMMYYYY = (date: Date): string => {
+  const day = String(date.getDate()).padStart(2, '0');
+  const month = String(date.getMonth() + 1).padStart(2, '0'); // Months are 0-indexed
+  const year = String(date.getFullYear()).slice(-2);
+  return `${day}/${month}/${year}`;
+};
+
+const formatDateToYYYYMMDD = (date: Date): string => {
+  const year = String(date.getFullYear());
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+};
+
 interface LeadSource {
   _id: string;
   name: string;
@@ -79,10 +93,8 @@ interface Lead {
   } | null;
   customData: {
     "First Name"?: string;
-    "Last Name"?: string;
     "Email"?: string;
     "Phone"?: string;
-    "Company"?: string;
     "Notes"?: string;
     [key: string]: any;
   };
@@ -94,7 +106,6 @@ interface Lead {
   name?: string;
   email?: string;
   phone?: string;
-  company?: string;
   source?: string;
   status?: string;
   notes?: string;
@@ -226,6 +237,13 @@ const LeadsPage = () => {
     }
   }, [projects, formData.projectId]);
 
+  // Fetch CP sourcing options when editing a lead and channel partner/project are set
+  useEffect(() => {
+    if (editingLead && formData.channelPartner && formData.projectId && token) {
+      fetchCPSourcingOptions(formData.channelPartner, formData.projectId);
+    }
+  }, [editingLead, formData.channelPartner, formData.projectId, token]);
+
   // Get required fields for selected status
   const getRequiredFieldsForStatus = (statusId: string) => {
     const status = leadStatuses.find(s => s._id === statusId);
@@ -235,17 +253,24 @@ const LeadsPage = () => {
   // Update dynamic fields when status changes (disabled for locked default status)
   const handleStatusChange = (statusId: string) => {
     // Don't allow status changes when dropdown is disabled
-    return;
     
     setFormData(prev => ({ ...prev, status: statusId }));
     
     // Reset dynamic fields
     const newDynamicFields: {[key: string]: any} = {};
     const requiredFields = getRequiredFieldsForStatus(statusId);
+    const newlySelectedStatus = leadStatuses.find(s => s._id === statusId);
     
     // Initialize dynamic fields based on status requirements
     requiredFields.forEach(field => {
-      if (field.type === 'checkbox') {
+      if (field.type === 'date') {
+        if (newlySelectedStatus?.is_final_status) {
+          const today = new Date();
+          newDynamicFields[field.name] = formatDateToYYYYMMDD(today);
+        } else {
+          newDynamicFields[field.name] = ''; // Clear date if not a final status
+        }
+      } else if (field.type === 'checkbox') {
         // Initialize checkbox fields as empty arrays
         newDynamicFields[field.name] = [];
       } else {
@@ -287,6 +312,27 @@ const LeadsPage = () => {
       setCPSourcingOptions([]);
     } finally {
       setIsLoadingCPSourcing(false);
+    }
+  };
+
+  const fetchAllCPSourcingUsers = async () => {
+    if (!token) return;
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/cp-sourcing/unique-users-all`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setCPSourcingOptions(Array.isArray(data) ? data : []);
+      } else {
+        console.error('Failed to fetch all CP sourcing users:', response.statusText);
+        setCPSourcingOptions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching all CP sourcing users:', error);
+      setCPSourcingOptions([]);
     }
   };
 
@@ -432,10 +478,10 @@ const LeadsPage = () => {
 
       return {
         ...lead,
-        name: `${lead.customData?.["First Name"] || ''} ${lead.customData?.["Last Name"] || ''}`.trim() || 'N/A',
+        name: `${lead.customData?.["First Name"] || ''}`.trim() || 'N/A',
         email: lead.customData?.["Email"] || 'N/A',
         phone: lead.customData?.["Phone"] || 'N/A',
-        company: lead.customData?.["Company"] || 'N/A',
+        company: 'N/A',
         notes: lead.customData?.["Notes"] || '',
         source: sourceName,
         status: lead.currentStatus?._id || 'N/A',
@@ -549,7 +595,16 @@ const LeadsPage = () => {
           if (defaultStatus.formFields && defaultStatus.formFields.length > 0) {
             const newDynamicFields: {[key: string]: any} = {};
             defaultStatus.formFields.forEach((field: FormField) => {
-              newDynamicFields[field.name] = '';
+              if (field.type === 'date') {
+                const today = new Date();
+                newDynamicFields[field.name] = formatDateToDDMMYYYY(today);
+              } else if (field.type === 'checkbox') {
+                // Initialize checkbox fields as empty arrays
+                newDynamicFields[field.name] = [];
+              } else {
+                // Initialize other fields as empty strings
+                newDynamicFields[field.name] = '';
+              }
             });
             setDynamicFields(newDynamicFields);
           }
@@ -564,6 +619,7 @@ const LeadsPage = () => {
         const channelPartnersData = await channelPartnersResponse.json();
         const partners = channelPartnersData.channelPartners || channelPartnersData || [];
         setChannelPartners(partners);
+        await fetchAllCPSourcingUsers(); // Fetch all CP sourcing users
       }
 
       // Fetch CP sourcing options - will be fetched dynamically when channel partner is selected
@@ -668,7 +724,7 @@ const LeadsPage = () => {
     const isChannelPartner = formData.source === 'channel-partner' || 
       leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
     
-    if (isChannelPartner && !formData.channelPartner) {
+    if (!editingLead && isChannelPartner && !formData.channelPartner) {
       setAlertMessage({ 
         type: 'error', 
         message: 'Please select a channel partner' 
@@ -701,16 +757,18 @@ const LeadsPage = () => {
     }
 
     // Validate dynamic fields based on selected status
-    const requiredFields = getRequiredFieldsForStatus(formData.status);
-    for (const field of requiredFields) {
-      if (field.required) {
-        const fieldValue = dynamicFields[field.name] || formData[field.name as keyof typeof formData];
-        if (!fieldValue || !fieldValue.toString().trim()) {
-          setAlertMessage({ 
-            type: 'error', 
-            message: `Please fill in the required field: ${field.name}` 
-          });
-          return;
+    if (!editingLead) { // Only validate dynamic fields for new leads
+      const requiredFields = getRequiredFieldsForStatus(formData.status);
+      for (const field of requiredFields) {
+        if (field.required) {
+          const fieldValue = dynamicFields[field.name] || formData[field.name as keyof typeof formData];
+          if (!fieldValue || !fieldValue.toString().trim()) {
+            setAlertMessage({ 
+              type: 'error', 
+              message: `Please fill in the required field: ${field.name}` 
+            });
+            return;
+          }
         }
       }
     }
@@ -727,17 +785,16 @@ const LeadsPage = () => {
           const statusUpdateBody = {
             newStatus: formData.status, // new status id
             newData: { 
-              "First Name": formData.name.split(' ')[0] || editingLead.customData?.["First Name"] || 'N/A',
-              "Last Name": formData.name.split(' ').slice(1).join(' ') || editingLead.customData?.["Last Name"] || '',
-              "Email": formData.email || editingLead.customData?.["Email"] || editingLead.email || 'N/A',
-              "Phone": formData.phone || editingLead.customData?.["Phone"] || editingLead.phone || 'N/A',
-              "Notes": formData.notes || editingLead.customData?.["Notes"] || editingLead.notes || '',
-              "Lead Priority": formData.leadPriority || editingLead.customData?.["Lead Priority"] || '',
-              "Property Type": formData.propertyType || editingLead.customData?.["Property Type"] || '',
-              "Configuration": formData.configuration || editingLead.customData?.["Configuration"] || '',
-              "Funding Mode": formData.fundingMode || editingLead.customData?.["Funding Mode"] || '',
-              "Gender": formData.gender || editingLead.customData?.["Gender"] || '',
-              "Budget": formData.budget || editingLead.customData?.["Budget"] || '',
+              "First Name": editingLead.customData?.["First Name"] || 'N/A',
+              "Email": editingLead.customData?.["Email"] || editingLead.email || 'N/A',
+              "Phone": editingLead.customData?.["Phone"] || editingLead.phone || 'N/A',
+              "Notes": editingLead.customData?.["Notes"] || editingLead.notes || '',
+              "Lead Priority": editingLead.customData?.["Lead Priority"] || '',
+              "Property Type": editingLead.customData?.["Property Type"] || '',
+              "Configuration": editingLead.customData?.["Configuration"] || '',
+              "Funding Mode": editingLead.customData?.["Funding Mode"] || '',
+              "Gender": editingLead.customData?.["Gender"] || '',
+              "Budget": editingLead.customData?.["Budget"] || '',
               "Remark": formData.remark || 'Status updated',
               ...dynamicFields // Include dynamic fields
             } // form data
@@ -790,7 +847,6 @@ const LeadsPage = () => {
             cpSourcingId: formData.cpSourcingId || undefined,
             customData: {
               "First Name": formData.name.split(' ')[0] || formData.name,
-              "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
               "Email": formData.email,
               "Phone": formData.phone,
               "Notes": formData.notes,
@@ -800,8 +856,6 @@ const LeadsPage = () => {
               "Funding Mode": formData.fundingMode,
               "Gender": formData.gender,
               "Budget": formData.budget,
-              "Channel Partner": formData.channelPartner,
-              "Channel Partner Sourcing": formData.cpSourcingId,
               ...dynamicFields // Include dynamic fields
             },
               userId: formData.userId
@@ -834,7 +888,6 @@ const LeadsPage = () => {
           cpSourcingId: formData.cpSourcingId || undefined,
           customData: {
             "First Name": formData.name.split(' ')[0] || formData.name,
-            "Last Name": formData.name.split(' ').slice(1).join(' ') || '',
             "Email": formData.email,
             "Phone": formData.phone,
             "Notes": formData.notes,
@@ -844,8 +897,6 @@ const LeadsPage = () => {
             "Funding Mode": formData.fundingMode,
             "Gender": formData.gender,
             "Budget": formData.budget,
-            // "Channel Partner": formData.channelPartner,
-            // "Channel Partner Sourcing": formData.cpSourcingId,
             ...dynamicFields // Include dynamic fields
           },
           userId: formData.userId
@@ -909,10 +960,8 @@ const LeadsPage = () => {
         newStatus: newStatusId, // new status id
         newData: { 
           "First Name": currentLead?.customData?.["First Name"] || '',
-          "Last Name": currentLead?.customData?.["Last Name"] || '',
           "Email": currentLead?.customData?.["Email"] || '',
           "Phone": currentLead?.customData?.["Phone"] || '',
-          "Company": currentLead?.customData?.["Company"] || '',
           "Notes": currentLead?.customData?.["Notes"] || '',
           "Lead Priority": currentLead?.customData?.["Lead Priority"] || '',
           "Property Type": currentLead?.customData?.["Property Type"] || '',
@@ -923,7 +972,7 @@ const LeadsPage = () => {
           "Remark": remark || 'Status updated',
           // Include all dynamic fields from current lead's customData
           ...Object.keys(currentLead?.customData || {}).reduce((acc, key) => {
-            if (!["First Name", "Last Name", "Email", "Phone", "Company", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget"].includes(key)) {
+            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget"].includes(key)) {
               acc[key] = currentLead?.customData?.[key];
             }
             return acc;
@@ -1446,7 +1495,7 @@ const LeadsPage = () => {
       source: lead.leadSource?._id || '',
       status: lead.currentStatus?._id || '',
       notes: lead.notes || '',
-      projectId: formData.projectId || '',
+      projectId: lead.project?._id || '',
       userId: user?.id || '', // Always use current user's ID
       remark: '', // Reset remark for new status update
       leadPriority: lead.customData?.["Lead Priority"] || '',
@@ -1463,8 +1512,17 @@ const LeadsPage = () => {
     const newDynamicFields: {[key: string]: any} = {};
     if (lead.currentStatus?._id) {
       const requiredFields = getRequiredFieldsForStatus(lead.currentStatus._id);
+      const currentLeadStatus = leadStatuses.find(s => s._id === lead.currentStatus?._id);
+      
       requiredFields.forEach(field => {
-        if (field.type === 'checkbox') {
+        if (field.type === 'date') {
+          if (currentLeadStatus?.is_final_status) {
+            const today = new Date();
+            newDynamicFields[field.name] = lead.customData?.[field.name] || formatDateToYYYYMMDD(today);
+          } else {
+            newDynamicFields[field.name] = lead.customData?.[field.name] || ''; // Keep existing or clear
+          }
+        } else if (field.type === 'checkbox') {
           // Initialize checkbox fields as arrays
           const existingValue = lead.customData?.[field.name];
           newDynamicFields[field.name] = Array.isArray(existingValue) ? existingValue : [];
@@ -1493,8 +1551,16 @@ const LeadsPage = () => {
     // Initialize dynamic fields for default status
     const newDynamicFields: {[key: string]: any} = {};
     if (defaultStatus && defaultStatus.formFields && defaultStatus.formFields.length > 0) {
+      const selectedDefaultStatus = leadStatuses.find(s => s._id === defaultStatus._id);
       defaultStatus.formFields.forEach((field: FormField) => {
-        if (field.type === 'checkbox') {
+        if (field.type === 'date') {
+          if (selectedDefaultStatus?.is_final_status) {
+            const today = new Date();
+            newDynamicFields[field.name] = formatDateToDDMMYYYY(today);
+          } else {
+            newDynamicFields[field.name] = ''; // Clear date if not a final status
+          }
+        } else if (field.type === 'checkbox') {
           // Initialize checkbox fields as empty arrays
           newDynamicFields[field.name] = [];
         } else {
@@ -2282,7 +2348,7 @@ const LeadsPage = () => {
                       onChange={(e) => handleStatusChange(e.target.value)}
                   required
                       className="w-full"
-                      disabled={true}
+                      disabled={!editingLead}
                 >
                       <option value="">Select lead status</option>
                   {leadStatuses.map(status => (
@@ -2299,27 +2365,29 @@ const LeadsPage = () => {
             </div>
 
               {/* Project Selection Section */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex items-center mb-6">
-                  <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
-                    <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
+              {formData.status !== (leadStatuses.find(s => s.name.toLowerCase() === 'new')?._id || '') && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                  <div className="flex items-center mb-6">
+                    <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Select the project for this lead
+                      </p>
                   </div>
-                  <div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Select the project for this lead
-                    </p>
-                </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="space-y-2">
+                    <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
               <Select
                 id="projectId"
                 value={formData.projectId}
                 onChange={handleProjectChange}
                 required
                     className="w-full"
+                    disabled={!!editingLead}
               >
                 <option value="">Select a project</option>
                 {projects.map(project => (
@@ -2340,10 +2408,11 @@ const LeadsPage = () => {
               </div>
             </div>
                 </div>
+              )}
 
-                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */}
-                {(formData.source === 'channel-partner' || 
-                  leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && (
+                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */} 
+                {((formData.source === 'channel-partner' || 
+                  leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && !editingLead) && (
                   <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
                     <div className="flex items-center mb-6">
                       <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
@@ -2451,6 +2520,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            // disabled={!!editingLead}
                           />
                         ) : field.type === 'email' ? (
                           <TextInput
@@ -2461,6 +2531,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            disabled={!!editingLead}
                           />
                         ) : field.type === 'tel' ? (
                           <TextInput
@@ -2471,6 +2542,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            disabled={!!editingLead}
                           />
                         ) : field.type === 'number' ? (
                           <TextInput
@@ -2481,6 +2553,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            disabled={!!editingLead}
                           />
                         ) : field.type === 'date' ? (
                           <TextInput
@@ -2491,6 +2564,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            disabled={true} // Disable the date field
                           />
                         ) : field.type === 'textarea' ? (
                           <Textarea
@@ -2501,6 +2575,7 @@ const LeadsPage = () => {
                             rows={3}
                             required={field.required}
                             className="w-full"
+                            disabled={!!editingLead}
                           />
                         ) : field.type === 'select' && field.options && field.options.length > 0 ? (
                           <Select
@@ -2509,6 +2584,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            disabled={!!editingLead}
                           >
                             <option value="">Select {field.name}</option>
                             {field.options.map((option: string, index: number) => (
@@ -2548,6 +2624,7 @@ const LeadsPage = () => {
                                       setDynamicFields(prev => ({ ...prev, [field.name]: newValues }));
                                     }}
                                     className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                    disabled={!!editingLead}
                                   />
                                   <label htmlFor={`${field.name}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                                     {option}
@@ -2565,6 +2642,7 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            // disabled={!!editingLead}
                           />
                         )}
                       </div>
@@ -2706,30 +2784,32 @@ const LeadsPage = () => {
               </div>
 
               {/* Notes Section */}
-              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                <div className="flex items-center mb-6">
-                  <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg mr-3">
-                    <Icon icon="solar:notes-line-duotone" className="text-gray-600 dark:text-gray-400 text-xl" />
+              {formData.status !== (leadStatuses.find(s => s.name.toLowerCase() === 'new')?._id || '') && (
+                <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                  <div className="flex items-center mb-6">
+                    <div className="bg-gray-100 dark:bg-gray-700 p-2 rounded-lg mr-3">
+                      <Icon icon="solar:notes-line-duotone" className="text-gray-600 dark:text-gray-400 text-xl" />
+                    </div>
+                    <div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
+                      <p className="text-sm text-gray-500 dark:text-gray-400">
+                        Add any additional information about this lead
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
-                    <p className="text-sm text-gray-500 dark:text-gray-400">
-                      Add any additional information about this lead
-                    </p>
+                    <div className="space-y-2">
+                      <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                  <Textarea
+                    id="notes"
+                        placeholder="Enter any additional notes about this lead..."
+                    value={formData.notes}
+                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                          rows={4}
+                          className="w-full"
+                        />
+                    </div>
                   </div>
-                </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-              <Textarea
-                id="notes"
-                    placeholder="Enter any additional notes about this lead..."
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                      rows={4}
-                      className="w-full"
-                    />
-                </div>
-              </div>
+                )}
             </div>
           </Modal.Body>
           <Modal.Footer className="flex flex-col sm:flex-row gap-2">

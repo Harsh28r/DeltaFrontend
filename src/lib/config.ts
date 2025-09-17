@@ -72,6 +72,8 @@ export const API_ENDPOINTS = {
   // CP Sourcing
   CP_SOURCING: `${API_BASE_URL}/api/cp-sourcing/`,
   CP_SOURCING_BY_ID: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
+  CP_SOURCING_UNIQUE_USERS: (projectId: string, channelPartnerId: string) => `${API_BASE_URL}/api/cp-sourcing/unique-users?projectId=${projectId}&channelPartnerId=${channelPartnerId}`,
+  CP_SOURCING_UNIQUE_USERS_ALL: `${API_BASE_URL}/api/cp-sourcing/unique-users-all`,
   CREATE_CP_SOURCING: `${API_BASE_URL}/api/cp-sourcing/`,
   UPDATE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
   DELETE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,

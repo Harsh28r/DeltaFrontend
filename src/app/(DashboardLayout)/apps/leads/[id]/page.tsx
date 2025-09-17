@@ -109,13 +109,9 @@ interface Lead {
 
     "First Name"?: string;
 
-    "Last Name"?: string;
-
     "Email"?: string;
 
     "Phone"?: string;
-
-    "Company"?: string;
 
     "Notes"?: string;
 
@@ -250,13 +246,9 @@ const LeadDetailPage = () => {
 
     firstName: '',
 
-    lastName: '',
-
     email: '',
 
     phone: '',
-
-    company: '',
 
     notes: '',
 
@@ -384,13 +376,9 @@ const LeadDetailPage = () => {
           const baseFormData = {
             firstName: data.lead.customData?.["First Name"] || '',
 
-            lastName: data.lead.customData?.["Last Name"] || '',
-
             email: data.lead.customData?.["Email"] || '',
 
             phone: data.lead.customData?.["Phone"] || '',
-
-            company: data.lead.customData?.["Company"] || '',
 
             notes: data.lead.customData?.["Notes"] || '',
 
@@ -1105,25 +1093,23 @@ const LeadDetailPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
 
-                  <div><strong>Name:</strong> {activity.details.newData.customData?.["First Name"] || ''} {activity.details.newData.customData?.["Last Name"] || ''}</div>
+                  <div><strong>Name:</strong> {activity.details.newData.customData?.["First Name"] || ''}</div>
 
-                  <div><strong>Email:</strong> {activity.details.newData.customData?.["Email"] || 'N/A'}</div>
-
-                  <div><strong>Phone:</strong> {activity.details.newData.customData?.["Phone"] || 'N/A'}</div>
+                  <div><strong>Phone:</strong> {activity.details.newData.customData?.["Phone"] || ''}</div>
 
                   <div><strong>Company:</strong> {activity.details.newData.customData?.["Company"] || 'N/A'}</div>
 
-                  <div><strong>Priority:</strong> {activity.details.newData.customData?.["Lead Priority"] || 'N/A'}</div>
+                  <div><strong>Priority:</strong> {activity.details.newData.customData?.["Lead Priority"] || ''}</div>
 
-                  <div><strong>Property Type:</strong> {activity.details.newData.customData?.["Property Type"] || 'N/A'}</div>
+                  <div><strong>Property Type:</strong> {activity.details.newData.customData?.["Property Type"] || ''}</div>
 
-                  <div><strong>Configuration:</strong> {activity.details.newData.customData?.["Configuration"] || 'N/A'}</div>
+                  <div><strong>Configuration:</strong> {activity.details.newData.customData?.["Configuration"] || ''}</div>
 
-                  <div><strong>Funding Mode:</strong> {activity.details.newData.customData?.["Funding Mode"] || 'N/A'}</div>
+                  <div><strong>Funding Mode:</strong> {activity.details.newData.customData?.["Funding Mode"] || ''}</div>
 
-                  <div><strong>Gender:</strong> {activity.details.newData.customData?.["Gender"] || 'N/A'}</div>
+                  <div><strong>Gender:</strong> {activity.details.newData.customData?.["Gender"] || ''}</div>
 
-                  <div><strong>Budget:</strong> {activity.details.newData.customData?.["Budget"] || 'N/A'}</div>
+                  <div><strong>Budget:</strong> {activity.details.newData.customData?.["Budget"] || ''}</div>
 
                   {/* Lead Status Fields for new data */}
                   {lead?.currentStatus?.formFields && lead.currentStatus.formFields.length > 0 && (
@@ -1208,13 +1194,9 @@ const LeadDetailPage = () => {
 
       firstName: lead?.customData?.["First Name"] || '',
 
-      lastName: lead?.customData?.["Last Name"] || '',
-
       email: lead?.customData?.["Email"] || '',
 
       phone: lead?.customData?.["Phone"] || '',
-
-      company: lead?.customData?.["Company"] || '',
 
       notes: lead?.customData?.["Notes"] || '',
 
@@ -1250,13 +1232,9 @@ const LeadDetailPage = () => {
 
         firstName: lead.customData?.["First Name"] || '',
 
-        lastName: lead.customData?.["Last Name"] || '',
-
         email: lead.customData?.["Email"] || '',
 
         phone: lead.customData?.["Phone"] || '',
-
-        company: lead.customData?.["Company"] || '',
 
         notes: lead.customData?.["Notes"] || '',
 
@@ -1320,13 +1298,9 @@ const LeadDetailPage = () => {
       const customData: any = {
         "First Name": editFormData.firstName,
 
-        "Last Name": editFormData.lastName,
-
         "Email": editFormData.email,
 
         "Phone": editFormData.phone,
-
-        "Company": editFormData.company,
 
         "Notes": editFormData.notes,
 
@@ -1447,13 +1421,9 @@ const LeadDetailPage = () => {
 
             "First Name": lead.customData?.["First Name"] || '',
 
-            "Last Name": lead.customData?.["Last Name"] || '',
-
             "Email": lead.customData?.["Email"] || '',
 
             "Phone": lead.customData?.["Phone"] || '',
-
-            "Company": lead.customData?.["Company"] || '',
 
             "Notes": lead.customData?.["Notes"] || '',
 
@@ -1475,7 +1445,7 @@ const LeadDetailPage = () => {
 
           // Include all dynamic fields in newData instead of separate statusFields
           ...Object.keys(lead.customData || {}).reduce((acc, key) => {
-            if (!["First Name", "Last Name", "Email", "Phone", "Company", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget", "Remark"].includes(key)) {
+            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget", "Remark"].includes(key)) {
               acc[key] = lead.customData?.[key];
             }
             return acc;
@@ -2067,7 +2037,8 @@ const LeadDetailPage = () => {
 
                     <p className="text-gray-900 dark:text-white font-medium">
 
-                      {lead.customData?.["First Name"] || ''} 
+                      {lead.customData?.["First Name"] || ''}
+
                     </p>
 
                     {lead.customData?.["First Name"] && (
@@ -3243,30 +3214,6 @@ const LeadDetailPage = () => {
 
                 <div>
 
-                  <Label htmlFor="lastName" value="Last Name" />
-
-                  <TextInput
-
-                    id="lastName"
-
-                    value={editFormData.lastName}
-
-                    onChange={(e) => setEditFormData({ ...editFormData, lastName: e.target.value })}
-
-                    placeholder="Enter last name"
-
-                  />
-
-                </div>
-
-              </div>
-
-
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-
-                <div>
-
                   <Label htmlFor="email" value="Email" />
 
                   <TextInput
@@ -3287,6 +3234,12 @@ const LeadDetailPage = () => {
 
                 </div>
 
+              </div>
+
+
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+
                 <div>
 
                   <Label htmlFor="phone" value="Phone" />
@@ -3304,26 +3257,6 @@ const LeadDetailPage = () => {
                   />
 
                 </div>
-
-              </div>
-
-
-
-              <div>
-
-                <Label htmlFor="company" value="Company" />
-
-                <TextInput
-
-                  id="company"
-
-                  value={editFormData.company}
-
-                  onChange={(e) => setEditFormData({ ...editFormData, company: e.target.value })}
-
-                  placeholder="Enter company name"
-
-                />
 
               </div>
 
