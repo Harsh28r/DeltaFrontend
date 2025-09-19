@@ -745,11 +745,11 @@ const CrmDashboard = () => {
                         ({Math.round((count / leads.length) * 100)}%)
                       </span>
                     </div>
-                  </div>
+        </div>
                 ));
               })()}
-            </div>
-          </div>
+        </div>
+        </div>
           
           <div>
             <h4 className="text-md font-medium text-gray-900 dark:text-white mb-4">Lead Conversion Pipeline</h4>
@@ -758,11 +758,11 @@ const CrmDashboard = () => {
                 <div className="flex items-center space-x-3">
                   <Icon icon="solar:user-plus-line-duotone" className="text-blue-600 dark:text-blue-400" />
                   <span className="text-sm font-medium text-gray-900 dark:text-white">New Leads</span>
-                </div>
+        </div>
                 <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
                   {leads.filter(lead => lead.currentStatus.name === 'New').length}
                 </span>
-              </div>
+        </div>
               
               <div className="flex items-center justify-center">
                 <Icon icon="solar:arrow-down-line-duotone" className="text-gray-400" />
@@ -779,7 +779,7 @@ const CrmDashboard = () => {
         </div>
         </div>
         </div>
-        </div>
+      </div>
       </Card> */}
       </div>
   );

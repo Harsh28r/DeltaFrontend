@@ -9,43 +9,38 @@ import Payments from "../components/dashboards/ecommerce/Payments";
 import AnnualProfit from "../components/dashboards/ecommerce/AnnualProfit";
 import RecentTransaction from "../components/dashboards/ecommerce/RecentTransaction";
 import TopProducts from "../components/dashboards/ecommerce/TopProducts";
+import CrmDashboard from "../(DashboardLayout)/dashboards/crm/page";
 
 
 const page = () => {
   return (
     <>
-      <div className="grid grid-cols-12 gap-30">
-        <div className="lg:col-span-6  col-span-12">
-          <Welcome />
+      <div className="space-y-6">
+        {/* Full Width CRM Dashboard */}
+        <div className="w-full">
+          <CrmDashboard />
         </div>
-        <div className="lg:col-span-6 col-span-12">
-          <SmallCards />
-        </div>
-        <div className="lg:col-span-8 col-span-12">
-          <SalesProfit />
-        </div>
-        <div className="lg:col-span-4 col-span-12">
-          <ProductSales />
-        </div>
-        <div className="lg:col-span-5 col-span-12">
-          <MarketingReport />
-        </div>
-        <div className="lg:col-span-3 col-span-12">
-          <Payments />
-        </div>
-        <div className="lg:col-span-4 col-span-12">
-          <AnnualProfit />
-        </div>
-        <div className="lg:col-span-8 col-span-12">
-          <TopProducts />
-        </div>
-        <div className="lg:col-span-4 col-span-12">
-          <RecentTransaction />
-        </div>
+        
+        {/* Additional Components Row */}
+          <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+            {/* <div className="lg:col-span-1">
+              <Payments />
+            </div> */}
+            {/* Uncomment other components as needed */}
+            {/* <div className="lg:col-span-1">
+              <ProductSales />
+            </div> */}
+            {/* <div className="lg:col-span-1">
+              <MarketingReport />
+            </div> */}
+            {/* <div className="lg:col-span-1">
+              <AnnualProfit />
+            </div> */}
+          </div>
       </div>
-     
     </>
   );
 };
 
 export default page;
+
