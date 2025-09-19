@@ -4,7 +4,7 @@ import { Button, Card, Label, Select, TextInput, Alert } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL, createRefreshEvent } from "@/lib/config";
 
 interface Project {
   _id: string;
@@ -17,9 +17,29 @@ interface User {
   _id: string;
   name: string;
   email: string;
-  role: string;
+  mobile: string;
   companyName?: string;
-  createdAt: string;
+  currentRole: {
+    name: string;
+    level: number;
+    permissions: string[];
+    roleId: string;
+  };
+  projectAssignments: Array<{
+    projectId: string;
+    projectName: string;
+    status: string;
+    assignedDate: string;
+  }>;
+  projectSummary: {
+    totalProjects: number;
+    activeProjects: number;
+    completedProjects: number;
+    pendingProjects: number;
+  };
+  accountCreated: string;
+  lastActivity: string;
+  isAssignedToProject?: boolean;
 }
 
 const AssignProjectPage = () => {
@@ -28,11 +48,13 @@ const AssignProjectPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedUserId, setSelectedUserId] = useState("");
-  const [selectedProjectId, setSelectedProjectId] = useState("");
+  const [selectedProjectIds, setSelectedProjectIds] = useState<string[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isAssigning, setIsAssigning] = useState(false);
+  const [isRemoving, setIsRemoving] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedUser, setSelectedUser] = useState<User | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -43,8 +65,9 @@ const AssignProjectPage = () => {
 
   const fetchUsers = async () => {
     try {
-      // Using the users by role endpoint to get all users
-      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/by-role`, {
+      setIsLoading(true);
+      // Using the with-projects endpoint to get all users with their project assignments
+      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -54,14 +77,34 @@ const AssignProjectPage = () => {
       
       if (response.ok) {
         const data = await response.json();
-        // Flatten all users from different roles into a single array
-        const allUsers: User[] = [];
-        Object.values(data.usersByRole).forEach((roleData: any) => {
-          if (roleData.users && Array.isArray(roleData.users)) {
-            allUsers.push(...roleData.users);
-          }
-        });
-        setUsers(allUsers);
+        console.log("Users with projects response:", data);
+        
+        // Process the response data
+        let processedUsers: User[] = [];
+        
+        if (data.users && Array.isArray(data.users)) {
+          // If response has users array, use it directly
+          processedUsers = data.users
+            .filter((user: any) => user.currentRole?.name !== 'superadmin') // Hide superadmin users
+            .map((user: any) => ({
+              ...user,
+              isAssignedToProject: user.projectAssignments && user.projectAssignments.length > 0
+            }));
+        } else if (Array.isArray(data)) {
+          // If response is directly an array of users
+          processedUsers = data
+            .filter((user: any) => user.currentRole?.name !== 'superadmin') // Hide superadmin users
+            .map((user: any) => ({
+              ...user,
+              isAssignedToProject: user.projectAssignments && user.projectAssignments.length > 0
+            }));
+        } else {
+          console.error("Unexpected response format:", data);
+          processedUsers = [];
+        }
+        
+        console.log("Processed users:", processedUsers);
+        setUsers(processedUsers);
       } else {
         console.error("Failed to fetch users");
         setMessage({ type: 'error', text: 'Failed to load users' });
@@ -69,6 +112,8 @@ const AssignProjectPage = () => {
     } catch (error) {
       console.error("Error fetching users:", error);
       setMessage({ type: 'error', text: 'Failed to load users' });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -101,14 +146,14 @@ const AssignProjectPage = () => {
     }
   };
 
-  const handleAssignToProject = async () => {
+  const handleAssignToProjects = async () => {
     if (!selectedUserId) {
       setMessage({ type: 'error', text: 'Please select a user' });
       return;
     }
 
-    if (!selectedProjectId) {
-      setMessage({ type: 'error', text: 'Please select a project' });
+    if (selectedProjectIds.length === 0) {
+      setMessage({ type: 'error', text: 'Please select at least one project' });
       return;
     }
 
@@ -117,12 +162,14 @@ const AssignProjectPage = () => {
 
     try {
       const assignPayload = {
-        projectId: selectedProjectId,
-        userId: selectedUserId
+        userId: selectedUserId,
+        projects: selectedProjectIds.map(projectId => ({ projectId }))
       };
       
-      const assignResponse = await fetch(API_ENDPOINTS.ASSIGN_PROJECT_MEMBER, {
-        method: "POST",
+      console.log("Assigning user to projects:", assignPayload);
+      
+      const assignResponse = await fetch(API_ENDPOINTS.UPDATE_USER_PROJECTS, {
+        method: "PUT",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
@@ -130,45 +177,116 @@ const AssignProjectPage = () => {
         body: JSON.stringify(assignPayload),
       });
 
+      const assignData = await assignResponse.json();
+      console.log("Assignment response:", assignData);
+
       if (assignResponse.ok) {
-        setMessage({ type: 'success', text: 'User assigned to project successfully!' });
+        setMessage({ type: 'success', text: `User assigned to ${selectedProjectIds.length} project(s) successfully!` });
+        // Trigger refresh event for other pages
+        createRefreshEvent();
         // Reset selections
         setSelectedUserId("");
-        setSelectedProjectId("");
+        setSelectedProjectIds([]);
+        setSelectedUser(null);
         // Refresh users list
         setTimeout(() => {
           fetchUsers();
           setMessage(null);
         }, 2000);
       } else {
-        const assignData = await assignResponse.json();
         setMessage({ 
           type: 'error', 
-          text: `Failed to assign user to project: ${assignData.message || assignData.error || 'Unknown error'}` 
+          text: `Failed to assign user to projects: ${assignData.message || assignData.error || 'Unknown error'}` 
         });
       }
     } catch (assignError) {
-      console.error("Error assigning user to project:", assignError);
-      setMessage({ type: 'error', text: 'Failed to assign user to project' });
+      console.error("Error assigning user to projects:", assignError);
+      setMessage({ type: 'error', text: 'Failed to assign user to projects' });
     } finally {
       setIsAssigning(false);
     }
   };
 
+  const handleRemoveFromProject = async (userId: string, projectId: string) => {
+    if (window.confirm("Are you sure you want to remove this user from the project?")) {
+      setIsRemoving(true);
+      setMessage(null);
+
+      try {
+        const removePayload = {
+          userId: userId,
+          projects: [] // Empty array to remove all projects
+        };
+        
+        console.log("Removing user from project:", removePayload);
+        
+        const removeResponse = await fetch(API_ENDPOINTS.UPDATE_USER_PROJECTS, {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify(removePayload),
+        });
+
+        const removeData = await removeResponse.json();
+        console.log("Removal response:", removeData);
+
+        if (removeResponse.ok) {
+          setMessage({ type: 'success', text: 'User removed from project successfully!' });
+          // Refresh users list
+          setTimeout(() => {
+            fetchUsers();
+            setMessage(null);
+          }, 2000);
+        } else {
+          setMessage({ 
+            type: 'error', 
+            text: `Failed to remove user from project: ${removeData.message || removeData.error || 'Unknown error'}` 
+          });
+        }
+      } catch (removeError) {
+        console.error("Error removing user from project:", removeError);
+        setMessage({ type: 'error', text: 'Failed to remove user from project' });
+      } finally {
+        setIsRemoving(false);
+      }
+    }
+  };
+
   const handleUserChange = (userId: string) => {
     setSelectedUserId(userId);
+    const user = users.find(u => u._id === userId);
+    setSelectedUser(user || null);
+    setSelectedProjectIds([]);
     setMessage(null);
   };
 
-  const handleProjectChange = (projectId: string) => {
-    setSelectedProjectId(projectId);
+  const handleProjectToggle = (projectId: string) => {
+    setSelectedProjectIds(prev => {
+      if (prev.includes(projectId)) {
+        return prev.filter(id => id !== projectId);
+      } else {
+        return [...prev, projectId];
+      }
+    });
     setMessage(null);
+  };
+
+  const handleSelectAllProjects = () => {
+    setSelectedProjectIds(projects.map(p => p._id));
+  };
+
+  const handleClearAllProjects = () => {
+    setSelectedProjectIds([]);
   };
 
   const filteredUsers = users.filter(user =>
     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.role.toLowerCase().includes(searchTerm.toLowerCase())
+    user.currentRole.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.mobile && user.mobile.includes(searchTerm)) ||
+    (user.companyName && user.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
   if (isLoading) {
@@ -214,7 +332,7 @@ const AssignProjectPage = () => {
             <TextInput
               id="userSearch"
               type="text"
-              placeholder="Search by name, email, or role..."
+              placeholder="Search by name, email, role, mobile, or company..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />
@@ -233,7 +351,7 @@ const AssignProjectPage = () => {
               <option value="">Choose a user</option>
               {filteredUsers.map((user) => (
                 <option key={user._id} value={user._id}>
-                  {user.name} ({user.email}) - {user.role}
+                  {user.name} ({user.email}) - {user.currentRole.name} - {user.isAssignedToProject ? 'Has Projects' : 'No Projects'}
                 </option>
               ))}
             </Select>
@@ -245,28 +363,56 @@ const AssignProjectPage = () => {
           {/* Project Selection */}
           <div>
             <div className="mb-2 block">
-              <Label htmlFor="projectSelect" value="Select Project *" />
+              <Label htmlFor="projectSelect" value="Select Projects *" />
             </div>
-            <Select
-              id="projectSelect"
-              value={selectedProjectId}
-              onChange={(e) => handleProjectChange(e.target.value)}
-              required
-            >
-              <option value="">Choose a project</option>
-              {projects.map((project) => (
-                <option key={project._id} value={project._id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
+            <div className="space-y-2">
+              <div className="flex gap-2">
+                <Button 
+                  size="sm" 
+                  color="info" 
+                  onClick={handleSelectAllProjects}
+                  disabled={!selectedUserId}
+                >
+                  Select All
+                </Button>
+                <Button 
+                  size="sm" 
+                  color="gray" 
+                  onClick={handleClearAllProjects}
+                  disabled={!selectedUserId}
+                >
+                  Clear All
+                </Button>
+                <span className="text-sm text-gray-500 self-center">
+                  {selectedProjectIds.length} project(s) selected
+                </span>
+              </div>
+              
+              <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2 space-y-1">
+                {projects.map((project) => (
+                  <label key={project._id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
+                    <input
+                      type="checkbox"
+                      checked={selectedProjectIds.includes(project._id)}
+                      onChange={() => handleProjectToggle(project._id)}
+                      disabled={!selectedUserId}
+                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary"
+                    />
+                    <span className="text-sm text-gray-700">{project.name}</span>
+                    {project.description && (
+                      <span className="text-xs text-gray-500">- {project.description}</span>
+                    )}
+                  </label>
+                ))}
+              </div>
+            </div>
           </div>
 
           {/* Submit Button */}
           <div className="flex gap-3">
             <Button 
-              onClick={handleAssignToProject}
-              disabled={isAssigning || !selectedUserId || !selectedProjectId}
+              onClick={handleAssignToProjects}
+              disabled={isAssigning || !selectedUserId || selectedProjectIds.length === 0}
               color="primary"
               size="lg"
               className="flex-1"
@@ -279,7 +425,7 @@ const AssignProjectPage = () => {
               ) : (
                 <>
                   <Icon icon="solar:link-circle-line-duotone" className="mr-2" />
-                  Assign User to Project
+                  Assign User to {selectedProjectIds.length} Project{selectedProjectIds.length !== 1 ? 's' : ''}
                 </>
               )}
             </Button>
@@ -295,6 +441,100 @@ const AssignProjectPage = () => {
         </div>
       </Card>
 
+      {/* Selected User Information */}
+      {selectedUser && (
+        <Card>
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
+              Selected User Information
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Name:</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{selectedUser.name}</span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Email:</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{selectedUser.email}</span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Role:</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{selectedUser.currentRole.name}</span>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Mobile:</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{selectedUser.mobile || 'N/A'}</span>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Current Projects:</span>
+                  <div className="mt-1">
+                    {selectedUser.projectAssignments && selectedUser.projectAssignments.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {selectedUser.projectAssignments.map((assignment, index) => (
+                          <span key={index} className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
+                            {assignment.projectName}
+                          </span>
+                        ))}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-500">No current projects</span>
+                    )}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Selected Projects:</span>
+                  <div className="mt-1">
+                    {selectedProjectIds.length > 0 ? (
+                      <div className="flex flex-wrap gap-1">
+                        {selectedProjectIds.map(projectId => {
+                          const project = projects.find(p => p._id === projectId);
+                          return project ? (
+                            <span key={projectId} className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
+                              {project.name}
+                            </span>
+                          ) : null;
+                        })}
+                      </div>
+                    ) : (
+                      <span className="text-sm text-gray-500">No projects selected</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      {/* Statistics Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <Card className="text-center p-4">
+          <div className="text-2xl font-bold text-blue-600">{users.length}</div>
+          <div className="text-sm text-gray-600">Total Users</div>
+        </Card>
+        <Card className="text-center p-4">
+          <div className="text-2xl font-bold text-green-600">
+            {users.filter(u => u.isAssignedToProject).length}
+          </div>
+          <div className="text-sm text-gray-600">Assigned to Projects</div>
+        </Card>
+        <Card className="text-center p-4">
+          <div className="text-2xl font-bold text-orange-600">
+            {users.filter(u => !u.isAssignedToProject).length}
+          </div>
+          <div className="text-sm text-gray-600">Unassigned</div>
+        </Card>
+        <Card className="text-center p-4">
+          <div className="text-2xl font-bold text-purple-600">
+            {users.reduce((total, user) => total + (user.projectAssignments?.length || 0), 0)}
+          </div>
+          <div className="text-sm text-gray-600">Total Assignments</div>
+        </Card>
+      </div>
+
       {/* Users List */}
       <Card>
         <div className="space-y-4">
@@ -303,7 +543,7 @@ const AssignProjectPage = () => {
               Available Users
             </h3>
             <p className="text-sm text-gray-600 dark:text-gray-400">
-              Total users: {users.length}
+              Total users: {users.length} | Filtered: {filteredUsers.length}
             </p>
           </div>
 
@@ -314,7 +554,9 @@ const AssignProjectPage = () => {
                   <th className="px-6 py-3">Name</th>
                   <th className="px-6 py-3">Email</th>
                   <th className="px-6 py-3">Role</th>
+                  <th className="px-6 py-3">Mobile</th>
                   <th className="px-6 py-3">Company</th>
+                  <th className="px-6 py-3">Project Assignments</th>
                   <th className="px-6 py-3">Created</th>
                 </tr>
               </thead>
@@ -327,12 +569,39 @@ const AssignProjectPage = () => {
                     <td className="px-6 py-4">{user.email}</td>
                     <td className="px-6 py-4">
                       <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-blue-900 dark:text-blue-300">
-                        {user.role}
+                        {user.currentRole.name}
                       </span>
                     </td>
+                    <td className="px-6 py-4">{user.mobile || '-'}</td>
                     <td className="px-6 py-4">{user.companyName || '-'}</td>
                     <td className="px-6 py-4">
-                      {new Date(user.createdAt).toLocaleDateString()}
+                      {user.projectAssignments && user.projectAssignments.length > 0 ? (
+                        <div className="space-y-1">
+                          {user.projectAssignments.map((assignment, index) => (
+                            <div key={index} className="flex items-center gap-1">
+                              <span className="bg-green-100 text-green-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-green-900 dark:text-green-300">
+                                {assignment.projectName}
+                              </span>
+                              <Button
+                                size="xs"
+                                color="failure"
+                                onClick={() => handleRemoveFromProject(user._id, assignment.projectId)}
+                                disabled={isRemoving}
+                                title="Remove from project"
+                              >
+                                <Icon icon="solar:close-circle-line-duotone" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="bg-gray-100 text-gray-800 text-xs font-medium px-2.5 py-0.5 rounded dark:bg-gray-900 dark:text-gray-300">
+                          No Projects
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4">
+                      {new Date(user.accountCreated).toLocaleDateString()}
                     </td>
                   </tr>
                 ))}

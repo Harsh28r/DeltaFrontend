@@ -618,11 +618,13 @@ const EditUserPage = () => {
             </div>
             <Select
               id="projectId"
+              disabled={true}
               value={formData.projectId}
               onChange={(e) => {
                 const selectedProject = projects.find(p => p._id === e.target.value);
                 handleInputChange("projectId", e.target.value);
                 handleInputChange("projectName", selectedProject?.name || "");
+                
               }}
             >
               <option value="">No Project Assigned</option>

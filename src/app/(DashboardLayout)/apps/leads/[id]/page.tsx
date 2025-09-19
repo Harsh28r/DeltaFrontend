@@ -2036,7 +2036,7 @@ const LeadDetailPage = () => {
 
                     <p className="text-gray-900 dark:text-white font-medium">
 
-                      {lead.customData?.["First Name"] || ''}
+                      {lead.customData?.["First Name"] || ''} 
 
                     </p>
 

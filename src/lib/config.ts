@@ -78,6 +78,13 @@ export const API_ENDPOINTS = {
   UPDATE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
   DELETE_CP_SOURCING: (id: string) => `${API_BASE_URL}/api/cp-sourcing/${id}`,
   CP_SOURCING_SELFIE: (id: string, index: number) => `${API_BASE_URL}/api/cp-sourcing/${id}/selfie/${index}`,
+  
+  // User Reporting
+    USER_REPORTING: `${API_BASE_URL}/api/user-reporting`,
+    USER_REPORTING_GET: `${API_BASE_URL}/api/user-reporting`,
+    USER_REPORTING_UPDATE: (id: string) => `${API_BASE_URL}/api/user-reporting/${id}`,
+    USER_REPORTING_DELETE: (id: string) => `${API_BASE_URL}/api/user-reporting/${id}`,
+    USER_REPORTING_HIERARCHY: (userId: string) => `${API_BASE_URL}/api/user-reporting/hierarchy/${userId}`,
 };
 
 

@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Button, Card, Table, Badge, Dropdown } from "flowbite-react";
+import { Button, Card, Table, Badge, Dropdown, Modal, Label, TextInput } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
@@ -52,6 +52,10 @@ const UsersPage = () => {
 
   const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
   const [projects, setProjects] = useState<Array<{_id: string, name: string}>>([]);
+  
+  // Details modal state
+  const [detailOpenUserId, setDetailOpenUserId] = useState<string | null>(null);
+  const [detailNotes, setDetailNotes] = useState<Record<string, string>>({});
 
   // Fetch users from backend
   useEffect(() => {
@@ -440,6 +444,25 @@ const UsersPage = () => {
     return [...new Set(allProjects)].filter(Boolean);
   };
 
+  // Details modal handlers
+  const openDetails = (userId: string) => {
+    setDetailOpenUserId(userId);
+    setDetailNotes(prev => ({
+      ...prev,
+      [userId]: prev[userId] ?? ''
+    }));
+  };
+
+  const closeDetails = () => {
+    setDetailOpenUserId(null);
+  };
+
+  const saveDetailNotes = () => {
+    // Here you can add API call to persist the notes if needed
+    console.log('Saving notes for user:', detailOpenUserId, detailNotes[detailOpenUserId || '']);
+    closeDetails();
+  };
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -461,6 +484,12 @@ const UsersPage = () => {
             <Button color="info" size="sm" className="w-full">
               <Icon icon="solar:link-circle-line-duotone" className="mr-2" />
               Assign to Project
+            </Button>
+          </Link>
+          <Link href="/apps/user-reporting" className="w-full sm:w-auto">
+            <Button color="warning" size="sm" className="w-full">
+              <Icon icon="solar:chart-line-duotone" className="mr-2" />
+              User Reporting
             </Button>
           </Link>
           <Link href="/apps/users/add" className="w-full sm:w-auto">
@@ -823,6 +852,14 @@ const UsersPage = () => {
                           <Icon icon="solar:settings-line-duotone" />
                         </Button>
                       </Link>
+                      <Link href={`/apps/user-reporting?userId=${user._id}`}>
+                        <Button size="xs" color="warning" title="Set User Reporting">
+                          <Icon icon="solar:chart-line-duotone" />
+                        </Button>
+                      </Link>
+                      <Button size="xs" color="gray" onClick={() => openDetails(user._id)} title="User Details">
+                        <Icon icon="solar:info-circle-line-duotone" />
+                      </Button>
                 {(() => {
                   const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
                   console.log(
@@ -924,6 +961,62 @@ const UsersPage = () => {
           </Table>
         </div>
       </Card>
+
+      {/* Details Modal */}
+      {detailOpenUserId && (
+        <Modal show={true} onClose={closeDetails} size="md">
+          <Modal.Header>
+            Details for {users.find(u => u._id === detailOpenUserId)?.name ?? 'User'}
+          </Modal.Header>
+          <Modal.Body className="space-y-4">
+            <div>
+              <Label value="User Information" />
+              <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                <p><strong>Name:</strong> {users.find(u => u._id === detailOpenUserId)?.name}</p>
+                <p><strong>Email:</strong> {users.find(u => u._id === detailOpenUserId)?.email}</p>
+                <p><strong>Mobile:</strong> {users.find(u => u._id === detailOpenUserId)?.mobile || 'N/A'}</p>
+                <p><strong>Role:</strong> {users.find(u => u._id === detailOpenUserId)?.currentRole?.name}</p>
+                <p><strong>Company:</strong> {users.find(u => u._id === detailOpenUserId)?.companyName || 'N/A'}</p>
+              </div>
+            </div>
+            <div>
+              <Label value="Project Assignments" />
+              <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
+                {users.find(u => u._id === detailOpenUserId)?.projectAssignments?.length ? (
+                  <div className="space-y-1">
+                    {users.find(u => u._id === detailOpenUserId)?.projectAssignments?.map((assignment, index) => (
+                      <div key={index} className="flex items-center gap-2">
+                        <Badge color="success" className="text-xs">✓</Badge>
+                        <span className="text-sm">{assignment.projectName}</span>
+                        <span className="text-xs text-gray-500">({assignment.status})</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-500">No project assignments</p>
+                )}
+              </div>
+            </div>
+            <div>
+              <Label value="Additional Notes / Context" />
+              <TextInput
+                value={detailNotes[detailOpenUserId] || ''}
+                onChange={(e) => setDetailNotes(prev => ({ ...prev, [detailOpenUserId]: e.target.value }))}
+                placeholder="Enter additional details about this user..."
+                className="w-full"
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Footer className="flex justify-end">
+            <Button color="gray" onClick={closeDetails} className="mr-2">
+              Cancel
+            </Button>
+            <Button onClick={saveDetailNotes}>
+              Save Notes
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      )}
     </div>
   );
 };

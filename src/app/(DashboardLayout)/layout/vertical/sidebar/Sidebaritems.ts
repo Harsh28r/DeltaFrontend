@@ -203,12 +203,12 @@ export const useSidebarData = () => {
         {
           heading: "Apps",
           children: [
-            {
-              id: uniqueId(),
-              name: "Contacts",
-              icon: "solar:phone-line-duotone",
-              url: "/apps/contacts",
-            },
+            // {
+            //   id: uniqueId(),
+            //   name: "Contacts",
+            //   icon: "solar:phone-line-duotone",
+            //   url: "/apps/contacts",
+            // },
             // {
             //   name: "Ecommerce",
             //   id: uniqueId(),

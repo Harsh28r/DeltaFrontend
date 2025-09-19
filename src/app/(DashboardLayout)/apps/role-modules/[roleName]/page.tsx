@@ -21,14 +21,23 @@ interface User {
   email: string;
   mobile: string;
   companyName: string;
-  roleName: string;
-  projectId?: string;
-  projectName?: string;
-  createdAt: string;
-  projects?: Array<{
+  currentRole: {
+    _id: string;
+    name: string;
+    level: number;
+  };
+  projectAssignments: Array<{
     projectId: string;
     projectName: string;
   }>;
+  projectSummary: {
+    totalProjects: number;
+    assignedProjects: number;
+    unassignedProjects: number;
+  };
+  accountCreated: string;
+  lastActivity: string;
+  isAssignedToProject: boolean;
 }
 
 const RoleModulePage = () => {
@@ -41,8 +50,8 @@ const RoleModulePage = () => {
   const [userCount, setUserCount] = useState(0);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterProject, setFilterProject] = useState<string>("all");
-  const [projectAssignments, setProjectAssignments] = useState<{[key: string]: {projectId: string, projectName: string}}>({});
   const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
+  const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
 
   const roleName = decodeURIComponent(params.roleName as string);
 
@@ -50,7 +59,6 @@ const RoleModulePage = () => {
   useEffect(() => {
     if (token && roleName) {
       fetchRoleData();
-      fetchProjectAssignments();
       fetchExistingRoles();
     }
   }, [token, roleName]);
@@ -60,8 +68,11 @@ const RoleModulePage = () => {
     const unsubscribe = subscribeToRefresh(() => {
       console.log("Refresh event received, updating role module data...");
       if (token && roleName) {
-        fetchProjectAssignments();
+        setIsLoading(true);
+        setRefreshMessage("Data refreshed from assign-project form!");
         fetchRoleUsers();
+        // Clear refresh message after 3 seconds
+        setTimeout(() => setRefreshMessage(null), 3000);
       }
     });
 
@@ -78,7 +89,7 @@ const RoleModulePage = () => {
     try {
       if (!token) {
         console.error("No authentication token available");
-        router.push("/auth/auth1/signin");
+        router.push("/auth/auth1/login");
         return;
       }
 
@@ -96,7 +107,7 @@ const RoleModulePage = () => {
           console.error("Authentication failed - token expired or invalid");
           // Clear token and redirect to login
           localStorage.removeItem("token");
-          router.push("/auth/auth1/signin");
+          router.push("/auth/auth1/login");
           return;
         }
         throw new Error(`HTTP error! status: ${response.status}`);
@@ -121,7 +132,7 @@ const RoleModulePage = () => {
     } catch (error) {
       console.error("Error fetching role:", error);
       if (error instanceof Error && error.message.includes("401")) {
-        router.push("/auth/auth1/signin");
+        router.push("/auth/auth1/login");
       } else {
         router.push("/apps/roles");
       }
@@ -132,7 +143,43 @@ const RoleModulePage = () => {
     try {
       setIsLoading(true);
       
-      // TEMPORARY: Using projects endpoint until backend implements /api/superadmin/users/role/{roleName}
+      // First try the with-projects API
+      try {
+        const response = await fetch(`${API_ENDPOINTS.USERS}/with-projects`, {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        });
+        
+        if (response.ok) {
+          const data = await response.json();
+          const allUsers = data.users || data;
+          
+          console.log("All users from with-projects API:", allUsers);
+          console.log("Looking for role:", roleName);
+          
+          // Filter users by the specific role - try multiple role field variations
+          const roleUsers = allUsers.filter((user: any) => {
+            const userRole = user.currentRole?.name || user.roleName || user.role;
+            console.log(`User ${user.name} has role:`, userRole);
+            return userRole && userRole.toLowerCase() === roleName.toLowerCase();
+          });
+          
+          if (roleUsers.length > 0) {
+            console.log(`Found ${roleUsers.length} users with role ${roleName} from with-projects API:`, roleUsers);
+            setUsers(roleUsers);
+            setUserCount(roleUsers.length);
+            return;
+          }
+        }
+      } catch (withProjectsError) {
+        console.log("With-projects API failed, trying fallback method:", withProjectsError);
+      }
+      
+      // Fallback to the old method using projects endpoint
+      console.log("Trying fallback method with projects endpoint...");
       const response = await fetch(API_ENDPOINTS.PROJECTS, {
         method: "GET",
         headers: {
@@ -160,10 +207,11 @@ const RoleModulePage = () => {
               
               if (userMap[email]) {
                 // User already exists, add project to their list
-                userMap[email].projects.push({
+                userMap[email].projectAssignments.push({
                   projectId: project._id,
                   projectName: project.name
                 });
+                userMap[email].projectSummary.assignedProjects = userMap[email].projectAssignments.length;
               } else {
                 // New user, create entry
                 userMap[email] = {
@@ -172,12 +220,23 @@ const RoleModulePage = () => {
                   email: email,
                   mobile: member.mobile || 'No mobile',
                   companyName: member.companyName || 'No company',
-                  roleName: member.roleName || member.role || roleName,
-                  createdAt: member.createdAt || member.joinedAt || new Date().toISOString(),
-                  projects: [{
+                  currentRole: {
+                    _id: member.roleRef || member._id,
+                    name: member.roleName || member.role || roleName,
+                    level: member.level || 1
+                  },
+                  projectAssignments: [{
                     projectId: project._id,
                     projectName: project.name
-                  }]
+                  }],
+                  projectSummary: {
+                    totalProjects: 1,
+                    assignedProjects: 1,
+                    unassignedProjects: 0
+                  },
+                  accountCreated: member.createdAt || member.joinedAt || new Date().toISOString(),
+                  lastActivity: member.lastActivity || new Date().toISOString(),
+                  isAssignedToProject: true
                 };
               }
             }
@@ -188,7 +247,7 @@ const RoleModulePage = () => {
       // Convert map to array
       const roleUsers = Object.values(userMap);
       
-      console.log(`Users with role ${roleName} (grouped by email):`, roleUsers);
+      console.log(`Users with role ${roleName} (fallback method):`, roleUsers);
       setUsers(roleUsers);
       setUserCount(roleUsers.length);
       
@@ -201,67 +260,6 @@ const RoleModulePage = () => {
     }
   };
 
-  const fetchProjectAssignments = async () => {
-    try {
-      if (!token) {
-        console.error("No authentication token available");
-        return;
-      }
-
-      // Fetch all projects to get project names and members
-      const projectsResponse = await fetch(API_ENDPOINTS.PROJECTS, {
-        method: "GET",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-      });
-      
-      if (!projectsResponse.ok) {
-        if (projectsResponse.status === 401) {
-          console.error("Authentication failed - token expired or invalid");
-          localStorage.removeItem("token");
-          router.push("/auth/auth1/signin");
-          return;
-        }
-        console.error("Failed to fetch projects:", projectsResponse.status, projectsResponse.statusText);
-        return;
-      }
-      
-      const projectsData = await projectsResponse.json();
-      const projects = projectsData.projects || projectsData;
-      
-      // Create a map of project IDs to project names
-      const projectMap: {[key: string]: string} = {};
-      projects.forEach((project: any) => {
-        projectMap[project._id] = project.name;
-      });
-      
-      // Extract member assignments from each project
-      const assignmentMap: {[key: string]: {projectId: string, projectName: string}} = {};
-      
-      projects.forEach((project: any) => {
-        if (project.members && Array.isArray(project.members)) {
-          project.members.forEach((member: any) => {
-            if (member._id) {
-              assignmentMap[member._id] = {
-                projectId: project._id,
-                projectName: project.name
-              };
-            }
-          });
-        }
-      });
-      
-      console.log("Project assignments extracted:", assignmentMap);
-      setProjectAssignments(assignmentMap);
-    } catch (error) {
-      console.error("Error fetching project assignments:", error);
-      if (error instanceof Error && error.message.includes("401")) {
-        router.push("/auth/auth1/signin");
-      }
-    }
-  };
 
   const fetchExistingRoles = async () => {
     try {
@@ -321,7 +319,12 @@ const RoleModulePage = () => {
       2: "warning", 
       3: "success",
       4: "purple",
-      5: "gray"
+      5: "gray", 
+      6: "info",
+      7: "yellow",
+      8: "blue",
+      9: "purple",
+      10: "pink"
     } as const;
     
     return (
@@ -344,6 +347,18 @@ const RoleModulePage = () => {
            </p>
          </div>
          <div className="flex gap-2">
+           <Button 
+             color="info" 
+             size="sm" 
+             onClick={() => {
+               console.log("Header refresh triggered");
+               fetchRoleUsers();
+             }}
+             disabled={isLoading}
+           >
+             <Icon icon="solar:refresh-line-duotone" className="mr-2" />
+             {isLoading ? 'Refreshing...' : 'Refresh Data'}
+           </Button>
            <Link href={`/apps/role-modules/${roleName}/add`}>
              <Button color="primary" size="sm">
                <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
@@ -352,6 +367,14 @@ const RoleModulePage = () => {
            </Link>
          </div>
        </div>
+
+      {/* Refresh Message */}
+      {refreshMessage && (
+        <Alert color="success" className="mb-4">
+          <Icon icon="solar:check-circle-line-duotone" className="mr-2" />
+          {refreshMessage}
+        </Alert>
+      )}
 
       {/* Role Information */}
       <Card>
@@ -455,6 +478,18 @@ const RoleModulePage = () => {
            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
              {role.name.toUpperCase()} Users List
            </h3>
+           <Button 
+             color="info" 
+             size="sm" 
+             onClick={() => {
+               console.log("Manual refresh triggered");
+               fetchRoleUsers();
+             }}
+             disabled={isLoading}
+           >
+             <Icon icon="solar:refresh-line-duotone" className="mr-2" />
+             {isLoading ? 'Refreshing...' : 'Refresh'}
+           </Button>
          </div>
          
          {/* Search and Filters */}
@@ -462,7 +497,7 @@ const RoleModulePage = () => {
            <div className="flex-1">
              <input
                type="text"
-               placeholder="Search users by name, email, mobile, or project..."
+               placeholder="Search users by name, email, mobile, or any project..."
                className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary focus:border-transparent"
                value={searchTerm}
                onChange={(e) => setSearchTerm(e.target.value)}
@@ -476,12 +511,15 @@ const RoleModulePage = () => {
              >
                <option value="all">All Projects</option>
                {(() => {
-                 // Get projects from both user data and fetched assignments
-                 const userProjects = users.map(user => user.projectName).filter(Boolean);
-                 const assignmentProjects = Object.values(projectAssignments).map(assignment => assignment.projectName).filter(Boolean);
-                 const allProjects = [...new Set([...userProjects, ...assignmentProjects])];
+                 // Get projects from projectAssignments
+                 const allProjects = users.flatMap(user => 
+                   user.projectAssignments ? user.projectAssignments.map(p => p.projectName) : []
+                 ).filter(Boolean);
                  
-                 return allProjects.map(project => (
+                 // Remove duplicates
+                 const uniqueProjects = [...new Set(allProjects)];
+                 
+                 return uniqueProjects.map(project => (
                    <option key={project} value={project}>{project}</option>
                  ));
                })()}
@@ -539,10 +577,10 @@ const RoleModulePage = () => {
                        newRoleName: newRole
                      };
                      
-                     // Get project ID from first selected user
+                     // Get project ID from first selected user's project assignments
                      const firstUser = users.find(u => u._id === selectedUserIds[0]);
-                     if (firstUser) {
-                       bulkPayload.projectId = firstUser.projectId || projectAssignments[firstUser._id]?.projectId || "";
+                     if (firstUser && firstUser.projectAssignments && firstUser.projectAssignments.length > 0) {
+                       bulkPayload.projectId = firstUser.projectAssignments[0].projectId;
                      }
                      
                      // Make bulk API call
@@ -560,7 +598,10 @@ const RoleModulePage = () => {
                      if (response.ok) {
                        // Update local state
                        setUsers(users.map(u => 
-                         selectedUserIds.includes(u._id) ? { ...u, roleName: newRole } : u
+                         selectedUserIds.includes(u._id) ? { 
+                           ...u, 
+                           currentRole: { ...u.currentRole, name: newRole }
+                         } : u
                        ));
                        
                        // Uncheck all checkboxes
@@ -610,16 +651,21 @@ const RoleModulePage = () => {
            <div className="overflow-x-auto">
              {(() => {
                                const filteredUsers = users.filter(user => {
+                  // Search in projectAssignments for this user
+                  const userProjectNames = user.projectAssignments ? 
+                    user.projectAssignments.map(p => p.projectName).join(' ') : '';
+                  
                   const matchesSearch = 
                     user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
                     user.mobile.includes(searchTerm) ||
-                    (user.projectName && user.projectName.toLowerCase().includes(searchTerm.toLowerCase())) ||
-                    (projectAssignments[user._id]?.projectName && projectAssignments[user._id].projectName.toLowerCase().includes(searchTerm.toLowerCase()));
+                    userProjectNames.toLowerCase().includes(searchTerm.toLowerCase());
                   
-                  // Check project filter against both user data and fetched assignments
-                  const userProjectName = user.projectName || projectAssignments[user._id]?.projectName;
-                  const matchesProject = filterProject === "all" || userProjectName === filterProject;
+                  // Check project filter against user's project assignments
+                  const allUserProjects = user.projectAssignments ? 
+                    user.projectAssignments.map(p => p.projectName) : [];
+                  
+                  const matchesProject = filterProject === "all" || allUserProjects.includes(filterProject);
                   
                   return matchesSearch && matchesProject;
                 });
@@ -673,33 +719,27 @@ const RoleModulePage = () => {
                             </td>
                             <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
                              {(() => {
-                               // First try to get project info from user data
-                               if (user.projectName) {
+                               // Use projectAssignments from the with-projects API
+                               if (user.projectAssignments && user.projectAssignments.length > 0) {
                                  return (
-                                   <Badge color="info" size="sm">
-                                     {user.projectName}
-                                   </Badge>
+                                   <div className="flex flex-wrap gap-1">
+                                     {user.projectAssignments.map((assignment, index) => (
+                                       <Badge key={index} color="info" size="sm">
+                                         {assignment.projectName}
+                                       </Badge>
+                                     ))}
+                                   </div>
                                  );
                                }
                                
-                               // Then try to get from fetched project assignments
-                               const assignment = projectAssignments[user._id];
-                               if (assignment && assignment.projectName) {
-                                 return (
-                                   <Badge color="info" size="sm">
-                                     {assignment.projectName}
-                                   </Badge>
-                                 );
-                               }
-                               
-                               // Finally, show not assigned
+                               // Show not assigned if no projects
                                return (
                                  <span className="text-gray-400 text-sm">Not Assigned</span>
                                );
                              })()}
                            </td>
                            <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                             {new Date(user.createdAt).toLocaleDateString()}
+                             {new Date(user.accountCreated).toLocaleDateString()}
                            </td>
                            <td className="px-6 py-4">
                              <div className="flex gap-2">

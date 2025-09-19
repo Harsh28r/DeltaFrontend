@@ -421,18 +421,62 @@ const LeadManagementPage = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex justify-between items-center">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Management</h1>
-          <p className="text-gray-600 dark:text-gray-400">Manage lead sources and statuses in one place</p>
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
+      {/* Modern Hero Section */}
+      <div className="relative overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-r from-blue-600 via-purple-600 to-indigo-600"></div>
+        <div className="absolute inset-0 bg-black/10"></div>
+        <div className="absolute top-0 right-0 w-96 h-96 bg-white/5 rounded-full -translate-y-48 translate-x-48"></div>
+        <div className="absolute bottom-0 left-0 w-80 h-80 bg-white/5 rounded-full translate-y-40 -translate-x-40"></div>
+        
+        <div className="relative z-10 px-6 py-16">
+          <div className="max-w-7xl mx-auto">
+            <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-8">
+              <div className="text-white">
+                <h1 className="text-6xl font-bold mb-6 bg-gradient-to-r from-white to-blue-100 bg-clip-text text-transparent">
+                  Lead Management
+                </h1>
+                <p className="text-xl text-blue-100 mb-8 max-w-2xl leading-relaxed">
+                  Comprehensive lead source and status management system for your business
+                </p>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
+                    <Icon icon="solar:target-line-duotone" className="text-2xl" />
+                    <span className="font-semibold">{leadSources.length} Lead Sources</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
+                    <Icon icon="solar:clipboard-list-line-duotone" className="text-2xl" />
+                    <span className="font-semibold">{leadStatuses.length} Lead Statuses</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
+                    <Icon icon="solar:settings-line-duotone" className="text-2xl" />
+                    <span className="font-semibold">Customizable Forms</span>
+                  </div>
+                </div>
+              </div>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <Button 
+                  onClick={handleAddNew} 
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-3"
+                >
+                  <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
+                  Add New
+                </Button>
+                <Button 
+                  color="light" 
+                  className="bg-white/20 hover:bg-white/30 text-white border-white/30 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300 px-8 py-3"
+                >
+                  <Icon icon="solar:settings-line-duotone" className="mr-2" />
+                  Settings
+                </Button>
+              </div>
+            </div>
+          </div>
         </div>
-        <Button onClick={handleAddNew} color="primary">
-          <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
-          Add New
-        </Button>
       </div>
+
+      <div className="px-6 py-12 -mt-8 relative z-10">
+        <div className="max-w-7xl mx-auto space-y-12">
 
       {/* Alert Messages */}
       {alertMessage && (
@@ -444,264 +488,290 @@ const LeadManagementPage = () => {
         </Alert>
       )}
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-              {leadSources.length}
+          {/* Stats Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            {/* Lead Sources Card */}
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 dark:border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="p-3 bg-blue-500/10 rounded-xl w-fit mb-4">
+                      <Icon icon="solar:target-line-duotone" className="text-3xl text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+                      {leadSources.length}
+                    </div>
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                      Lead Sources
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Active Sources</div>
+                    <div className="flex items-center text-green-600 dark:text-green-400">
+                      <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
+                      <span className="text-sm font-medium">Configured</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Lead Sources</div>
-          </div>
-        </Card>
-        <Card>
-          <div className="text-center">
-            <div className="text-2xl font-bold text-green-600 dark:text-green-400">
-              {leadStatuses.length}
+
+            {/* Lead Statuses Card */}
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-green-500 to-emerald-600 rounded-2xl blur opacity-75 group-hover:opacity-100 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 dark:border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div className="p-3 bg-green-500/10 rounded-xl w-fit mb-4">
+                      <Icon icon="solar:clipboard-list-line-duotone" className="text-3xl text-green-600 dark:text-green-400" />
+                    </div>
+                    <div className="text-4xl font-bold text-gray-900 dark:text-white mb-2">
+                      {leadStatuses.length}
+                    </div>
+                    <div className="text-sm font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide">
+                      Lead Statuses
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-sm text-gray-500 dark:text-gray-400 mb-1">Status Types</div>
+                    <div className="flex items-center text-green-600 dark:text-green-400">
+                      <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
+                      <span className="text-sm font-medium">Active</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
             </div>
-            <div className="text-sm text-gray-600 dark:text-gray-400">Lead Statuses</div>
           </div>
-        </Card>
-      </div>
 
-      {/* Combined Tables */}
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        {/* Lead Sources Table */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Lead Sources</h3>
-            <Badge color="blue" size="lg">
-              {leadSources.length} Source{leadSources.length !== 1 ? 's' : ''}
-            </Badge>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <Table.Head>
-                <Table.HeadCell>Name</Table.HeadCell>
-                <Table.HeadCell>Created</Table.HeadCell>
-                <Table.HeadCell>Actions</Table.HeadCell>
-              </Table.Head>
-              <Table.Body className="divide-y">
-                {leadSources.length === 0 ? (
-                  <Table.Row>
-                    <Table.Cell colSpan={3} className="text-center py-8">
-                      <div className="text-gray-500 dark:text-gray-400">
-                        <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-2xl mb-2" />
-                        <p>No lead sources found</p>
+          {/* Combined Tables */}
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
+            {/* Lead Sources Table */}
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-2xl blur opacity-50 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 dark:border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-blue-500/10 rounded-xl">
+                      <Icon icon="solar:target-line-duotone" className="text-2xl text-blue-600 dark:text-blue-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Sources</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Manage your lead acquisition channels</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-blue-500/10 rounded-full px-4 py-2">
+                    <Icon icon="solar:target-line-duotone" className="text-blue-600 dark:text-blue-400" />
+                    <span className="text-sm font-semibold text-blue-600 dark:text-blue-400">
+                      {leadSources.length} Source{leadSources.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {leadSources.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                        <Icon icon="solar:info-circle-line-duotone" className="text-3xl text-gray-400" />
                       </div>
-                    </Table.Cell>
-                  </Table.Row>
-                ) : (
-                  leadSources.map((source) => (
-                    <Table.Row key={source._id} className="bg-gray-50 dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      <Table.Cell className="font-medium text-gray-900 dark:text-white">
-                        <div className="flex items-center gap-2">
-                          <Icon icon="solar:target-line-duotone" className="text-blue-500" />
-                          {source.name}
-                        </div>
-                      </Table.Cell>
-                      <Table.Cell className="text-gray-500 dark:text-gray-400">
-                        {new Date(source.createdAt).toLocaleDateString()}
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            color="info"
-                            onClick={() => handleEdit('source', source)}
-                          >
-                            <Icon icon="solar:pen-line-duotone" className="mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            color="failure"
-                            onClick={() => handleDelete('source', source._id)}
-                          >
-                            <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
-                            Delete
-                          </Button>
-                        </div>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))
-                )}
-              </Table.Body>
-            </Table>
-          </div>
-        </Card>
-
-        {/* Lead Statuses Table */}
-        <Card>
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Lead Statuses</h3>
-            <Badge color="green" size="lg">
-              {leadStatuses.length} Status{leadStatuses.length !== 1 ? 'es' : ''}
-            </Badge>
-          </div>
-          <div className="overflow-x-auto">
-            <Table>
-              <Table.Head>
-                <Table.HeadCell>Name</Table.HeadCell>
-                <Table.HeadCell>Form Fields</Table.HeadCell>
-                <Table.HeadCell>Type</Table.HeadCell>
-                <Table.HeadCell>Actions</Table.HeadCell>
-              </Table.Head>
-              <Table.Body className="divide-y">
-                {leadStatuses.length === 0 ? (
-                  <Table.Row>
-                    <Table.Cell colSpan={4} className="text-center py-8">
-                      <div className="text-gray-500 dark:text-gray-400">
-                        <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-2xl mb-2" />
-                        <p>No lead statuses found</p>
-                      </div>
-                    </Table.Cell>
-                  </Table.Row>
-                ) : (
-                  leadStatuses.map((status) => (
-                    <Table.Row key={status._id} className="bg-gray-50 dark:border-gray-700 dark:bg-gray-800 hover:bg-gray-100 dark:hover:bg-gray-700">
-                      <Table.Cell className="font-medium text-gray-900 dark:text-white">
-                        <div className="flex items-center gap-2">
-                          <Icon icon="solar:clipboard-list-line-duotone" className="text-green-500" />
-                          {status.name}
-                        </div>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="space-y-2 max-w-xs">
-                          {status.formFields.map((field, index) => (
-                            <div key={index} className="border border-gray-200 dark:border-gray-600 rounded-lg p-2">
-                              <div className="flex items-center gap-2 mb-1">
-                                <Badge color="info" size="sm">
-                                  {field.name}
-                                </Badge>
-                                <span className="text-xs text-gray-500 dark:text-gray-400">
-                                  {field.type} {field.required && '(Required)'}
-                                </span>
-                              </div>
-                              
-                            {/* Show options for select fields */}
-                            {field.type === 'select' && field.options && field.options.length > 0 && (
-                              <div className="mt-2">
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Options:</div>
-                                <div className="flex flex-wrap gap-1">
-                                  {field.options.map((option, optionIndex) => (
-                                    <span 
-                                      key={optionIndex}
-                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
-                                    >
-                                      {option}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                            {/* Show options for checkbox fields */}
-                            {field.type === 'checkbox' && field.options && field.options.length > 0 && (
-                              <div className="mt-2">
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Checkbox Options:</div>
-                                <div className="flex flex-wrap gap-1">
-                                  {field.options.map((option, optionIndex) => (
-                                    <span 
-                                      key={optionIndex}
-                                      className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
-                                    >
-                                      ☑ {option}
-                                    </span>
-                                  ))}
-                                </div>
-                              </div>
-                            )}
-
-                              {/* Show field type specific details */}
-                              {field.type === 'checkbox' && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                  ✓ Checkbox field
-                                </div>
-                              )}
-                              
-                              {field.type === 'date' && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                  📅 Date picker field
-                                </div>
-                              )}
-
-                              {field.type === 'textarea' && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                  📝 Multi-line text field
-                                </div>
-                              )}
-
-                              {field.type === 'email' && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                  ✉️ Email validation
-                                </div>
-                              )}
-
-                              {field.type === 'phone' && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                  📞 Phone number field
-                                </div>
-                              )}
-
-                              {field.type === 'number' && (
-                                <div className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                                  🔢 Numeric input only
-                                </div>
-                              )}
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Lead Sources</h4>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">Get started by creating your first lead source</p>
+                      <Button onClick={handleAddNew} color="blue" size="sm">
+                        <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
+                        Create First Source
+                      </Button>
+                    </div>
+                  ) : (
+                    leadSources.map((source) => (
+                      <div key={source._id} className="bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm rounded-xl p-6 border border-white/30 dark:border-gray-600/30 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-300 group">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-blue-500/10 rounded-lg">
+                              <Icon icon="solar:target-line-duotone" className="text-xl text-blue-600 dark:text-blue-400" />
                             </div>
-                          ))}
+                            <div>
+                              <h4 className="font-semibold text-gray-900 dark:text-white text-lg">{source.name}</h4>
+                              <p className="text-sm text-gray-500 dark:text-gray-400">
+                                Created {new Date(source.createdAt).toLocaleDateString()}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              color="info"
+                              onClick={() => handleEdit('source', source)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <Icon icon="solar:pen-line-duotone" className="mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              color="failure"
+                              onClick={() => handleDelete('source', source._id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="flex flex-wrap gap-1">
-                          {status.is_final_status && (
-                            <Badge color="red" size="sm">
-                              <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
-                              Final
-                            </Badge>
-                          )}
-                          {status.is_default_status && (
-                            <Badge color="blue" size="sm">
-                              <Icon icon="solar:star-line-duotone" className="mr-1" />
-                              Default
-                            </Badge>
-                          )}
-                          {!status.is_final_status && !status.is_default_status && (
-                            <Badge color="gray" size="sm">
-                              <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
-                              Active
-                            </Badge>
-                          )}
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Lead Statuses Table */}
+            <div className="group relative">
+              <div className="absolute inset-0 bg-gradient-to-r from-green-500/20 to-emerald-500/20 rounded-2xl blur opacity-50 group-hover:opacity-75 transition duration-1000 group-hover:duration-200"></div>
+              <div className="relative bg-white/80 dark:bg-gray-800/80 backdrop-blur-sm rounded-2xl p-8 border border-white/20 dark:border-gray-700/50 shadow-xl hover:shadow-2xl transition-all duration-300">
+                <div className="flex items-center justify-between mb-8">
+                  <div className="flex items-center gap-4">
+                    <div className="p-3 bg-green-500/10 rounded-xl">
+                      <Icon icon="solar:clipboard-list-line-duotone" className="text-2xl text-green-600 dark:text-green-400" />
+                    </div>
+                    <div>
+                      <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Lead Statuses</h3>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Configure your lead workflow stages</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2 bg-green-500/10 rounded-full px-4 py-2">
+                    <Icon icon="solar:clipboard-list-line-duotone" className="text-green-600 dark:text-green-400" />
+                    <span className="text-sm font-semibold text-green-600 dark:text-green-400">
+                      {leadStatuses.length} Status{leadStatuses.length !== 1 ? 'es' : ''}
+                    </span>
+                  </div>
+                </div>
+                <div className="space-y-4">
+                  {leadStatuses.length === 0 ? (
+                    <div className="text-center py-12">
+                      <div className="bg-gray-100 dark:bg-gray-700 rounded-full w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                        <Icon icon="solar:info-circle-line-duotone" className="text-3xl text-gray-400" />
+                      </div>
+                      <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-2">No Lead Statuses</h4>
+                      <p className="text-gray-500 dark:text-gray-400 mb-4">Create your first lead status to get started</p>
+                      <Button onClick={handleAddNew} color="green" size="sm">
+                        <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
+                        Create First Status
+                      </Button>
+                    </div>
+                  ) : (
+                    leadStatuses.map((status) => (
+                      <div key={status._id} className="bg-white/60 dark:bg-gray-700/60 backdrop-blur-sm rounded-xl p-6 border border-white/30 dark:border-gray-600/30 hover:bg-white/80 dark:hover:bg-gray-700/80 transition-all duration-300 group">
+                        <div className="flex items-start justify-between mb-4">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-green-500/10 rounded-lg">
+                              <Icon icon="solar:clipboard-list-line-duotone" className="text-xl text-green-600 dark:text-green-400" />
+                            </div>
+                            <div>
+                              <h4 className="font-semibold text-gray-900 dark:text-white text-lg">{status.name}</h4>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                {status.is_final_status && (
+                                  <Badge color="red" size="sm">
+                                    <Icon icon="solar:check-circle-line-duotone" className="mr-1" />
+                                    Final
+                                  </Badge>
+                                )}
+                                {status.is_default_status && (
+                                  <Badge color="blue" size="sm">
+                                    <Icon icon="solar:star-line-duotone" className="mr-1" />
+                                    Default
+                                  </Badge>
+                                )}
+                                {!status.is_final_status && !status.is_default_status && (
+                                  <Badge color="gray" size="sm">
+                                    <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
+                                    Active
+                                  </Badge>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="flex gap-2">
+                            <Button
+                              size="sm"
+                              color="info"
+                              onClick={() => handleEdit('status', status)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <Icon icon="solar:pen-line-duotone" className="mr-1" />
+                              Edit
+                            </Button>
+                            <Button
+                              size="sm"
+                              color="failure"
+                              onClick={() => handleDelete('status', status._id)}
+                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                            >
+                              <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
+                              Delete
+                            </Button>
+                          </div>
                         </div>
-                      </Table.Cell>
-                      <Table.Cell>
-                        <div className="flex gap-2">
-                          <Button
-                            size="sm"
-                            color="info"
-                            onClick={() => handleEdit('status', status)}
-                          >
-                            <Icon icon="solar:pen-line-duotone" className="mr-1" />
-                            Edit
-                          </Button>
-                          <Button
-                            size="sm"
-                            color="failure"
-                            onClick={() => handleDelete('status', status._id)}
-                          >
-                            <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
-                            Delete
-                          </Button>
+                        
+                        {/* Form Fields Display */}
+                        <div className="space-y-3">
+                          <h5 className="text-sm font-medium text-gray-700 dark:text-gray-300">Form Fields ({status.formFields.length})</h5>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {status.formFields.map((field, index) => (
+                              <div key={index} className="bg-gray-50 dark:bg-gray-600/30 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
+                                <div className="flex items-center gap-2 mb-2">
+                                  <Badge color="info" size="sm">
+                                    {field.name}
+                                  </Badge>
+                                  <span className="text-xs text-gray-500 dark:text-gray-400">
+                                    {field.type} {field.required && '(Required)'}
+                                  </span>
+                                </div>
+                                
+                                {/* Show options for select fields */}
+                                {field.type === 'select' && field.options && field.options.length > 0 && (
+                                  <div className="mt-2">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Options:</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {field.options.map((option, optionIndex) => (
+                                        <span 
+                                          key={optionIndex}
+                                          className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-200"
+                                        >
+                                          {option}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Show options for checkbox fields */}
+                                {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+                                  <div className="mt-2">
+                                    <div className="text-xs text-gray-600 dark:text-gray-400 mb-1">Checkbox Options:</div>
+                                    <div className="flex flex-wrap gap-1">
+                                      {field.options.map((option, optionIndex) => (
+                                        <span 
+                                          key={optionIndex}
+                                          className="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200"
+                                        >
+                                          ☑ {option}
+                                        </span>
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            ))}
+                          </div>
                         </div>
-                      </Table.Cell>
-                    </Table.Row>
-                  ))
-                )}
-              </Table.Body>
-            </Table>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
           </div>
-        </Card>
+        </div>
       </div>
 
       {/* Combined Add/Edit Modal */}
