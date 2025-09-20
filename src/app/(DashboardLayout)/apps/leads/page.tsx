@@ -2591,7 +2591,6 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
-                            disabled={true} // Disable the date field
                           />
                         ) : field.type === 'textarea' ? (
                           <Textarea

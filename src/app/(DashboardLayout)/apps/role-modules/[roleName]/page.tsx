@@ -5,7 +5,7 @@ import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, subscribeToRefresh } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL, subscribeToRefresh } from "@/lib/config";
 
 interface Role {
   _id: string;
@@ -52,8 +52,16 @@ const RoleModulePage = () => {
   const [filterProject, setFilterProject] = useState<string>("all");
   const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
   const [refreshMessage, setRefreshMessage] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   const roleName = decodeURIComponent(params.roleName as string);
+  
+  // Debug role name from URL
+  console.log("🔗 URL Role Name Debug:", {
+    raw: params.roleName,
+    decoded: roleName,
+    encoded: encodeURIComponent(roleName)
+  });
 
   // Fetch users from backend
   useEffect(() => {
@@ -66,7 +74,7 @@ const RoleModulePage = () => {
   // Listen for refresh events from other pages (like user edits)
   useEffect(() => {
     const unsubscribe = subscribeToRefresh(() => {
-      console.log("Refresh event received, updating role module data...");
+      console.log("🔄 Refresh event received, updating role module data...");
       if (token && roleName) {
         setIsLoading(true);
         setRefreshMessage("Data refreshed from assign-project form!");
@@ -77,6 +85,18 @@ const RoleModulePage = () => {
     });
 
     return unsubscribe;
+  }, [token, roleName]);
+
+  // Auto-refresh every 30 seconds to get real-time updates
+  useEffect(() => {
+    if (!token || !roleName) return;
+
+    const interval = setInterval(() => {
+      console.log("🔄 Auto-refreshing role users data...");
+      fetchRoleUsers();
+    }, 30000); // 30 seconds
+
+    return () => clearInterval(interval);
   }, [token, roleName]);
 
   useEffect(() => {
@@ -143,44 +163,13 @@ const RoleModulePage = () => {
     try {
       setIsLoading(true);
       
-      // First try the with-projects API
-      try {
-        const response = await fetch(`${API_ENDPOINTS.USERS}/with-projects`, {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        });
-        
-        if (response.ok) {
-          const data = await response.json();
-          const allUsers = data.users || data;
-          
-          console.log("All users from with-projects API:", allUsers);
-          console.log("Looking for role:", roleName);
-          
-          // Filter users by the specific role - try multiple role field variations
-          const roleUsers = allUsers.filter((user: any) => {
-            const userRole = user.currentRole?.name || user.roleName || user.role;
-            console.log(`User ${user.name} has role:`, userRole);
-            return userRole && userRole.toLowerCase() === roleName.toLowerCase();
-          });
-          
-          if (roleUsers.length > 0) {
-            console.log(`Found ${roleUsers.length} users with role ${roleName} from with-projects API:`, roleUsers);
-            setUsers(roleUsers);
-            setUserCount(roleUsers.length);
-            return;
-          }
-        }
-      } catch (withProjectsError) {
-        console.log("With-projects API failed, trying fallback method:", withProjectsError);
-      }
+      console.log("🔄 Fetching role users with real-time project data...");
       
-      // Fallback to the old method using projects endpoint
-      console.log("Trying fallback method with projects endpoint...");
-      const response = await fetch(API_ENDPOINTS.PROJECTS, {
+      // Use the same endpoint as user list page for real-time data
+      const apiUrl = `${API_BASE_URL}/api/superadmin/users/with-projects`;
+      console.log("🌐 Making API call to:", apiUrl);
+      
+      const response = await fetch(apiUrl, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -188,71 +177,79 @@ const RoleModulePage = () => {
         },
       });
       
+      console.log("📡 API Response status:", response.status, response.ok);
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        const errorText = await response.text();
+        console.error("❌ API Error:", errorText);
+        throw new Error(`HTTP error! status: ${response.status} - ${errorText}`);
       }
       
       const data = await response.json();
-      const projects = data.projects || data;
+      console.log("📊 Users with projects response:", data);
+      console.log("📊 Response data type:", typeof data);
+      console.log("📊 Response has users property:", !!data.users);
+      console.log("📊 Response is array:", Array.isArray(data));
       
-      // Extract users with the specific role from all projects and group by email
-      const userMap: {[email: string]: any} = {};
+      // Process the response data (same logic as user list page)
+      let allUsers: any[] = [];
       
-      projects.forEach((project: any) => {
-        if (project.members && Array.isArray(project.members)) {
-          project.members.forEach((member: any) => {
-            if (member._id && 
-                (member.roleName === roleName || member.role === roleName)) {
-              const email = member.email || 'No email';
-              
-              if (userMap[email]) {
-                // User already exists, add project to their list
-                userMap[email].projectAssignments.push({
-                  projectId: project._id,
-                  projectName: project.name
-                });
-                userMap[email].projectSummary.assignedProjects = userMap[email].projectAssignments.length;
-              } else {
-                // New user, create entry
-                userMap[email] = {
-                  _id: member._id,
-                  name: member.name || member.email || 'Unknown User',
-                  email: email,
-                  mobile: member.mobile || 'No mobile',
-                  companyName: member.companyName || 'No company',
-                  currentRole: {
-                    _id: member.roleRef || member._id,
-                    name: member.roleName || member.role || roleName,
-                    level: member.level || 1
-                  },
-                  projectAssignments: [{
-                    projectId: project._id,
-                    projectName: project.name
-                  }],
-                  projectSummary: {
-                    totalProjects: 1,
-                    assignedProjects: 1,
-                    unassignedProjects: 0
-                  },
-                  accountCreated: member.createdAt || member.joinedAt || new Date().toISOString(),
-                  lastActivity: member.lastActivity || new Date().toISOString(),
-                  isAssignedToProject: true
-                };
-              }
-            }
-          });
+      if (data.users && Array.isArray(data.users)) {
+        allUsers = data.users;
+        console.log("✅ Using data.users array, count:", allUsers.length);
+      } else if (Array.isArray(data)) {
+        allUsers = data;
+        console.log("✅ Using data as array, count:", allUsers.length);
+      } else {
+        console.error("❌ Unexpected response format:", data);
+        allUsers = [];
+      }
+      
+      console.log("👥 Total users found:", allUsers.length);
+      
+      console.log("🎯 Looking for role:", roleName);
+      console.log("🔍 Role name variations:", {
+        original: roleName,
+        lowercase: roleName.toLowerCase(),
+        trimmed: roleName.trim(),
+        decoded: decodeURIComponent(roleName)
+      });
+      
+      // Filter users by the specific role
+      const targetRoleLower = roleName.toLowerCase().trim();
+      const allRolesFound = new Set<string>();
+      
+      // Collect all roles found for debugging
+      allUsers.forEach((user: any) => {
+        const userRole = user.currentRole?.name;
+        if (userRole) {
+          allRolesFound.add(userRole);
         }
       });
       
-      // Convert map to array
-      const roleUsers = Object.values(userMap);
+      console.log("📝 All roles found in users:", Array.from(allRolesFound));
       
-      console.log(`Users with role ${roleName} (fallback method):`, roleUsers);
+      const roleUsers = allUsers.filter((user: any) => {
+        const userRole = user.currentRole?.name || user.roleName || user.role;
+        const userRoleLower = userRole ? userRole.toLowerCase().trim() : '';
+        
+        console.log(`👤 User: ${user.name}, Role: "${userRole}", Role Lower: "${userRoleLower}"`);
+        
+        return userRole && userRoleLower === targetRoleLower;
+      });
+      
+      console.log(`✅ Found ${roleUsers.length} users with role "${roleName}":`, roleUsers);
+      console.log("📋 Project assignments:", roleUsers.map((u: any) => ({
+        name: u.name,
+        projects: u.projectAssignments ? u.projectAssignments.map((p: any) => p.projectName) : []
+      })));
+      
       setUsers(roleUsers);
       setUserCount(roleUsers.length);
+      setLastUpdated(new Date());
       
     } catch (error) {
-      console.error("Error fetching role users:", error);
+      console.error("❌ Error fetching role users:", error);
       setUsers([]);
       setUserCount(0);
     } finally {
@@ -359,6 +356,11 @@ const RoleModulePage = () => {
              <Icon icon="solar:refresh-line-duotone" className="mr-2" />
              {isLoading ? 'Refreshing...' : 'Refresh Data'}
            </Button>
+           {lastUpdated && (
+             <div className="text-xs text-gray-500 dark:text-gray-400">
+               Last updated: {lastUpdated.toLocaleTimeString()}
+             </div>
+           )}
            <Link href={`/apps/role-modules/${roleName}/add`}>
              <Button color="primary" size="sm">
                <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
@@ -478,18 +480,25 @@ const RoleModulePage = () => {
            <h3 className="text-lg font-semibold text-gray-900 dark:text-white">
              {role.name.toUpperCase()} Users List
            </h3>
-           <Button 
-             color="info" 
-             size="sm" 
-             onClick={() => {
-               console.log("Manual refresh triggered");
-               fetchRoleUsers();
-             }}
-             disabled={isLoading}
-           >
-             <Icon icon="solar:refresh-line-duotone" className="mr-2" />
-             {isLoading ? 'Refreshing...' : 'Refresh'}
-           </Button>
+           <div className="flex items-center gap-2">
+             <Button 
+               color="info" 
+               size="sm" 
+               onClick={() => {
+                 console.log("Manual refresh triggered");
+                 fetchRoleUsers();
+               }}
+               disabled={isLoading}
+             >
+               <Icon icon="solar:refresh-line-duotone" className="mr-2" />
+               {isLoading ? 'Refreshing...' : 'Refresh'}
+             </Button>
+             {lastUpdated && (
+               <span className="text-xs text-gray-500 dark:text-gray-400">
+                 Updated: {lastUpdated.toLocaleTimeString()}
+               </span>
+             )}
+           </div>
          </div>
          
          {/* Search and Filters */}
@@ -645,6 +654,13 @@ const RoleModulePage = () => {
                <Icon icon="solar:users-group-rounded-line-duotone" className="text-4xl mx-auto mb-2" />
                <p>No {role.name} users found</p>
                <p className="text-sm">Create the first {role.name} user to get started</p>
+               <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg text-left max-w-md mx-auto">
+                 <p className="text-xs text-blue-700 dark:text-blue-300 font-medium">Debug Info:</p>
+                 <p className="text-xs text-blue-600 dark:text-blue-400">
+                   Looking for role: "{role.name}"<br/>
+                   Check console for available roles in projects
+                 </p>
+               </div>
              </div>
            </div>
                   ) : (

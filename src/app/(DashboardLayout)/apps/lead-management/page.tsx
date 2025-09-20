@@ -46,7 +46,7 @@ const LeadManagementPage = () => {
   const [activeTab, setActiveTab] = useState("source");
   const [editingItem, setEditingItem] = useState<{ type: 'source' | 'status', id: string, data: any } | null>(null);
   const defaultFormFields: FormField[] = [{ name: "Remark", type: "text", required: true, options: [] as string[] }];
-  const nextMeetingDateField: FormField = { name: "Next Meeting Date", type: "date", required: true, options: [] };
+  const nextMeetingDateField: FormField = { name: "Booking Date", type: "date", required: true, options: [] };
 
   const [formData, setFormData] = useState<FormData>({
     // Lead Source
@@ -193,7 +193,19 @@ const LeadManagementPage = () => {
       } else {
         if (editingItem) {
           // Update lead status
-          const response = await fetch(API_ENDPOINTS.UPDATE_LEAD_STATUS(editingItem.id), {
+          const updateUrl = API_ENDPOINTS.UPDATE_LEAD_STATUS(editingItem.id);
+          console.log('🔧 Updating lead status:', {
+            url: updateUrl,
+            id: editingItem.id,
+            data: {
+              name: formData.statusName,
+              formFields: formData.formFields.filter(field => field.name.trim()),
+              is_final_status: formData.is_final_status,
+              is_default_status: formData.is_default_status
+            }
+          });
+          
+          const response = await fetch(updateUrl, {
             method: "PUT",
             headers: {
               "Content-Type": "application/json",
@@ -601,7 +613,7 @@ const LeadManagementPage = () => {
                               size="sm"
                               color="info"
                               onClick={() => handleEdit('source', source)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              className="hover:scale-105 transition-transform duration-200"
                             >
                               <Icon icon="solar:pen-line-duotone" className="mr-1" />
                               Edit
@@ -610,7 +622,7 @@ const LeadManagementPage = () => {
                               size="sm"
                               color="failure"
                               onClick={() => handleDelete('source', source._id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              className="hover:scale-105 transition-transform duration-200"
                             >
                               <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
                               Delete
@@ -695,7 +707,7 @@ const LeadManagementPage = () => {
                               size="sm"
                               color="info"
                               onClick={() => handleEdit('status', status)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              className="hover:scale-105 transition-transform duration-200"
                             >
                               <Icon icon="solar:pen-line-duotone" className="mr-1" />
                               Edit
@@ -704,7 +716,7 @@ const LeadManagementPage = () => {
                               size="sm"
                               color="failure"
                               onClick={() => handleDelete('status', status._id)}
-                              className="opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                              className="hover:scale-105 transition-transform duration-200"
                             >
                               <Icon icon="solar:trash-bin-trash-line-duotone" className="mr-1" />
                               Delete

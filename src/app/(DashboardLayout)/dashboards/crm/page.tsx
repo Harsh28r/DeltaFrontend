@@ -71,7 +71,7 @@ interface Lead {
     Budget: string;
     Notes?: string;
     Remark?: string;
-    "Next Meeting Date"?: string;
+    "Booking Date"?: string;
   };
   cpSourcingId: string | null;
   statusHistory: Array<{

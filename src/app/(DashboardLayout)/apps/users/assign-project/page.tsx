@@ -4,7 +4,7 @@ import { Button, Card, Label, Select, TextInput, Alert } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, API_BASE_URL, createRefreshEvent } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
 
 interface Project {
   _id: string;
@@ -182,17 +182,14 @@ const AssignProjectPage = () => {
 
       if (assignResponse.ok) {
         setMessage({ type: 'success', text: `User assigned to ${selectedProjectIds.length} project(s) successfully!` });
-        // Trigger refresh event for other pages
-        createRefreshEvent();
         // Reset selections
         setSelectedUserId("");
         setSelectedProjectIds([]);
         setSelectedUser(null);
-        // Refresh users list
+        // Clear message after 3 seconds
         setTimeout(() => {
-          fetchUsers();
           setMessage(null);
-        }, 2000);
+        }, 3000);
       } else {
         setMessage({ 
           type: 'error', 
@@ -207,18 +204,37 @@ const AssignProjectPage = () => {
     }
   };
 
-  const handleRemoveFromProject = async (userId: string, projectId: string) => {
-    if (window.confirm("Are you sure you want to remove this user from the project?")) {
+  const handleRemoveFromProject = async (userId: string, projectIdToRemove: string) => {
+    const user = users.find(u => u._id === userId);
+    if (!user) {
+      setMessage({ type: 'error', text: 'User not found' });
+      return;
+    }
+
+    const projectToRemove = projects.find(p => p._id === projectIdToRemove);
+    const projectName = projectToRemove?.name || 'the project';
+
+    if (window.confirm(`Are you sure you want to remove ${user.name} from "${projectName}"?`)) {
       setIsRemoving(true);
       setMessage(null);
 
       try {
+        // Get user's current project assignments
+        const currentProjects = user.projectAssignments || [];
+        
+        // Remove the specific project from the user's assignments
+        const remainingProjects = currentProjects
+          .filter(assignment => assignment.projectId !== projectIdToRemove)
+          .map(assignment => ({ projectId: assignment.projectId }));
+
         const removePayload = {
           userId: userId,
-          projects: [] // Empty array to remove all projects
+          projects: remainingProjects // Only remaining projects
         };
         
-        console.log("Removing user from project:", removePayload);
+        console.log("Removing user from specific project:", removePayload);
+        console.log("Project to remove:", projectIdToRemove);
+        console.log("Remaining projects:", remainingProjects);
         
         const removeResponse = await fetch(API_ENDPOINTS.UPDATE_USER_PROJECTS, {
           method: "PUT",
@@ -233,12 +249,11 @@ const AssignProjectPage = () => {
         console.log("Removal response:", removeData);
 
         if (removeResponse.ok) {
-          setMessage({ type: 'success', text: 'User removed from project successfully!' });
-          // Refresh users list
+          setMessage({ type: 'success', text: `User removed from "${projectName}" successfully!` });
+          // Clear message after 3 seconds
           setTimeout(() => {
-            fetchUsers();
             setMessage(null);
-          }, 2000);
+          }, 3000);
         } else {
           setMessage({ 
             type: 'error', 
@@ -258,7 +273,16 @@ const AssignProjectPage = () => {
     setSelectedUserId(userId);
     const user = users.find(u => u._id === userId);
     setSelectedUser(user || null);
-    setSelectedProjectIds([]);
+    
+    // Pre-check the projects that the user is already assigned to
+    if (user && user.projectAssignments) {
+      const alreadyAssignedProjectIds = user.projectAssignments.map(assignment => assignment.projectId);
+      setSelectedProjectIds(alreadyAssignedProjectIds);
+      console.log("Pre-checking existing project assignments:", alreadyAssignedProjectIds);
+    } else {
+      setSelectedProjectIds([]);
+    }
+    
     setMessage(null);
   };
 
@@ -279,6 +303,16 @@ const AssignProjectPage = () => {
 
   const handleClearAllProjects = () => {
     setSelectedProjectIds([]);
+  };
+
+  const handleResetToCurrentAssignments = () => {
+    if (selectedUser && selectedUser.projectAssignments) {
+      const alreadyAssignedProjectIds = selectedUser.projectAssignments.map(assignment => assignment.projectId);
+      setSelectedProjectIds(alreadyAssignedProjectIds);
+      console.log("Reset to current assignments:", alreadyAssignedProjectIds);
+    } else {
+      setSelectedProjectIds([]);
+    }
   };
 
   const filteredUsers = users.filter(user =>
@@ -366,7 +400,7 @@ const AssignProjectPage = () => {
               <Label htmlFor="projectSelect" value="Select Projects *" />
             </div>
             <div className="space-y-2">
-              <div className="flex gap-2">
+              <div className="flex gap-2 flex-wrap">
                 <Button 
                   size="sm" 
                   color="info" 
@@ -383,27 +417,51 @@ const AssignProjectPage = () => {
                 >
                   Clear All
                 </Button>
+                <Button 
+                  size="sm" 
+                  color="warning" 
+                  onClick={handleResetToCurrentAssignments}
+                  disabled={!selectedUserId || !selectedUser}
+                >
+                  Reset to Current
+                </Button>
                 <span className="text-sm text-gray-500 self-center">
                   {selectedProjectIds.length} project(s) selected
                 </span>
               </div>
               
               <div className="max-h-40 overflow-y-auto border border-gray-300 rounded-lg p-2 space-y-1">
-                {projects.map((project) => (
-                  <label key={project._id} className="flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded">
-                    <input
-                      type="checkbox"
-                      checked={selectedProjectIds.includes(project._id)}
-                      onChange={() => handleProjectToggle(project._id)}
-                      disabled={!selectedUserId}
-                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary"
-                    />
-                    <span className="text-sm text-gray-700">{project.name}</span>
-                    {project.description && (
-                      <span className="text-xs text-gray-500">- {project.description}</span>
-                    )}
-                  </label>
-                ))}
+                {projects.map((project) => {
+                  const isSelected = selectedProjectIds.includes(project._id);
+                  const wasAlreadyAssigned = selectedUser && selectedUser.projectAssignments?.some(
+                    assignment => assignment.projectId === project._id
+                  );
+                  
+                  return (
+                    <label key={project._id} className={`flex items-center space-x-2 cursor-pointer hover:bg-gray-50 p-1 rounded ${
+                      wasAlreadyAssigned && isSelected ? 'bg-blue-50' : ''
+                    }`}>
+                      <input
+                        type="checkbox"
+                        checked={isSelected}
+                        onChange={() => handleProjectToggle(project._id)}
+                        disabled={!selectedUserId}
+                        className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary"
+                      />
+                      <span className={`text-sm ${
+                        wasAlreadyAssigned && isSelected ? 'text-blue-700 font-medium' : 'text-gray-700'
+                      }`}>
+                        {project.name}
+                        {wasAlreadyAssigned && isSelected && (
+                          <span className="ml-1 text-xs text-blue-600">(currently assigned)</span>
+                        )}
+                      </span>
+                      {project.description && (
+                        <span className="text-xs text-gray-500">- {project.description}</span>
+                      )}
+                    </label>
+                  );
+                })}
               </div>
             </div>
           </div>
