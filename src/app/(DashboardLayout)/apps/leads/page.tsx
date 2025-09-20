@@ -2591,6 +2591,10 @@ const LeadsPage = () => {
                             onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                             required={field.required}
                             className="w-full"
+                            disabled={(() => {
+                              const currentStatus = leadStatuses.find(s => s._id === formData.status);
+                              return currentStatus?.is_final_status === true;
+                            })()}
                           />
                         ) : field.type === 'textarea' ? (
                           <Textarea

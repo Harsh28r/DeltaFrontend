@@ -46,7 +46,8 @@ const LeadManagementPage = () => {
   const [activeTab, setActiveTab] = useState("source");
   const [editingItem, setEditingItem] = useState<{ type: 'source' | 'status', id: string, data: any } | null>(null);
   const defaultFormFields: FormField[] = [{ name: "Remark", type: "text", required: true, options: [] as string[] }];
-  const nextMeetingDateField: FormField = { name: "Booking Date", type: "date", required: true, options: [] };
+  const bookingDateField: FormField = { name: "Booking Date", type: "date", required: true, options: [] };
+  const finalStatusFormFields: FormField[] = [bookingDateField]; // Only Booking Date for final statuses
 
   const [formData, setFormData] = useState<FormData>({
     // Lead Source
@@ -213,7 +214,14 @@ const LeadManagementPage = () => {
             },
             body: JSON.stringify({
               name: formData.statusName,
-              formFields: formData.formFields.filter(field => field.name.trim()),
+              formFields: formData.formFields
+                .filter(field => field.name.trim())
+                .map(field => ({
+                  name: field.name,
+                  type: field.type,
+                  required: field.required,
+                  options: field.options || []
+                })),
               is_final_status: formData.is_final_status,
               is_default_status: formData.is_default_status
             }),
@@ -238,7 +246,14 @@ const LeadManagementPage = () => {
             },
             body: JSON.stringify({
               name: formData.statusName,
-              formFields: formData.formFields.filter(field => field.name.trim()),
+              formFields: formData.formFields
+                .filter(field => field.name.trim())
+                .map(field => ({
+                  name: field.name,
+                  type: field.type,
+                  required: field.required,
+                  options: field.options || []
+                })),
               is_final_status: formData.is_final_status,
               is_default_status: formData.is_default_status
             }),
@@ -341,14 +356,17 @@ const LeadManagementPage = () => {
         is_default_status: false
       });
     } else {
-      let fields = item.formFields || defaultFormFields;
       const isFinalStatus = item.is_final_status || false;
       
-      if (isFinalStatus && !fields.some((field: FormField) => field.name === nextMeetingDateField.name)) {
-        fields = [...fields, nextMeetingDateField];
-      } else if (!isFinalStatus && fields.some((field: FormField) => field.name === nextMeetingDateField.name)) {
-        fields = fields.filter((field: FormField) => field.name !== nextMeetingDateField.name);
+      // For final statuses, always use only booking date field
+      // For non-final statuses, use existing fields but remove booking date if present
+      let fields;
+      if (isFinalStatus) {
+        fields = finalStatusFormFields;
+      } else {
+        fields = (item.formFields || defaultFormFields).filter((field: FormField) => field.name !== bookingDateField.name);
       }
+      
       setFormData({
         sourceName: "",
         statusName: item.name,
@@ -907,9 +925,15 @@ const LeadManagementPage = () => {
                           onChange={(e) => {
                             const isChecked = e.target.checked;
                             setFormData(prev => {
-                              let updatedFormFields = prev.formFields.filter(field => field.name !== nextMeetingDateField.name); // Always remove first to avoid duplicates
+                              // For final statuses, use only booking date field
+                              // For non-final statuses, keep existing fields but remove booking date if present
+                              let updatedFormFields;
                               if (isChecked) {
-                                updatedFormFields = [...updatedFormFields, nextMeetingDateField];
+                                // Final status: only booking date
+                                updatedFormFields = finalStatusFormFields;
+                              } else {
+                                // Non-final status: remove booking date, keep other fields
+                                updatedFormFields = prev.formFields.filter(field => field.name !== bookingDateField.name);
                               }
                               return { ...prev, is_final_status: isChecked, formFields: updatedFormFields };
                             });
@@ -982,21 +1006,33 @@ const LeadManagementPage = () => {
                       </div>
                       <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Custom Form Fields</h3>
                     </div>
-                    <Button
-                      type="button"
-                      size="sm"
-                      color="orange"
-                      onClick={addFormField}
-                      className="flex items-center gap-2"
-                    >
-                      <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
-                      Add Field
-                    </Button>
+                     <Button
+                       type="button"
+                       size="sm"
+                       color="orange"
+                       onClick={addFormField}
+                       disabled={formData.is_final_status}
+                       className="flex items-center gap-2"
+                     >
+                       <Icon icon="solar:add-circle-line-duotone" className="mr-1" />
+                       Add Field
+                     </Button>
                   </div>
-                  <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
-                    <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
-                    Add custom fields to collect specific information for this status
-                  </p>
+                  {formData.is_final_status ? (
+                    <div className="p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg mb-4">
+                      <div className="flex items-center gap-2">
+                        <Icon icon="solar:info-circle-line-duotone" className="text-blue-600 dark:text-blue-400" />
+                        <p className="text-sm text-blue-800 dark:text-blue-200">
+                          <strong>Final Status:</strong> Only the "Booking Date" field is available for final statuses.
+                        </p>
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                      <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                      Add custom fields to collect specific information for this status
+                    </p>
+                  )}
                   
                   <div className="space-y-4">
                     {formData.formFields.map((field, index) => (
@@ -1010,18 +1046,18 @@ const LeadManagementPage = () => {
                               Field {index + 1}
                             </span>
                           </div>
-                          {formData.formFields.length > 1 && (
-                            <Button
-                              type="button"
-                              size="sm"
-                              color="failure"
-                              onClick={() => removeFormField(index)}
-                              className="flex items-center gap-1"
-                            >
-                              <Icon icon="solar:trash-bin-trash-line-duotone" className="text-sm" />
-                              Remove
-                            </Button>
-                          )}
+                           {formData.formFields.length > 1 && !(formData.is_final_status && field.name === "Booking Date") && (
+                             <Button
+                               type="button"
+                               size="sm"
+                               color="failure"
+                               onClick={() => removeFormField(index)}
+                               className="flex items-center gap-1"
+                             >
+                               <Icon icon="solar:trash-bin-trash-line-duotone" className="text-sm" />
+                               Remove
+                             </Button>
+                           )}
                         </div>
                         
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
@@ -1033,6 +1069,7 @@ const LeadManagementPage = () => {
                               value={field.name}
                               onChange={(e) => updateFormField(index, { name: e.target.value })}
                               required={activeTab === "status"}
+                              disabled={formData.is_final_status && field.name === "Booking Date"}
                               className="w-full bg-white dark:bg-gray-700"
                             />
                           </div>
@@ -1042,6 +1079,7 @@ const LeadManagementPage = () => {
                               id={`field-type-${index}`}
                               value={field.type}
                               onChange={(e) => updateFormField(index, { type: e.target.value })}
+                              disabled={formData.is_final_status && field.name === "Booking Date"}
                               className="w-full bg-white dark:bg-gray-700"
                             >
                               {fieldTypes.map(type => (

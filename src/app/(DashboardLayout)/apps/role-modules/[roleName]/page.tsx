@@ -200,7 +200,7 @@ const RoleModulePage = () => {
       } else if (Array.isArray(data)) {
         allUsers = data;
         console.log("✅ Using data as array, count:", allUsers.length);
-      } else {
+              } else {
         console.error("❌ Unexpected response format:", data);
         allUsers = [];
       }
@@ -481,18 +481,18 @@ const RoleModulePage = () => {
              {role.name.toUpperCase()} Users List
            </h3>
            <div className="flex items-center gap-2">
-             <Button 
-               color="info" 
-               size="sm" 
-               onClick={() => {
-                 console.log("Manual refresh triggered");
-                 fetchRoleUsers();
-               }}
-               disabled={isLoading}
-             >
-               <Icon icon="solar:refresh-line-duotone" className="mr-2" />
-               {isLoading ? 'Refreshing...' : 'Refresh'}
-             </Button>
+           <Button 
+             color="info" 
+             size="sm" 
+             onClick={() => {
+               console.log("Manual refresh triggered");
+               fetchRoleUsers();
+             }}
+             disabled={isLoading}
+           >
+             <Icon icon="solar:refresh-line-duotone" className="mr-2" />
+             {isLoading ? 'Refreshing...' : 'Refresh'}
+           </Button>
              {lastUpdated && (
                <span className="text-xs text-gray-500 dark:text-gray-400">
                  Updated: {lastUpdated.toLocaleTimeString()}
