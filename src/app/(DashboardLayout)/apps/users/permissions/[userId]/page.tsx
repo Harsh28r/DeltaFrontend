@@ -222,10 +222,70 @@ const UserPermissionsPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        setUserPermissions({
-          allowed: data.allowed || [],
-          denied: data.denied || []
-        });
+        console.log('Individual user permissions API response:', data);
+        
+        // Handle new API response structure - check for both nested and flat formats
+        if (data.permissions) {
+          // Nested format: { permissions: { allowed: [], denied: [] } }
+          setUserPermissions({
+            allowed: data.permissions.allowed || [],
+            denied: data.permissions.denied || []
+          });
+          
+          // Also set the API user data for consistency
+          setApiUser({
+            id: data.user.id,
+            name: data.user.name,
+            email: data.user.email,
+            role: data.user.role,
+            level: data.user.level,
+            isActive: data.user.isActive,
+            permissions: {
+              effective: [...(data.permissions.allowed || [])],
+              custom: {
+                allowed: data.permissions.allowed || [],
+                denied: data.permissions.denied || []
+              }
+            },
+            restrictions: {
+              maxProjects: data.projectAccess?.maxProjects || null,
+              allowedProjects: data.projectAccess?.allowedProjects || [],
+              deniedProjects: data.projectAccess?.deniedProjects || []
+            }
+          });
+        } else if (data.allowed !== undefined || data.denied !== undefined) {
+          // Flat format: { allowed: [], denied: [] }
+          setUserPermissions({
+            allowed: data.allowed || [],
+            denied: data.denied || []
+          });
+          
+          // Also set the API user data for consistency
+          setApiUser({
+            id: data.user?.id || userId,
+            name: data.user?.name || 'Unknown User',
+            email: data.user?.email || 'No email',
+            role: data.user?.role || 'user',
+            level: data.user?.level || 1,
+            isActive: data.user?.isActive || true,
+            permissions: {
+              effective: [...(data.allowed || [])],
+              custom: {
+                allowed: data.allowed || [],
+                denied: data.denied || []
+              }
+            },
+            restrictions: {
+              maxProjects: data.projectAccess?.maxProjects || null,
+              allowedProjects: data.projectAccess?.allowedProjects || [],
+              deniedProjects: data.projectAccess?.deniedProjects || []
+            }
+          });
+        } else {
+          // Fallback for unknown format
+          console.warn('Unknown API response format:', data);
+          setUserPermissions({ allowed: [], denied: [] });
+        }
       } else if (response.status === 404) {
         console.info('Individual user permissions API not found. Using role-based permissions only.');
         setUserPermissions({ allowed: [], denied: [] });
@@ -333,11 +393,13 @@ const UserPermissionsPage = () => {
       effectivePermissions = [...new Set(effectivePermissions)];
       
       const payload = {
-        effective: effectivePermissions
+        allowed: userPermissions.allowed,
+        denied: userPermissions.denied
       };
       
-      console.log('Sending effective permissions:', payload);
-      console.log('Effective permissions count:', effectivePermissions.length);
+      console.log('Sending permissions payload:', payload);
+      console.log('Allowed permissions count:', userPermissions.allowed.length);
+      console.log('Denied permissions count:', userPermissions.denied.length);
       
       const response = await fetch(API_ENDPOINTS.UPDATE_USER_PERMISSIONS(userId), {
         method: 'PUT',
@@ -349,12 +411,12 @@ const UserPermissionsPage = () => {
       });
 
       if (response.ok) {
-        setSuccess('Effective permissions updated successfully!');
+        setSuccess('User permissions updated successfully!');
         setTimeout(() => {
           router.push('/apps/users');
         }, 2000);
       } else if (response.status === 404) {
-        setSuccess('Effective permissions API endpoint not found. Changes saved locally for demonstration.');
+        setSuccess('Permissions API endpoint not found. Changes saved locally for demonstration.');
       } else {
         let errorMessage = `Failed to update permissions: ${response.status}`;
         try {
@@ -369,7 +431,7 @@ const UserPermissionsPage = () => {
     } catch (err) {
       console.error('Error updating permissions:', err);
       if (err instanceof Error && err.message.includes('404')) {
-        setSuccess('Effective permissions API endpoint not found. Changes saved locally for demonstration.');
+        setSuccess('Permissions API endpoint not found. Changes saved locally for demonstration.');
       } else {
         const errorMsg = err instanceof Error ? err.message : 'Failed to update permissions';
         setError(`${errorMsg}. Check console for details.`);
