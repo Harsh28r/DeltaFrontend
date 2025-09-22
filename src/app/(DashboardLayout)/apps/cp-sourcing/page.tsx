@@ -89,7 +89,23 @@ const CPSourcingPage = () => {
       }
 
       const data = await response.json();
-      setCpSourcingList(data.cpSourcing || data || []);
+      console.log('API Response:', data);
+      
+      // Ensure we always have an array
+      let sourcingList = [];
+      if (Array.isArray(data.cpSourcings)) {
+        sourcingList = data.cpSourcings;
+      } else if (Array.isArray(data.cpSourcing)) {
+        sourcingList = data.cpSourcing;
+      } else if (Array.isArray(data)) {
+        sourcingList = data;
+      } else {
+        console.warn('Unexpected API response structure:', data);
+        sourcingList = [];
+      }
+      
+      console.log('Parsed sourcing list:', sourcingList);
+      setCpSourcingList(sourcingList);
     } catch (err: any) {
       console.error("Error fetching CP sourcing data:", err);
       setError(err.message || "Failed to fetch CP sourcing data");
@@ -357,7 +373,7 @@ const CPSourcingPage = () => {
 
 
       <Card>
-        {cpSourcingList.length === 0 ? (
+        {!Array.isArray(cpSourcingList) || cpSourcingList.length === 0 ? (
           <div className="text-center py-12">
             <Icon icon="lucide:handshake" className="w-16 h-16 text-gray-400 mx-auto mb-4" />
             <h3 className="text-lg font-medium text-gray-900 mb-2">No CP Sourcing Data</h3>
@@ -386,10 +402,10 @@ const CPSourcingPage = () => {
                 <Table.HeadCell>Actions</Table.HeadCell>
               </Table.Head>
               <Table.Body className="divide-y">
-                {cpSourcingList.map((sourcing) => {
+                {Array.isArray(cpSourcingList) && cpSourcingList.map((sourcing) => {
                   const latestData = getLatestSourcingData(sourcing);
                   return (
-                  <Table.Row key={sourcing._id || 'unknown'} className="bg-white dark:border-gray-700 dark:bg-gray-800">
+                    <Table.Row key={sourcing._id || 'unknown'} className="bg-white dark:border-gray-700 dark:bg-gray-800">
                     <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-3">
                         <ImageDisplay
@@ -485,7 +501,7 @@ const CPSourcingPage = () => {
                         </Button>
                       </div>
                     </Table.Cell>
-                  </Table.Row>
+                    </Table.Row>
                   );
                 })}
               </Table.Body>
