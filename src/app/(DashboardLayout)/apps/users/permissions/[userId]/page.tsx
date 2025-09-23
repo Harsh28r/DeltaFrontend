@@ -36,6 +36,9 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.LEADS_READ,
       PERMISSIONS.LEADS_UPDATE,
       PERMISSIONS.LEADS_DELETE,
+      PERMISSIONS.LEADS_BULK,
+      PERMISSIONS.LEADS_TRANSFER,
+      PERMISSIONS.LEADS_BULK_DELETE,
     ]
   },
   {
@@ -67,6 +70,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.NOTIFICATIONS_CREATE,
       PERMISSIONS.NOTIFICATIONS_UPDATE,
       PERMISSIONS.NOTIFICATIONS_DELETE,
+      PERMISSIONS.NOTIFICATIONS_BULK_UPDATE,
+      PERMISSIONS.NOTIFICATIONS_BULK_DELETE,
     ]
   },
   {
@@ -87,6 +92,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.LEAD_SOURCES_CREATE,
       PERMISSIONS.LEAD_SOURCES_UPDATE,
       PERMISSIONS.LEAD_SOURCES_DELETE,
+      PERMISSIONS.LEAD_SOURCES_READ_ALL,
     ]
   },
   {
@@ -97,6 +103,55 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.LEAD_STATUSES_CREATE,
       PERMISSIONS.LEAD_STATUSES_UPDATE,
       PERMISSIONS.LEAD_STATUSES_DELETE,
+      PERMISSIONS.LEAD_STATUSES_READ_ALL,
+    ]
+  },
+  {
+    name: 'Channel Partners',
+    description: 'Manage channel partner relationships',
+    permissions: [
+      PERMISSIONS.CHANNEL_PARTNER_CREATE,
+      PERMISSIONS.CHANNEL_PARTNER_READ_ALL,
+      PERMISSIONS.CHANNEL_PARTNER_READ,
+      PERMISSIONS.CHANNEL_PARTNER_UPDATE,
+      PERMISSIONS.CHANNEL_PARTNER_DELETE,
+      PERMISSIONS.CHANNEL_PARTNER_BULK_CREATE,
+      PERMISSIONS.CHANNEL_PARTNER_BULK_UPDATE,
+      PERMISSIONS.CHANNEL_PARTNER_BULK_DELETE,
+    ]
+  },
+  {
+    name: 'CP Sourcing',
+    description: 'Manage channel partner sourcing activities',
+    permissions: [
+      PERMISSIONS.CP_SOURCING_CREATE,
+      PERMISSIONS.CP_SOURCING_READ,
+      PERMISSIONS.CP_SOURCING_UPDATE,
+      PERMISSIONS.CP_SOURCING_DELETE,
+      PERMISSIONS.CP_SOURCING_BULK_CREATE,
+      PERMISSIONS.CP_SOURCING_BULK_UPDATE,
+      PERMISSIONS.CP_SOURCING_BULK_DELETE,
+    ]
+  },
+  {
+    name: 'Lead Activities',
+    description: 'Manage lead activities and interactions',
+    permissions: [
+      PERMISSIONS.LEAD_ACTIVITIES_READ,
+      PERMISSIONS.LEAD_ACTIVITIES_BULK_UPDATE,
+      PERMISSIONS.LEAD_ACTIVITIES_BULK_DELETE,
+    ]
+  },
+  {
+    name: 'User Reporting',
+    description: 'Manage user reporting structures',
+    permissions: [
+      PERMISSIONS.USER_REPORTING_CREATE,
+      PERMISSIONS.USER_REPORTING_READ,
+      PERMISSIONS.USER_REPORTING_UPDATE,
+      PERMISSIONS.USER_REPORTING_DELETE,
+      PERMISSIONS.USER_REPORTING_BULK_UPDATE,
+      PERMISSIONS.USER_REPORTING_BULK_DELETE,
     ]
   }
 ];
@@ -113,6 +168,15 @@ const UserPermissionsPage = () => {
     allowed: string[];
     denied: string[];
   }>({ allowed: [], denied: [] });
+
+  // Debug state changes
+  useEffect(() => {
+    console.log('=== USER PERMISSIONS STATE CHANGED ===');
+    console.log('Allowed permissions:', userPermissions.allowed.length);
+    console.log('Denied permissions:', userPermissions.denied.length);
+    console.log('First few allowed:', userPermissions.allowed.slice(0, 5));
+    console.log('=== END STATE DEBUG ===');
+  }, [userPermissions]);
   const [isLoading, setIsLoading] = useState(true);
   const [isLoadingUser, setIsLoadingUser] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -171,6 +235,9 @@ const UserPermissionsPage = () => {
   const fetchUserPermissions = async () => {
     try {
       setError(null);
+      console.log('=== FETCHING USER PERMISSIONS ===');
+      console.log('User ID:', userId);
+      console.log('API Endpoint:', API_ENDPOINTS.ALL_USERS_PERMISSIONS);
       
       // First try to get all users with permissions
       const response = await fetch(API_ENDPOINTS.ALL_USERS_PERMISSIONS, {
@@ -213,6 +280,10 @@ const UserPermissionsPage = () => {
 
   const fetchIndividualUserPermissions = async () => {
     try {
+      console.log('=== FETCHING INDIVIDUAL USER PERMISSIONS ===');
+      console.log('User ID:', userId);
+      console.log('API Endpoint:', API_ENDPOINTS.USER_PERMISSIONS(userId));
+      
       const response = await fetch(API_ENDPOINTS.USER_PERMISSIONS(userId), {
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -222,7 +293,14 @@ const UserPermissionsPage = () => {
 
       if (response.ok) {
         const data = await response.json();
-        console.log('Individual user permissions API response:', data);
+        console.log('=== API RESPONSE DEBUG ===');
+        console.log('Raw API response:', data);
+        console.log('Response type:', typeof data);
+        console.log('Has permissions property:', 'permissions' in data);
+        console.log('Has allowed property:', 'allowed' in data);
+        console.log('Has denied property:', 'denied' in data);
+        console.log('Has user property:', 'user' in data);
+        console.log('=== END DEBUG ===');
         
         // Handle new API response structure - check for both nested and flat formats
         if (data.permissions) {
@@ -255,6 +333,7 @@ const UserPermissionsPage = () => {
           });
         } else if (data.allowed !== undefined || data.denied !== undefined) {
           // Flat format: { allowed: [], denied: [] }
+          console.log('Using flat format - allowed:', data.allowed?.length, 'denied:', data.denied?.length);
           setUserPermissions({
             allowed: data.allowed || [],
             denied: data.denied || []

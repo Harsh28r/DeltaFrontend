@@ -1,4 +1,5 @@
 "use client";
+
 import React, { useState, useRef } from "react";
 import { Button, Card, Label, TextInput, Alert, FileInput } from "flowbite-react";
 import { Icon } from "@iconify/react";
@@ -22,7 +23,7 @@ interface FormErrors {
   [key: string]: string;
 }
 
-const AddChannelPartnerPage = () => {
+const AddChannelPartnerPage: React.FC = () => {
   const router = useRouter();
   const { token } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -136,8 +137,6 @@ const AddChannelPartnerPage = () => {
     if (!formData.address.trim()) {
       newErrors.address = "Address is required";
     }
-
-    // MAHARERA number is optional
 
     if (!formData.pinCode.trim()) {
       newErrors.pinCode = "PIN code is required";

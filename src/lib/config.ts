@@ -56,8 +56,8 @@ export const API_ENDPOINTS = {
   
   // Permissions
   ALL_USERS_PERMISSIONS: `${API_BASE_URL}/api/permissions/all-users`,
-  USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}`,
-  UPDATE_USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}`,
+  USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/superadmin/users/${userId}/permissions`,
+  UPDATE_USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/superadmin/users/${userId}/permissions`,
   ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
   UPDATE_ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
   

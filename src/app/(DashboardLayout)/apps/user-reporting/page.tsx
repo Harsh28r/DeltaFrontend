@@ -131,7 +131,15 @@ const UserReportingPage: React.FC = () => {
       if (resp.ok) {
         const data = await resp.json();
         console.log('Existing reporting data:', data);
-        setExistingReporting(Array.isArray(data) ? data : []);
+        
+        // Handle both array format and object with reportings property
+        if (Array.isArray(data)) {
+          setExistingReporting(data);
+        } else if (data.reportings && Array.isArray(data.reportings)) {
+          setExistingReporting(data.reportings);
+        } else {
+          setExistingReporting([]);
+        }
       } else {
         console.error('Failed to fetch reporting data:', resp.status);
         setExistingReporting([]);

@@ -51,6 +51,7 @@ export const PERMISSIONS = {
   LEADS_DELETE: 'leads:delete',
   LEADS_BULK: 'leads:bulk',
   LEADS_TRANSFER: 'leads:transfer',
+  LEADS_BULK_DELETE: 'leads:bulk-delete',
   
   // User management permissions
   USERS_MANAGE: 'users:manage',
@@ -106,6 +107,38 @@ export const PERMISSIONS = {
   // Notification bulk permissions
   NOTIFICATIONS_BULK_UPDATE: 'notifications:bulk-update',
   NOTIFICATIONS_BULK_DELETE: 'notifications:bulk-delete',
+  
+  // Channel Partner permissions
+  CHANNEL_PARTNER_CREATE: 'channel-partner:create',
+  CHANNEL_PARTNER_READ_ALL: 'channel-partner:read_all',
+  CHANNEL_PARTNER_READ: 'channel-partner:read',
+  CHANNEL_PARTNER_UPDATE: 'channel-partner:update',
+  CHANNEL_PARTNER_DELETE: 'channel-partner:delete',
+  CHANNEL_PARTNER_BULK_CREATE: 'channel-partner:bulk-create',
+  CHANNEL_PARTNER_BULK_UPDATE: 'channel-partner:bulk-update',
+  CHANNEL_PARTNER_BULK_DELETE: 'channel-partner:bulk-delete',
+  
+  // CP Sourcing permissions
+  CP_SOURCING_CREATE: 'cp-sourcing:create',
+  CP_SOURCING_READ: 'cp-sourcing:read',
+  CP_SOURCING_UPDATE: 'cp-sourcing:update',
+  CP_SOURCING_DELETE: 'cp-sourcing:delete',
+  CP_SOURCING_BULK_CREATE: 'cp-sourcing:bulk-create',
+  CP_SOURCING_BULK_UPDATE: 'cp-sourcing:bulk-update',
+  CP_SOURCING_BULK_DELETE: 'cp-sourcing:bulk-delete',
+  
+  // Lead Activities permissions
+  LEAD_ACTIVITIES_READ: 'lead-activities:read',
+  LEAD_ACTIVITIES_BULK_UPDATE: 'lead-activities:bulk-update',
+  LEAD_ACTIVITIES_BULK_DELETE: 'lead-activities:bulk-delete',
+  
+  // User Reporting permissions
+  USER_REPORTING_CREATE: 'user-reporting:create',
+  USER_REPORTING_READ: 'user-reporting:read',
+  USER_REPORTING_UPDATE: 'user-reporting:update',
+  USER_REPORTING_DELETE: 'user-reporting:delete',
+  USER_REPORTING_BULK_UPDATE: 'user-reporting:bulk-update',
+  USER_REPORTING_BULK_DELETE: 'user-reporting:bulk-delete',
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];

@@ -212,7 +212,7 @@ const PermissionsPage = () => {
             <div className="font-mono text-sm">
               <div className="text-green-600 dark:text-green-400">GET</div>
               <div className="text-gray-900 dark:text-white">
-                /api/permissions/user/{user?.id || '[USER_ID]'}
+                /api/superadmin/users/{user?.id || '[USER_ID]'}/permissions
               </div>
               <div className="text-gray-600 dark:text-gray-400 text-xs mt-1">
                 Fetch user-specific permissions
@@ -224,7 +224,7 @@ const PermissionsPage = () => {
             <div className="font-mono text-sm">
               <div className="text-blue-600 dark:text-blue-400">PUT</div>
               <div className="text-gray-900 dark:text-white">
-                /api/permissions/user/{user?.id || '[USER_ID]'}/permissions
+                /api/superadmin/users/{user?.id || '[USER_ID]'}/permissions/permissions
               </div>
               <div className="text-gray-600 dark:text-gray-400 text-xs mt-1">
                 Update user-specific permissions

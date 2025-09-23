@@ -27,17 +27,20 @@ interface PermissionGroup {
 
 const PERMISSION_GROUPS: PermissionGroup[] = [
   {
-    name: 'Leads',
+    name: 'Lead Management',
     description: 'Manage sales leads and prospects',
     permissions: [
       PERMISSIONS.LEADS_CREATE,
       PERMISSIONS.LEADS_READ,
       PERMISSIONS.LEADS_UPDATE,
       PERMISSIONS.LEADS_DELETE,
+      PERMISSIONS.LEADS_BULK,
+      PERMISSIONS.LEADS_TRANSFER,
+      PERMISSIONS.LEADS_BULK_DELETE,
     ]
   },
   {
-    name: 'Users',
+    name: 'User Management',
     description: 'Manage user accounts and access',
     permissions: [
       PERMISSIONS.USERS_MANAGE,
@@ -48,7 +51,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
     ]
   },
   {
-    name: 'Projects',
+    name: 'Project Management',
     description: 'Manage projects and assignments',
     permissions: [
       PERMISSIONS.PROJECTS_READ,
@@ -65,6 +68,8 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.NOTIFICATIONS_CREATE,
       PERMISSIONS.NOTIFICATIONS_UPDATE,
       PERMISSIONS.NOTIFICATIONS_DELETE,
+      PERMISSIONS.NOTIFICATIONS_BULK_UPDATE,
+      PERMISSIONS.NOTIFICATIONS_BULK_DELETE,
     ]
   },
   {
@@ -85,6 +90,7 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.LEAD_SOURCES_CREATE,
       PERMISSIONS.LEAD_SOURCES_UPDATE,
       PERMISSIONS.LEAD_SOURCES_DELETE,
+      PERMISSIONS.LEAD_SOURCES_READ_ALL,
     ]
   },
   {
@@ -95,6 +101,55 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.LEAD_STATUSES_CREATE,
       PERMISSIONS.LEAD_STATUSES_UPDATE,
       PERMISSIONS.LEAD_STATUSES_DELETE,
+      PERMISSIONS.LEAD_STATUSES_READ_ALL,
+    ]
+  },
+  {
+    name: 'Channel Partners',
+    description: 'Manage channel partner relationships',
+    permissions: [
+      PERMISSIONS.CHANNEL_PARTNER_CREATE,
+      PERMISSIONS.CHANNEL_PARTNER_READ_ALL,
+      PERMISSIONS.CHANNEL_PARTNER_READ,
+      PERMISSIONS.CHANNEL_PARTNER_UPDATE,
+      PERMISSIONS.CHANNEL_PARTNER_DELETE,
+      PERMISSIONS.CHANNEL_PARTNER_BULK_CREATE,
+      PERMISSIONS.CHANNEL_PARTNER_BULK_UPDATE,
+      PERMISSIONS.CHANNEL_PARTNER_BULK_DELETE,
+    ]
+  },
+  {
+    name: 'CP Sourcing',
+    description: 'Manage channel partner sourcing activities',
+    permissions: [
+      PERMISSIONS.CP_SOURCING_CREATE,
+      PERMISSIONS.CP_SOURCING_READ,
+      PERMISSIONS.CP_SOURCING_UPDATE,
+      PERMISSIONS.CP_SOURCING_DELETE,
+      PERMISSIONS.CP_SOURCING_BULK_CREATE,
+      PERMISSIONS.CP_SOURCING_BULK_UPDATE,
+      PERMISSIONS.CP_SOURCING_BULK_DELETE,
+    ]
+  },
+  {
+    name: 'Lead Activities',
+    description: 'Manage lead activities and interactions',
+    permissions: [
+      PERMISSIONS.LEAD_ACTIVITIES_READ,
+      PERMISSIONS.LEAD_ACTIVITIES_BULK_UPDATE,
+      PERMISSIONS.LEAD_ACTIVITIES_BULK_DELETE,
+    ]
+  },
+  {
+    name: 'User Reporting',
+    description: 'Manage user reporting structures',
+    permissions: [
+      PERMISSIONS.USER_REPORTING_CREATE,
+      PERMISSIONS.USER_REPORTING_READ,
+      PERMISSIONS.USER_REPORTING_UPDATE,
+      PERMISSIONS.USER_REPORTING_DELETE,
+      PERMISSIONS.USER_REPORTING_BULK_UPDATE,
+      PERMISSIONS.USER_REPORTING_BULK_DELETE,
     ]
   }
 ];

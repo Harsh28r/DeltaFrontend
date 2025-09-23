@@ -152,6 +152,9 @@ const AddUserPage = () => {
     setIsLoading(true);
 
     try {
+      // Get the selected role to extract the level
+      const selectedRole = roles.find(role => role.name === formData.roleName);
+      
       const createUserPayload = {
         name: formData.name,
         email: formData.email,
@@ -159,6 +162,7 @@ const AddUserPage = () => {
         mobile: formData.mobile,
         companyName: formData.companyName,
         roleName: formData.roleName,
+        level: selectedRole?.level || 1, // Default to level 1 if role not found
         projects: formData.assignToProject
           ? formData.multipleProjects
             ? formData.selectedProjectIds.map(id => ({ projectId: id }))

@@ -41,7 +41,7 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
       
       const apiUrl = API_ENDPOINTS.USER_PERMISSIONS(userId);
       console.log('🔗 Calling permissions API:', apiUrl);
-      console.log('🔗 Expected URL should be: http://localhost:5000/api/permissions/user/' + userId);
+      console.log('🔗 Expected URL should be: http://localhost:5000/api/superadmin/users/' + userId + '/permissions');
       
       const response = await fetch(apiUrl, {
         headers: {
@@ -84,14 +84,39 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
             'leads:create', 
             'leads:update',
             'leads:delete',
-            'lead-sources:read',
-            'lead-sources:create',
-            'lead-sources:update', 
-            'lead-sources:delete',
-            'lead-statuses:read',
-            'lead-statuses:create',
-            'lead-statuses:update',
-            'lead-statuses:delete'
+            'leads:bulk',
+            'leads:transfer',
+            'leads:bulk-delete',
+            'leadssource:read',
+            'leadssource:read_all',
+            'leadssource:create',
+            'leadssource:update', 
+            'leadssource:delete',
+            'leadsstatus:read',
+            'leadsstatus:read_all',
+            'leadsstatus:create',
+            'leadsstatus:update',
+            'leadsstatus:delete',
+            'channel-partner:read',
+            'channel-partner:read_all',
+            'cp-sourcing:create',
+            'cp-sourcing:read',
+            'cp-sourcing:update',
+            'cp-sourcing:delete',
+            'cp-sourcing:bulk-create',
+            'cp-sourcing:bulk-update',
+            'cp-sourcing:bulk-delete',
+            'lead-activities:read',
+            'notifications:read',
+            'notifications:update',
+            'notifications:bulk-update',
+            'notifications:bulk-delete',
+            'user-reporting:create',
+            'user-reporting:read',
+            'user-reporting:update',
+            'user-reporting:delete',
+            'user-reporting:bulk-update',
+            'user-reporting:bulk-delete'
           ],
           denied: []
         });
