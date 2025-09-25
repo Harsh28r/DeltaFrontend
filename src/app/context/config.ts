@@ -1,6 +1,6 @@
 const config = {
   activeDir: "ltr", // This can be ltr or rtl
-  activeMode: "dark", // This can be light or dark
+  activeMode: "light", // This can be light or dark
   activeTheme: "BLUE_THEME", // BLUE_THEME, GREEN_THEME, AQUA_THEME, PURPLE_THEME, ORANGE_THEME
   activeLayout: "vertical", // This can be vertical or horizontal
   isLayout: "boxed", // This can be full or boxed
@@ -11,9 +11,10 @@ const config = {
   isMobileSidebar: false,
   isHorizontal: false,
   isBorderRadius: 12,
-  sidebarWidth: 320,
+  sidebarWidth: 400,
   miniSidebarWidth: 87,
   topbarHeight: 70,
+  sidebarHeight: 100,
 };
 
 export default config;

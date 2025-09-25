@@ -114,18 +114,22 @@ const RoleModulesPage = () => {
     }
   };
 
-  const getLevelBadge = (level: number) => {
-    const levelColors = {
+  const getLevelBadge = (level?: number | string) => {
+    const normalizedLevel = typeof level === "string" ? parseInt(level, 10) : level;
+    const levelColors: Record<number, string> = {
       1: "info",
-      2: "warning", 
+      2: "warning",
       3: "success",
       4: "purple",
-      5: "gray"
-    } as const;
-    
+      5: "gray",
+    };
+
+    const color = normalizedLevel && levelColors[normalizedLevel] ? levelColors[normalizedLevel] : "gray";
+    const label = normalizedLevel ? `Level ${normalizedLevel}` : "Level N/A";
+
     return (
-      <Badge color={levelColors[level as keyof typeof levelColors] || "gray"}>
-        Level {level}
+      <Badge color={color}>
+        {label}
       </Badge>
     );
   };

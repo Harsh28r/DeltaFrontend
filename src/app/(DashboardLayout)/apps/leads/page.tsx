@@ -1,6 +1,6 @@
 "use client";
 import React, { useState, useEffect } from "react";
-import { Button, Card, Table, Badge, Modal, TextInput, Label, Alert, Select, Textarea } from "flowbite-react";
+import { Button, Card, Table, Badge, Modal, TextInput, Label, Alert, Select, Textarea, Pagination } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS, createRefreshEvent, API_BASE_URL } from "@/lib/config";
@@ -208,6 +208,10 @@ const LeadsPage = () => {
   const [userProjects, setUserProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState('');
   const [isLoadingCPSourcing, setIsLoadingCPSourcing] = useState(false);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
+  const [serverTotalItems, setServerTotalItems] = useState<number | null>(null);
+  const [serverTotalPages, setServerTotalPages] = useState<number | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -218,6 +222,13 @@ const LeadsPage = () => {
       }, 2000);
     }
   }, [token]);
+
+  // Refetch leads when pagination changes
+  useEffect(() => {
+    if (token) {
+      fetchLeads();
+    }
+  }, [currentPage, pageSize]);
 
 
   // Set userId when user data is available
@@ -417,7 +428,13 @@ const LeadsPage = () => {
     
     try {
       setIsLoadingLeads(true);
-      const leadsResponse = await fetch(API_ENDPOINTS.LEADS(), {
+      // Build URL with pagination params (backend-supported)
+      const baseUrl = API_ENDPOINTS.LEADS();
+      const url = new URL(baseUrl);
+      url.searchParams.set('page', String(currentPage));
+      url.searchParams.set('limit', String(pageSize));
+
+      const leadsResponse = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
       
@@ -425,6 +442,21 @@ const LeadsPage = () => {
         const leadsData = await leadsResponse.json();
         console.log('Leads Data:', leadsData);
         const leadsArray = leadsData.leads || leadsData || [];
+        // Capture server pagination metadata if provided
+        const paginationMeta = (leadsData as any).pagination;
+        if (paginationMeta && typeof paginationMeta === 'object') {
+          const srvCurrentPage = Number(paginationMeta.currentPage) || currentPage;
+          const srvTotalPages = Number(paginationMeta.totalPages) || null;
+          const srvTotalItems = Number(paginationMeta.totalItems) || null;
+          const srvLimit = Number(paginationMeta.limit) || pageSize;
+          setServerTotalItems(srvTotalItems);
+          setServerTotalPages(srvTotalPages);
+          if (srvCurrentPage !== currentPage) setCurrentPage(srvCurrentPage);
+          if (srvLimit !== pageSize) setPageSize(srvLimit);
+        } else {
+          setServerTotalItems(null);
+          setServerTotalPages(null);
+        }
         const transformedLeads = transformLeadData(leadsArray);
         setLeads(transformedLeads);
         setLastRefresh(new Date());
@@ -1753,6 +1785,30 @@ const LeadsPage = () => {
     return matchesSearch && matchesSource && matchesStatus && matchesDate;
   });
 
+  // Pagination derived values
+  const clientTotalItems = filteredLeads.length;
+  const totalItems = serverTotalItems ?? clientTotalItems;
+  const totalPages = serverTotalPages ?? Math.max(1, Math.ceil(clientTotalItems / pageSize));
+  const displayedPage = Math.min(currentPage, totalPages);
+  const startIndex = (displayedPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedLeads = serverTotalItems != null || serverTotalPages != null 
+    ? filteredLeads 
+    : filteredLeads.slice(startIndex, endIndex);
+  const currentPageLeadIds = paginatedLeads.map(l => l._id);
+  const allCurrentSelected = currentPageLeadIds.length > 0 && currentPageLeadIds.every(id => selectedLeads.includes(id));
+
+  // Reset/clamp page when filters, leads, or page size change
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterSource, filterStatus, filterDateFrom, filterDateTo, pageSize]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [totalPages, currentPage]);
+
   if (isLoading || finalPermissions.permissionsLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -1868,7 +1924,7 @@ const LeadsPage = () => {
         <Card className="p-6">
           <div className="text-center">
             <div className="text-3xl lg:text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-              {leads.length}
+              {serverTotalItems ?? leads.length}
             </div>
             <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Total Leads</div>
           </div>
@@ -2078,8 +2134,14 @@ const LeadsPage = () => {
                   <Table.HeadCell className="min-w-[50px]">
                     <input
                       type="checkbox"
-                      checked={selectedLeads.length === filteredLeads.length && filteredLeads.length > 0}
-                      onChange={handleSelectAllLeads}
+                      checked={allCurrentSelected}
+                      onChange={() => {
+                        if (allCurrentSelected) {
+                          setSelectedLeads(prev => prev.filter(id => !currentPageLeadIds.includes(id)));
+                        } else {
+                          setSelectedLeads(prev => Array.from(new Set([...prev, ...currentPageLeadIds])));
+                        }
+                      }}
                       className="rounded border-gray-300"
                     />
                   </Table.HeadCell>
@@ -2109,7 +2171,7 @@ const LeadsPage = () => {
                       </Table.Cell>
                     </Table.Row>
                   ) : (
-                    filteredLeads.map((lead) => (
+                    paginatedLeads.map((lead) => (
                       <Table.Row 
                         key={lead._id} 
                         className={`bg-white dark:border-gray-700 dark:bg-gray-800 ${
@@ -2244,6 +2306,31 @@ const LeadsPage = () => {
               </Table>
             </div>
           )}
+        
+        {/* Pagination Footer */}
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 pb-4">
+          <div className="text-sm text-gray-600 dark:text-gray-400">
+            Showing {serverTotalItems != null ? (paginatedLeads.length > 0 ? startIndex + 1 : 0) : Math.min(startIndex + 1, clientTotalItems)}-
+            {serverTotalItems != null ? Math.min(endIndex, totalItems) : Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-gray-600 dark:text-gray-400">Rows per page:</span>
+              <Select value={String(pageSize)} onChange={(e) => setPageSize(parseInt(e.target.value, 10))}>
+                <option value="10">10</option>
+                <option value="20">20</option>
+                <option value="50">50</option>
+                <option value="100">100</option>
+              </Select>
+            </div>
+            <Pagination
+              currentPage={displayedPage}
+              totalPages={totalPages}
+              onPageChange={(page) => setCurrentPage(page)}
+              showIcons
+            />
+          </div>
+        </div>
         </Card>
       ) : (
         <Card>

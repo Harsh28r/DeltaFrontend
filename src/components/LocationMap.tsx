@@ -1,13 +1,20 @@
 "use client";
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { Icon } from '@iconify/react';
 
-// Dynamically import the map component to avoid SSR issues
-const MapContainer = dynamic(() => import('react-leaflet').then(mod => mod.MapContainer), { ssr: false });
-const TileLayer = dynamic(() => import('react-leaflet').then(mod => mod.TileLayer), { ssr: false });
-const Marker = dynamic(() => import('react-leaflet').then(mod => mod.Marker), { ssr: false });
-const Popup = dynamic(() => import('react-leaflet').then(mod => mod.Popup), { ssr: false });
+// Create a wrapper component for the map to handle dynamic loading
+const MapWrapper = dynamic(() => import('./MapWrapper'), { 
+  ssr: false,
+  loading: () => (
+    <div className="flex items-center justify-center bg-gray-100 rounded-lg">
+      <div className="text-center text-gray-500">
+        <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto mb-2"></div>
+        <p className="text-sm">Loading map...</p>
+      </div>
+    </div>
+  )
+});
 
 interface Location {
   lat: number;
@@ -32,6 +39,8 @@ const LocationMap: React.FC<LocationMapProps> = ({
   showPopup = true,
   popupContent
 }) => {
+  const [isClient, setIsClient] = useState(false);
+
   // Fix Leaflet default icon paths
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).L) {
@@ -48,6 +57,7 @@ const LocationMap: React.FC<LocationMapProps> = ({
         console.warn('Failed to configure Leaflet icons:', error);
       }
     }
+    setIsClient(true);
   }, []);
 
   // Don't render if location is invalid
@@ -65,33 +75,30 @@ const LocationMap: React.FC<LocationMapProps> = ({
     );
   }
 
+  // Show loading state while client-side hydration is happening
+  if (!isClient) {
+    return (
+      <div 
+        className={`flex items-center justify-center bg-gray-100 rounded-lg ${className}`}
+        style={{ height, width }}
+      >
+        <div className="text-center text-gray-500">
+          <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500 mx-auto mb-2"></div>
+          <p className="text-sm">Loading map...</p>
+        </div>
+      </div>
+    );
+  }
+
   const defaultPopupContent = popupContent || location.placeName || `${location.lat.toFixed(4)}, ${location.lng.toFixed(4)}`;
 
   return (
     <div className={`rounded-lg overflow-hidden border border-gray-200 ${className}`} style={{ height, width }}>
-      <MapContainer
-        center={[location.lat, location.lng]}
-        zoom={13}
-        style={{ height: '100%', width: '100%' }}
-        className="z-0"
-      >
-        <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
-        />
-        <Marker position={[location.lat, location.lng]}>
-          {showPopup && (
-            <Popup>
-              <div className="p-2">
-                <p className="font-medium text-gray-900">{defaultPopupContent}</p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Coordinates: {location.lat.toFixed(4)}, {location.lng.toFixed(4)}
-                </p>
-              </div>
-            </Popup>
-          )}
-        </Marker>
-      </MapContainer>
+      <MapWrapper
+        location={location}
+        showPopup={showPopup}
+        popupContent={defaultPopupContent}
+      />
     </div>
   );
 };
