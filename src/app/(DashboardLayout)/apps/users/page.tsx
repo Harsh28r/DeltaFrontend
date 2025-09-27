@@ -735,7 +735,6 @@ const UsersPage = () => {
         <Table.HeadCell className="min-w-[150px] px-4 py-3">Name</Table.HeadCell>
         <Table.HeadCell className="min-w-[200px] px-4 py-3">Email</Table.HeadCell>
         <Table.HeadCell className="min-w-[120px] px-4 py-3">Mobile</Table.HeadCell>
-        <Table.HeadCell className="min-w-[150px] px-4 py-3">Company</Table.HeadCell>
         <Table.HeadCell className="min-w-[200px] px-4 py-3">Project Assignment</Table.HeadCell>
         <Table.HeadCell className="min-w-[100px] px-4 py-3">Role</Table.HeadCell>
         <Table.HeadCell className="min-w-[100px] px-4 py-3">Level</Table.HeadCell>
@@ -763,9 +762,6 @@ const UsersPage = () => {
                   </Table.Cell>
             <Table.Cell className="min-w-[120px] px-4 py-3 text-gray-600 dark:text-gray-400">
               <div className="text-xs lg:text-sm">{user.mobile || "N/A"}</div>
-                  </Table.Cell>
-            <Table.Cell className="min-w-[150px] px-4 py-3 text-gray-600 dark:text-gray-400">
-              <div className="text-xs lg:text-sm truncate">{user.companyName || "N/A"}</div>
                   </Table.Cell>
             <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
                     {(() => {

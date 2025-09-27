@@ -69,7 +69,7 @@ const RoleModulesPage = () => {
     { id: "leads:read", name: "View Leads", description: "Can view lead sources and statuses", category: "Lead Management" },
     { id: "leads:update", name: "Update Leads", description: "Can update lead sources and statuses", category: "Lead Management" },
     { id: "leads:delete", name: "Delete Leads", description: "Can delete lead sources and statuses", category: "Lead Management" },
-    
+     
     // Lead Sources
     { id: "lead-sources:create", name: "Create Lead Sources", description: "Can create lead sources", category: "Lead Management" },
     { id: "lead-sources:read", name: "View Lead Sources", description: "Can view lead sources", category: "Lead Management" },

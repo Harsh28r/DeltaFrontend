@@ -5,8 +5,8 @@ import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS, createRefreshEvent, API_BASE_URL } from "@/lib/config";
 import { useSearchParams, useRouter } from "next/navigation";
-import { useLeadPermissions } from "@/hooks/use-permissions";
 import { PERMISSIONS } from "@/app/types/permissions";
+import { usePermissions } from "@/app/context/PermissionContext";
 
 const formatDateToDDMMYYYY = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0');
@@ -131,27 +131,20 @@ interface User {
 
 const LeadsPage = () => {
   const { token, user } = useAuth();
+  const { hasPermission } = usePermissions();
   const searchParams = useSearchParams();
   const router = useRouter();
   
   // Super admin bypass - no permission checks needed
   const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'superadmin@deltayards.com';
   
-  const { 
-    canCreateLeads, 
-    canReadLeads, 
-    canUpdateLeads, 
-    canDeleteLeads, 
-    isLoading: permissionsLoading 
-  } = useLeadPermissions();
-  
-  // Override permissions for super admin
+  // Map permissions via usePermissions; superadmin bypass
   const finalPermissions = {
-    canCreateLeads: isSuperAdmin ? true : canCreateLeads,
-    canReadLeads: isSuperAdmin ? true : canReadLeads,
-    canUpdateLeads: isSuperAdmin ? true : canUpdateLeads,
-    canDeleteLeads: isSuperAdmin ? true : canDeleteLeads,
-    permissionsLoading: isSuperAdmin ? false : permissionsLoading
+    canCreateLeads: isSuperAdmin ? true : hasPermission(PERMISSIONS.LEADS_CREATE),
+    canReadLeads: isSuperAdmin ? true : hasPermission(PERMISSIONS.LEADS_READ),
+    canUpdateLeads: isSuperAdmin ? true : hasPermission(PERMISSIONS.LEADS_UPDATE),
+    canDeleteLeads: isSuperAdmin ? true : hasPermission(PERMISSIONS.LEADS_DELETE),
+    permissionsLoading: false
   };
   const [leads, setLeads] = useState<Lead[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
@@ -199,7 +192,7 @@ const LeadsPage = () => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
-  const [statusUpdateData, setStatusUpdateData] = useState({ newStatus: '', remark: '' });
+  const [statusUpdateData, setStatusUpdateData] = useState({ newStatusId: '', remark: '' });
   const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
   const [selectedLeads, setSelectedLeads] = useState<string[]>([]);
   const [bulkTransferModal, setBulkTransferModal] = useState(false);
@@ -833,7 +826,7 @@ const LeadsPage = () => {
         if (statusChanged) {
           // Use status update API with the format you specified
           const statusUpdateBody = {
-            newStatus: formData.status, // new status id
+            newStatusId: formData.status, // new status id
             newData: { 
               "First Name": editingLead.customData?.["First Name"] || 'N/A',
               "Email": editingLead.customData?.["Email"] || editingLead.email || 'N/A',
@@ -1000,6 +993,10 @@ const LeadsPage = () => {
   };
 
   const handleStatusUpdate = async (leadId: string, newStatusId: string, remark: string = '') => {
+    if (!hasPermission(PERMISSIONS.LEADS_STATUS_UPDATE)) {
+      setAlertMessage({ type: 'error', message: 'You do not have permission to update lead status.' });
+      return;
+    }
     try {
       setIsUpdatingStatus(true);
       
@@ -1007,7 +1004,7 @@ const LeadsPage = () => {
       const currentLead = leads.find(lead => lead._id === leadId);
       
       const requestBody = {
-        newStatus: newStatusId, // new status id
+        newStatusId, // new status id
         newData: { 
           "First Name": currentLead?.customData?.["First Name"] || '',
           "Email": currentLead?.customData?.["Email"] || '',
@@ -1054,7 +1051,7 @@ const LeadsPage = () => {
       if (response.ok) {
         setAlertMessage({ type: 'success', message: 'Lead status updated successfully!' });
         fetchLeads(); // Refresh immediately
-        setStatusUpdateData({ newStatus: '', remark: '' });
+        setStatusUpdateData({ newStatusId: '', remark: '' });
       } else {
         let errorMessage = 'Failed to update lead status';
         try {

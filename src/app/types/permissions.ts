@@ -48,6 +48,7 @@ export const PERMISSIONS = {
   LEADS_CREATE: 'leads:create',
   LEADS_READ: 'leads:read',
   LEADS_UPDATE: 'leads:update',
+  LEADS_STATUS_UPDATE: 'leads:status:update',
   LEADS_DELETE: 'leads:delete',
   LEADS_BULK: 'leads:bulk',
   LEADS_TRANSFER: 'leads:transfer',

@@ -94,7 +94,7 @@ const AddRolePage = () => {
     { id: "channel-partner:bulk-create", name: "Bulk Create Channel Partners", description: "Can create multiple channel partners (Superadmin only)", category: "Channel Partners Management" },
     { id: "channel-partner:bulk-update", name: "Bulk Update Channel Partners", description: "Can update multiple channel partners (Superadmin only)", category: "Channel Partners Management" },
     { id: "channel-partner:bulk-delete", name: "Bulk Delete Channel Partners", description: "Can delete multiple channel partners (Superadmin only)", category: "Channel Partners Management" },
-    
+    { id: "leads:status:update", name: "Update Lead Statuses", description: "Can update lead status information ", category: "Lead Status Management" },
     // CP Sourcing Management
     { id: "cp-sourcing:create", name: "Create CP Sourcing", description: "Can create new CP sourcing records", category: "CP Sourcing Management" },
     { id: "cp-sourcing:read", name: "Read CP Sourcing", description: "Can view CP sourcing information", category: "CP Sourcing Management" },

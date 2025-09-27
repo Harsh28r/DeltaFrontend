@@ -97,7 +97,7 @@ const ViewUserPage = () => {
     try {
       if (!token) {
         console.error("No authentication token available");
-        router.push("/auth/auth1/signin");
+        router.push("/auth/auth1/login");
         return;
       }
 
@@ -113,7 +113,7 @@ const ViewUserPage = () => {
         if (response.status === 401) {
           console.error("Authentication failed - token expired or invalid");
           localStorage.removeItem("token");
-          router.push("/auth/auth1/signin");
+          router.push("/auth/auth1/login");
           return;
         }
         

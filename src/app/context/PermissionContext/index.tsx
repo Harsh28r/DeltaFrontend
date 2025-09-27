@@ -83,6 +83,8 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
             'leads:read',
             'leads:create', 
             'leads:update',
+            'leads:status:update',
+
             'leads:delete',
             'leads:bulk',
             'leads:transfer',
@@ -134,6 +136,7 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
           'leads:read',
           'leads:create', 
           'leads:update',
+          'leads:status:update',
           'leads:delete',
           'lead-sources:read',
           'lead-sources:create',

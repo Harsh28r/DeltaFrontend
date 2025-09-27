@@ -272,11 +272,11 @@ const LeadDetailPage = () => {
   });
 
   const [statusFormData, setStatusFormData] = useState<{
-    newStatus: string;
+    newStatusId: string;
     statusRemark: string;
     [key: string]: any; // Added index signature for dynamic fields
   }>({
-    newStatus: '',
+    newStatusId: '',
     statusRemark: ''
   });
   
@@ -413,13 +413,7 @@ const LeadDetailPage = () => {
 
           // Populate status form with current status
 
-          setStatusFormData({
-
-            newStatus: data.lead.currentStatus?._id || '',
-
-            statusRemark: ''
-
-          });
+          setStatusFormData({ newStatusId: data.lead.currentStatus?._id || '', statusRemark: '' });
 
         }
 
@@ -708,13 +702,13 @@ const LeadDetailPage = () => {
                 <span className="text-sm font-medium text-blue-800 dark:text-blue-200">To:</span>
                 <Badge color="green" size="sm">
                   {(() => {
-                    const newStatus = leadStatuses.find(status => status._id === activity.details.newStatus);
+                    const newStatus = leadStatuses.find(status => status._id === activity.details.newStatusId);
                     console.log('New status resolution:', {
-                      newStatusId: activity.details.newStatus,
+                      newStatusId: activity.details.newStatusId,
                       foundStatus: newStatus,
                       allStatuses: leadStatuses.map(s => ({ id: s._id, name: s.name }))
                     });
-                    return newStatus?.name || activity.details.newStatus || 'Unknown Status';
+                    return newStatus?.name || activity.details.newStatusId || 'Unknown Status';
                   })()}
                 </Badge>
               </div>
@@ -1267,13 +1261,7 @@ const LeadDetailPage = () => {
 
     setIsStatusModalOpen(false);
 
-    setStatusFormData({
-
-      newStatus: lead?.currentStatus?._id || '',
-
-      statusRemark: ''
-
-    });
+    setStatusFormData({ newStatusId: lead?.currentStatus?._id || '', statusRemark: '' });
 
   };
 
@@ -1388,7 +1376,7 @@ const LeadDetailPage = () => {
 
   const handleStatusUpdate = async () => {
 
-    if (!lead || !statusFormData.newStatus) return;
+    if (!lead || !statusFormData.newStatusId) return;
 
 
 
@@ -1413,9 +1401,7 @@ const LeadDetailPage = () => {
         },
 
         body: JSON.stringify({
-
-          newStatus: statusFormData.newStatus,
-
+          newStatusId: statusFormData.newStatusId,
           newData: {
 
             "First Name": lead.customData?.["First Name"] || '',
@@ -3970,15 +3956,13 @@ const LeadDetailPage = () => {
 
               <div>
 
-                <Label htmlFor="newStatus" value="Select New Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                <Label htmlFor="newStatusId" value="Select New Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
 
                 <Select
 
-                  id="newStatus"
-
-                  value={statusFormData.newStatus}
-
-                  onChange={(e) => setStatusFormData({ ...statusFormData, newStatus: e.target.value })}
+                  id="newStatusId"
+                  value={statusFormData.newStatusId}
+                  onChange={(e) => setStatusFormData({ ...statusFormData, newStatusId: e.target.value })}
 
                   className="w-full mt-2"
 
@@ -4025,8 +4009,8 @@ const LeadDetailPage = () => {
               </div>
 
               {/* Dynamic Fields for Selected Status */}
-              {statusFormData.newStatus && (() => {
-                const selectedStatus = leadStatuses.find(status => status._id === statusFormData.newStatus);
+              {statusFormData.newStatusId && (() => {
+                const selectedStatus = leadStatuses.find(status => status._id === statusFormData.newStatusId);
                 return selectedStatus?.formFields && selectedStatus.formFields.length > 0 ? (
                   <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl border border-green-200 dark:border-green-700 p-6">
                     <div className="flex items-center mb-6">
@@ -4283,7 +4267,7 @@ const LeadDetailPage = () => {
 
             onClick={handleStatusUpdate}
 
-            disabled={isSubmitting || !statusFormData.newStatus}
+            disabled={isSubmitting || !statusFormData.newStatusId}
 
             className="flex items-center gap-2 w-full sm:w-auto"
 
