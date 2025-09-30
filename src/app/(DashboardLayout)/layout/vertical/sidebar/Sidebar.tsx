@@ -8,6 +8,7 @@ import NavItems from "./NavItems";
 import NavCollapse from "./NavCollapse";
 import SimpleBar from "simplebar-react";
 import SideProfile from "./SideProfile/SideProfile";
+import NotificationsModule from "./NotificationsModule";
 import { usePathname } from "next/navigation";
 import { CustomizerContext } from "@/app/context/CustomizerContext";
 
@@ -102,6 +103,11 @@ const SidebarLayout = () => {
                     </React.Fragment>
                   ))}
               </Sidebar.ItemGroup>
+              
+              {/* Notifications Module */}
+              <div className="px-4 rtl:pe-4 rtl:ps-0">
+                <NotificationsModule />
+              </div>
             </Sidebar.Items>
           </SimpleBar>
         </Sidebar>

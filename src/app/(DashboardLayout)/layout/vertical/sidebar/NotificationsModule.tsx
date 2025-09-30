@@ -1,13 +1,11 @@
+"use client";
 
-import { Icon } from "@iconify/react";
-import { Badge, Button, Dropdown } from "flowbite-react";
 import React, { useState, useEffect } from "react";
-import * as Notification from "./Data";
-import SimpleBar from "simplebar-react";
-import Link from "next/link";
+import { Icon } from "@iconify/react";
+import { Badge, Button } from "flowbite-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
-import NotificationsModal from "../sidebar/NotificationsModal";
+import NotificationsModal from "./NotificationsModal";
 
 // Notification types
 interface NotificationData {
@@ -62,10 +60,11 @@ interface NotificationResponse {
   };
 }
 
-const Notifications = () => {
+const NotificationsModule = () => {
   const { token, user } = useAuth();
   const [notifications, setNotifications] = useState<NotificationResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [expanded, setExpanded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
 
   // Fetch notifications
@@ -74,7 +73,7 @@ const Notifications = () => {
 
     try {
       setLoading(true);
-      const response = await fetch(`${API_BASE_URL}/api/notifications/${user.id}?page=1&limit=10`, {
+      const response = await fetch(`${API_BASE_URL}/api/notifications/${user.id}?page=1&limit=5`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -143,22 +142,11 @@ const Notifications = () => {
   // Helper function to get priority color
   const getPriorityColor = (priority: string) => {
     switch (priority.toLowerCase()) {
-      case 'urgent': return 'text-error';
-      case 'high': return 'text-warning';
-      case 'normal': return 'text-primary';
-      case 'low': return 'text-secondary';
-      default: return 'text-secondary';
-    }
-  };
-
-  // Helper function to get priority background color
-  const getPriorityBgColor = (priority: string) => {
-    switch (priority.toLowerCase()) {
-      case 'urgent': return 'bg-lighterror dark:bg-lighterror';
-      case 'high': return 'bg-lightwarning dark:bg-lightwarning';
-      case 'normal': return 'bg-lightprimary dark:bg-lightprimary';
-      case 'low': return 'bg-lightsecondary dark:bg-lightsecondary';
-      default: return 'bg-lightsecondary dark:bg-lightsecondary';
+      case 'urgent': return 'text-red-500';
+      case 'high': return 'text-orange-500';
+      case 'normal': return 'text-blue-500';
+      case 'low': return 'text-gray-500';
+      default: return 'text-gray-500';
     }
   };
 
@@ -180,106 +168,116 @@ const Notifications = () => {
   const unreadCount = notifications?.notifications.filter(n => !n.read).length || 0;
 
   return (
-    <div className="relative group/menu">
-      <Dropdown
-        label=""
-        className="w-screen sm:w-[360px] py-6  rounded-sm"
-        dismissOnClick={false}
-        renderTrigger={() => (
-          <div className="relative">
-            <span className="h-10 w-10 hover:bg-lightprimary rounded-full flex justify-center items-center cursor-pointer group-hover/menu:bg-lightprimary group-hover/menu:text-primary">
-              <Icon icon="solar:bell-bing-line-duotone" height={20} />
-            </span>
-            {unreadCount > 0 && (
-              <span className="rounded-full absolute end-1 top-1 bg-error text-[10px] h-4 w-4 flex justify-center items-center text-white">
-                {unreadCount}
-              </span>
-            )}
-          </div>
-        )}
+    <div className="border-t border-gray-200 dark:border-gray-700 pt-4 mt-4">
+      {/* Notifications Header */}
+      <div 
+        className="flex items-center justify-between cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-800 rounded-lg p-2 transition-colors"
+        onClick={() => setExpanded(!expanded)}
       >
-        <div className="flex items-center px-6 justify-between">
-          <h3 className="mb-0 text-lg font-semibold text-ld">Notifications</h3>
+        <div className="flex items-center gap-2">
+          <Icon icon="solar:bell-line-duotone" className="text-lg text-gray-600 dark:text-gray-400" />
+          <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Notifications</span>
           {unreadCount > 0 && (
-            <Badge color={"primary"}>{unreadCount} new</Badge>
+            <Badge color="red" size="xs">
+              {unreadCount}
+            </Badge>
           )}
         </div>
+        <Icon 
+          icon={expanded ? "solar:alt-arrow-up-line-duotone" : "solar:alt-arrow-down-line-duotone"} 
+          className="text-sm text-gray-500 dark:text-gray-400"
+        />
+      </div>
 
-        <SimpleBar className="max-h-80 mt-3">
+      {/* Notifications Content */}
+      {expanded && (
+        <div className="mt-3 space-y-2 max-h-80 overflow-y-auto">
           {loading ? (
-            <div className="flex items-center justify-center py-8">
-              <Icon icon="solar:loading-line-duotone" className="text-2xl animate-spin mr-2" />
-              <span className="text-gray-600 dark:text-gray-400">Loading...</span>
+            <div className="flex items-center justify-center py-4">
+              <Icon icon="solar:loading-line-duotone" className="text-lg animate-spin mr-2" />
+              <span className="text-xs text-gray-500 dark:text-gray-400">Loading...</span>
             </div>
           ) : notifications && notifications.notifications.length > 0 ? (
-            notifications.notifications.map((notification, index) => (
-              <Dropdown.Item
+            notifications.notifications.map((notification) => (
+              <div
                 key={notification._id}
-                className={`px-6 py-3 flex justify-between items-center group/link w-full cursor-pointer ${
-                  notification.read ? 'bg-hover' : 'bg-blue-50 dark:bg-blue-900'
+                className={`p-3 rounded-lg border-l-2 transition-all duration-200 hover:shadow-sm cursor-pointer ${
+                  notification.read 
+                    ? 'bg-gray-50 dark:bg-gray-800 border-l-gray-300 dark:border-l-gray-600' 
+                    : 'bg-blue-50 dark:bg-blue-900 border-l-blue-500 dark:border-l-blue-400'
                 }`}
                 onClick={() => !notification.read && markNotificationAsRead(notification._id)}
               >
-                <div className="flex items-center w-full">
-                  <div
-                    className={`h-11 w-11 flex-shrink-0 rounded-full flex justify-center items-center ${
-                      notification.read 
-                        ? 'bg-gray-200 dark:bg-gray-700' 
-                        : getPriorityBgColor(notification.priority)
-                    }`}
-                  >
+                <div className="flex items-start space-x-2">
+                  <div className={`p-1.5 rounded-full ${
+                    notification.read 
+                      ? 'bg-gray-200 dark:bg-gray-700' 
+                      : 'bg-blue-100 dark:bg-blue-800'
+                  }`}>
                     <Icon 
                       icon={getNotificationIcon(notification.type)} 
-                      height={20} 
-                      className={notification.read ? 'text-gray-600 dark:text-gray-400' : getPriorityColor(notification.priority)} 
+                      className={`text-sm ${
+                        notification.read 
+                          ? 'text-gray-600 dark:text-gray-400' 
+                          : getPriorityColor(notification.priority)
+                      }`} 
                     />
                   </div>
-                  <div className="ps-4 flex justify-between w-full">
-                    <div className="w-3/4 text-start">
-                      <h5 className={`mb-1 text-sm group-hover/link:text-primary ${
-                        notification.read ? 'text-gray-700 dark:text-gray-300' : 'text-gray-900 dark:text-white'
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1 mb-1">
+                      <h5 className={`text-xs font-semibold line-clamp-1 ${
+                        notification.read 
+                          ? 'text-gray-600 dark:text-gray-400' 
+                          : 'text-gray-900 dark:text-white'
                       }`}>
                         {notification.title || 'No Title'}
                       </h5>
-                      <div className={`text-xs line-clamp-1 ${
-                        notification.read ? 'text-gray-600 dark:text-gray-400' : 'text-gray-700 dark:text-gray-300'
-                      }`}>
-                        {notification.message || 'No message'}
-                      </div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                        by {notification.createdBy?.name || 'Unknown User'}
-                      </div>
+                      {!notification.read && (
+                        <div className="w-1.5 h-1.5 bg-blue-500 rounded-full flex-shrink-0"></div>
+                      )}
                     </div>
-
-                    <div className="text-xs block self-start pt-1.5 text-gray-500 dark:text-gray-400">
-                      {formatDate(notification.createdAt)}
+                    <p className={`text-xs line-clamp-2 ${
+                      notification.read 
+                        ? 'text-gray-500 dark:text-gray-500' 
+                        : 'text-gray-700 dark:text-gray-300'
+                    }`}>
+                      {notification.message || 'No message'}
+                    </p>
+                    <div className="flex items-center justify-between mt-1">
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        {formatDate(notification.createdAt)}
+                      </span>
+                      <span className="text-xs text-gray-400 dark:text-gray-500">
+                        {notification.createdBy?.name || 'Unknown User'}
+                      </span>
                     </div>
                   </div>
-                  {!notification.read && (
-                    <div className="w-2 h-2 bg-blue-500 rounded-full ml-2"></div>
-                  )}
                 </div>
-              </Dropdown.Item>
+              </div>
             ))
           ) : (
-            <div className="text-center py-8">
-              <Icon icon="solar:bell-off-line-duotone" className="text-4xl text-gray-400 mx-auto mb-4" />
-              <p className="text-gray-600 dark:text-gray-400">No notifications available</p>
+            <div className="text-center py-4">
+              <Icon icon="solar:bell-off-line-duotone" className="text-2xl text-gray-400 mx-auto mb-2" />
+              <p className="text-xs text-gray-500 dark:text-gray-400">No notifications</p>
             </div>
           )}
-        </SimpleBar>
-        <div className="pt-5 px-6">
+        </div>
+      )}
+
+      {/* View All Button */}
+      {expanded && notifications && notifications.notifications.length > 0 && (
+        <div className="mt-3 pt-3 border-t border-gray-200 dark:border-gray-700">
           <Button
-            color={"primary"}
-            className="w-full border border-primary text-primary hover:bg-primary hover:text-white"
-            pill
-            outline
+            size="xs"
+            color="light"
+            className="w-full text-xs"
             onClick={() => setModalOpen(true)}
           >
-            See All Notifications
+            <Icon icon="solar:eye-line-duotone" className="mr-1" />
+            View All Notifications
           </Button>
         </div>
-      </Dropdown>
+      )}
 
       {/* Notifications Modal */}
       <NotificationsModal 
@@ -290,4 +288,4 @@ const Notifications = () => {
   );
 };
 
-export default Notifications;
+export default NotificationsModule;

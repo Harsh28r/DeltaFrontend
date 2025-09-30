@@ -128,6 +128,7 @@ interface ProjectSummary {
   };
 }
 
+
 interface DashboardData {
   stats: DashboardStats;
   charts: ChartData;
@@ -143,7 +144,7 @@ interface DashboardData {
 }
 
 const CrmDashboard = () => {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -220,7 +221,7 @@ const CrmDashboard = () => {
     };
 
     fetchDashboardData();
-  }, [token]);
+  }, [token, user]);
 
   // Loading state
   if (loading) {
@@ -254,6 +255,7 @@ const CrmDashboard = () => {
   }
 
   const { stats, charts, leads, pagination, performance, projectSummary } = dashboardData;
+
 
   // Helper function to get priority color
   const getPriorityColor = (priority: string) => {
@@ -714,73 +716,7 @@ const CrmDashboard = () => {
         </div>
       </Card>
 
-      {/* Lead Status Flow */}
-      {/* <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Lead Status Flow</h3>
-          <Icon icon="solar:flow-chart-line-duotone" className="text-xl text-gray-600 dark:text-gray-400" />
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div>
-            <h4 className="text-md font-medium text-gray-900 dark:text-white mb-4">Current Status Distribution</h4>
-            <div className="space-y-3">
-              {(() => {
-                const statusCounts = leads.reduce((acc, lead) => {
-                  const status = lead.currentStatus.name;
-                  acc[status] = (acc[status] || 0) + 1;
-                  return acc;
-                }, {} as Record<string, number>);
-                
-                return Object.entries(statusCounts).map(([status, count]) => (
-                  <div key={status} className="flex items-center justify-between p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                    <div className="flex items-center space-x-3">
-                      <div className={`w-3 h-3 rounded-full ${
-                        status === 'Final Closure' ? 'bg-green-500' : 'bg-yellow-500'
-                      }`} />
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{status}</span>
-                    </div>
-                    <div className="text-right">
-                      <span className="text-lg font-bold text-gray-900 dark:text-white">{count}</span>
-                      <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
-                        ({Math.round((count / leads.length) * 100)}%)
-                      </span>
-                    </div>
-        </div>
-                ));
-              })()}
-        </div>
-        </div>
-          
-          <div>
-            <h4 className="text-md font-medium text-gray-900 dark:text-white mb-4">Lead Conversion Pipeline</h4>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Icon icon="solar:user-plus-line-duotone" className="text-blue-600 dark:text-blue-400" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">New Leads</span>
-        </div>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {leads.filter(lead => lead.currentStatus.name === 'New').length}
-                </span>
-        </div>
-              
-              <div className="flex items-center justify-center">
-                <Icon icon="solar:arrow-down-line-duotone" className="text-gray-400" />
-        </div>
-              
-              <div className="flex items-center justify-between p-4 bg-green-50 dark:bg-green-900 rounded-lg">
-                <div className="flex items-center space-x-3">
-                  <Icon icon="solar:check-circle-line-duotone" className="text-green-600 dark:text-green-400" />
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">Converted</span>
-        </div>
-                <span className="text-lg font-bold text-green-600 dark:text-green-400">
-                  {leads.filter(lead => lead.currentStatus.name === 'Final Closure').length}
-                </span>
-        </div>
-        </div>
-        </div>
-      </div>
-      </Card> */}
+
       </div>
   );
 };
