@@ -82,7 +82,11 @@ interface Lead {
   } | null;
   cpSourcingId?: {
     _id: string;
-    name: string;
+    name?: string;
+    userId?: {
+      _id: string;
+      name: string;
+    };
   } | null;
   channelPartner?: {
     _id: string;
@@ -162,6 +166,7 @@ const LeadsPage = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSource, setFilterSource] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [filterUser, setFilterUser] = useState<string>("all");
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [datePreset, setDatePreset] = useState<string>("custom");
@@ -289,7 +294,10 @@ const LeadsPage = () => {
 
   // Function to fetch CP sourcing users for a specific channel partner and project
   const fetchCPSourcingOptions = async (channelPartnerId: string, projectId: string) => {
+    console.log('Fetching CP sourcing options:', { channelPartnerId, projectId });
+    
     if (!channelPartnerId || !projectId) {
+      console.log('Missing channelPartnerId or projectId, clearing options');
       setCPSourcingOptions([]);
       return;
     }
@@ -303,8 +311,12 @@ const LeadsPage = () => {
         }
       );
       
+      console.log('CP sourcing API response:', { status: response.status, ok: response.ok });
+      
       if (response.ok) {
         const data = await response.json();
+        console.log('CP sourcing API data:', data);
+        
         // Normalize to unique user list with stable ids (prefer user._id)
         const rawList = Array.isArray(data) ? data : (Array.isArray((data as any)?.users) ? (data as any).users : []);
         const uniqueUsers = new Map<string, CPSourcingUser>();
@@ -318,12 +330,16 @@ const LeadsPage = () => {
           uniqueUsers.set(id, { _id: id, userId, name, email });
         });
         const normalized = Array.from(uniqueUsers.values());
+        console.log('Normalized CP sourcing users:', normalized);
+        
         // Merge into existing options so table lookups keep working
         setCPSourcingOptions(prev => {
           const map = new Map<string, CPSourcingUser>();
           prev.forEach(u => map.set(u._id, u));
           normalized.forEach(u => map.set(u._id, u));
-          return Array.from(map.values());
+          const result = Array.from(map.values());
+          console.log('Updated CP sourcing options:', result);
+          return result;
         });
       } else {
         console.error('Failed to fetch CP sourcing users:', response.statusText);
@@ -381,6 +397,12 @@ const LeadsPage = () => {
   const handleChannelPartnerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const channelPartnerId = e.target.value;
     const projectId = formData.projectId;
+    
+    console.log('Channel partner changed:', {
+      channelPartnerId,
+      projectId,
+      previousChannelPartner: formData.channelPartner
+    });
     
     setFormData(prev => ({ 
       ...prev, 
@@ -500,11 +522,17 @@ const LeadsPage = () => {
           let cpSourcing: any = null;
           if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
             cpSourcing = cpSourcingRef;
+            // Check if it has userId.name (new format)
+            if (cpSourcing.userId && cpSourcing.userId.name) {
+              sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
+            } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
+              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+            }
           } else {
             cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingRef);
-          }
-          if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
-            sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+            if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
+              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+            }
           }
         }
       } else if (lead.leadSource?._id) {
@@ -799,6 +827,15 @@ const LeadsPage = () => {
       return;
     }
 
+    // Debug: Log form data before submission
+    console.log('Form submission data:', {
+      formData,
+      dynamicFields,
+      channelPartner: formData.channelPartner,
+      cpSourcingId: formData.cpSourcingId,
+      source: formData.source
+    });
+
     // Validate dynamic fields based on selected status
     if (!editingLead) { // Only validate dynamic fields for new leads
       const requiredFields = getRequiredFieldsForStatus(formData.status);
@@ -940,13 +977,17 @@ const LeadsPage = () => {
             "Funding Mode": formData.fundingMode,
             "Gender": formData.gender,
             "Budget": formData.budget,
+            // Add channel partner and CP sourcing IDs to customData for proper display
+            "Channel Partner": formData.channelPartner || undefined,
+            "Channel Partner Sourcing": formData.cpSourcingId || undefined,
             ...dynamicFields // Include dynamic fields
           },
           userId: formData.userId
         };
         
-        console.log('Creating new lead with dynamic fields:', {
-          dynamicFields,
+        console.log('Creating new lead with CP data:', {
+          channelPartner: formData.channelPartner,
+          cpSourcingId: formData.cpSourcingId,
           requestBody
         });
         
@@ -1762,6 +1803,9 @@ const LeadsPage = () => {
       (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesSource = filterSource === "all" || lead.leadSource?._id === filterSource;
     const matchesStatus = filterStatus === "all" || lead.currentStatus?._id === filterStatus;
+    const matchesUser = filterUser === "all" || 
+      (filterUser === "unassigned" && !lead.user?._id) ||
+      (filterUser !== "unassigned" && lead.user?._id === filterUser);
     
     // Date filtering
     let matchesDate = true;
@@ -1779,7 +1823,7 @@ const LeadsPage = () => {
       }
     }
     
-    return matchesSearch && matchesSource && matchesStatus && matchesDate;
+    return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesDate;
   });
 
   // Pagination derived values
@@ -1798,7 +1842,7 @@ const LeadsPage = () => {
   // Reset/clamp page when filters, leads, or page size change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterSource, filterStatus, filterDateFrom, filterDateTo, pageSize]);
+  }, [searchTerm, filterSource, filterStatus, filterUser, filterDateFrom, filterDateTo, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -2006,7 +2050,7 @@ const LeadsPage = () => {
 
       {/* Search and Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-8 gap-3 lg:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-9 gap-3 lg:gap-4">
           <div>
             <TextInput
               placeholder="Search leads..."
@@ -2052,6 +2096,21 @@ const LeadsPage = () => {
               {leadStatuses.map(status => (
                 <option key={status._id} value={status._id}>
                   {status.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div>
+            <Select
+              value={filterUser}
+              onChange={(e) => setFilterUser(e.target.value)}
+              disabled={projects.length === 0}
+            >
+              <option value="all">All Users</option>
+              <option value="unassigned">Unassigned</option>
+              {users.map(user => (
+                <option key={user._id} value={user._id}>
+                  {user.name} ({user.email})
                 </option>
               ))}
             </Select>
@@ -2106,6 +2165,25 @@ const LeadsPage = () => {
             >
               <Icon icon="solar:refresh-line-duotone" className="mr-2" />
               Clear Dates
+            </Button>
+          </div>
+          <div>
+            <Button
+              color="gray"
+              onClick={() => {
+                setSearchTerm("");
+                setFilterSource("all");
+                setFilterStatus("all");
+                setFilterUser("all");
+                setFilterDateFrom("");
+                setFilterDateTo("");
+                setDatePreset("custom");
+              }}
+              disabled={projects.length === 0}
+              className="w-full"
+            >
+              <Icon icon="solar:refresh-line-duotone" className="mr-2" />
+              Clear All
             </Button>
           </div>
           <div className="flex items-center">
@@ -2208,6 +2286,12 @@ const LeadsPage = () => {
                               <div className="text-xs text-gray-500 dark:text-gray-400">
                                 <span className="font-medium">CP User:</span> {(() => {
                                   const cpRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+                                  
+                                  // Check if it's an object with userId.name (new format)
+                                  if (typeof cpRef === 'object' && cpRef && cpRef.userId && cpRef.userId.name) {
+                                    return cpRef.userId.name;
+                                  }
+                                  
                                   // Try multiple shapes: object with user, object with _id, plain userId, plain _id
                                   const refId = typeof cpRef === 'object' && cpRef
                                     ? (cpRef.user?._id || cpRef._id)
@@ -2559,7 +2643,13 @@ const LeadsPage = () => {
                         <Select
                           id="cpSourcingId"
                           value={formData.cpSourcingId}
-                          onChange={(e) => setFormData({ ...formData, cpSourcingId: e.target.value })}
+                          onChange={(e) => {
+                            console.log('CP Sourcing changed:', {
+                              cpSourcingId: e.target.value,
+                              previousCpSourcingId: formData.cpSourcingId
+                            });
+                            setFormData({ ...formData, cpSourcingId: e.target.value });
+                          }}
                           className="w-full"
                           disabled={isLoadingCPSourcing || !formData.channelPartner || !formData.projectId}
                         >

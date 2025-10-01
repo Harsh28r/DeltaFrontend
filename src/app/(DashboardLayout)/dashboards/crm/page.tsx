@@ -72,8 +72,16 @@ interface Lead {
     Notes?: string;
     Remark?: string;
     "Booking Date"?: string;
+    "Channel Partner"?: string;
+    "Channel Partner Sourcing"?: string;
   };
-  cpSourcingId: string | null;
+  cpSourcingId: string | {
+    _id: string;
+    userId: {
+      _id: string;
+      name: string;
+    };
+  } | null;
   statusHistory: Array<{
     status: string;
     data: any;
@@ -148,6 +156,8 @@ const CrmDashboard = () => {
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [channelPartners, setChannelPartners] = useState<any[]>([]);
+  const [cpSourcingOptions, setCpSourcingOptions] = useState<any[]>([]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -157,8 +167,8 @@ const CrmDashboard = () => {
       try {
         setLoading(true);
         
-        // Fetch stats, leads, performance, and project summary data
-        const [statsResponse, leadsResponse, performanceResponse, projectSummaryResponse] = await Promise.all([
+        // Fetch stats, leads, performance, project summary, channel partners, and CP sourcing data
+        const [statsResponse, leadsResponse, performanceResponse, projectSummaryResponse, channelPartnersResponse, cpSourcingResponse] = await Promise.all([
           fetch(`${API_BASE_URL}/api/dashboard/stats`, {
             method: "GET",
             headers: {
@@ -186,19 +196,39 @@ const CrmDashboard = () => {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
+          }),
+          fetch(`${API_BASE_URL}/api/channel-partner/`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+          }),
+          fetch(`${API_BASE_URL}/api/cp-sourcing/`, {
+            method: "GET",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
           })
         ]);
 
-        if (!statsResponse.ok || !leadsResponse.ok || !performanceResponse.ok || !projectSummaryResponse.ok) {
-          throw new Error(`HTTP error! status: ${statsResponse.status} / ${leadsResponse.status} / ${performanceResponse.status} / ${projectSummaryResponse.status}`);
+        if (!statsResponse.ok || !leadsResponse.ok || !performanceResponse.ok || !projectSummaryResponse.ok || !channelPartnersResponse.ok || !cpSourcingResponse.ok) {
+          throw new Error(`HTTP error! status: ${statsResponse.status} / ${leadsResponse.status} / ${performanceResponse.status} / ${projectSummaryResponse.status} / ${channelPartnersResponse.status} / ${cpSourcingResponse.status}`);
         }
 
-        const [statsData, leadsData, performanceData, projectSummaryData] = await Promise.all([
+        const [statsData, leadsData, performanceData, projectSummaryData, channelPartnersData, cpSourcingData] = await Promise.all([
           statsResponse.json(),
           leadsResponse.json(),
           performanceResponse.json(),
-          projectSummaryResponse.json()
+          projectSummaryResponse.json(),
+          channelPartnersResponse.json(),
+          cpSourcingResponse.json()
         ]);
+
+        // Set channel partners and CP sourcing data
+        setChannelPartners(channelPartnersData.channelPartners || channelPartnersData || []);
+        setCpSourcingOptions(cpSourcingData.cpSourcing || cpSourcingData || []);
 
         // Combine the data
         const combinedData: DashboardData = {
@@ -256,6 +286,70 @@ const CrmDashboard = () => {
 
   const { stats, charts, leads, pagination, performance, projectSummary } = dashboardData;
 
+  // Helper function to get channel partner name
+  const getChannelPartnerName = (lead: Lead) => {
+    // Check if this is a channel partner by looking at customData
+    const channelPartnerId = lead.customData?.["Channel Partner"];
+    if (channelPartnerId) {
+      // Find the channel partner name
+      const channelPartner = channelPartners.find(cp => cp._id === channelPartnerId);
+      if (channelPartner) {
+        let sourceName = `Channel Partner: ${channelPartner.name}`;
+        
+        // Add CP sourcing info if available
+        const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+        if (cpSourcingId) {
+          const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+          if (cpSourcing) {
+            sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+          }
+        }
+        return sourceName;
+      } else {
+        // If channel partner not found, try to get name from CP sourcing data
+        const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
+        if (cpSourcingId) {
+          const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+          if (cpSourcing) {
+            return `Channel Partner: ${cpSourcing.channelPartnerId.name}`;
+          }
+        }
+        return 'Channel Partner';
+      }
+    } else if (lead.channelPartner) {
+      // Direct channel partner reference
+      let sourceName = `Channel Partner: ${lead.channelPartner.name}`;
+      
+      // Add CP sourcing user info if available
+      if (lead.cpSourcingId && typeof lead.cpSourcingId === 'object' && lead.cpSourcingId.userId) {
+        sourceName += ` (Sourced by: ${lead.cpSourcingId.userId.name})`;
+      }
+      
+      return sourceName;
+    } else if (lead.cpSourcingId && typeof lead.cpSourcingId === 'object' && lead.cpSourcingId.userId) {
+      // Lead has CP sourcing with user info but no direct channel partner
+      return `CP Sourcing: ${lead.cpSourcingId.userId.name}`;
+    } else if (lead.leadSource?._id) {
+      // Regular lead source
+      return lead.leadSource?.name || 'N/A';
+    }
+    return 'N/A';
+  };
+
+  // Helper function to get processed source data with proper channel partner names
+  const getProcessedSourceData = () => {
+    const sourceCounts: { [key: string]: number } = {};
+    
+    leads.forEach(lead => {
+      const sourceName = getChannelPartnerName(lead);
+      sourceCounts[sourceName] = (sourceCounts[sourceName] || 0) + 1;
+    });
+    
+    return Object.entries(sourceCounts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 5); // Top 5 sources
+  };
 
   // Helper function to get priority color
   const getPriorityColor = (priority: string) => {
@@ -440,23 +534,23 @@ const CrmDashboard = () => {
           <ChartCard
             title=""
             icon=""
-            data={charts.topSources.map((source, index) => ({
-              name: source.name || 'Unknown Source',
+            data={getProcessedSourceData().map((source, index) => ({
+              name: source.name,
               value: source.count,
               color: index === 0 ? '#8B5CF6' : index === 1 ? '#06B6D4' : '#F59E0B'
             }))}
             type="bar"
             className="p-0"
           />
-          {/* <div className="mt-4 p-4 bg-green-50 dark:bg-green-900 rounded-lg">
+          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900 rounded-lg">
             <div className="flex items-center justify-between">
               <span className="text-sm font-medium text-green-900 dark:text-green-100">Channel ROI</span>
               <Badge color="info" size="sm">High Performance</Badge>
             </div>
             <p className="text-xs text-green-700 dark:text-green-200 mt-1">
-              Channel Partners generating {charts.topSources[0]?.count || 0} leads
+              Channel Partners generating {getProcessedSourceData()[0]?.count || 0} leads
             </p>
-          </div> */}
+          </div>
         </Card>
       </div>
 
@@ -593,7 +687,11 @@ const CrmDashboard = () => {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Partner Leads</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => lead.channelPartner).length}
+                {leads.filter(lead => 
+                  lead.channelPartner || 
+                  lead.customData?.["Channel Partner"] || 
+                  lead.customData?.["Channel Partner Sourcing"]
+                ).length}
               </p>
             </div>
             <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
