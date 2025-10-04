@@ -85,6 +85,13 @@ export const API_ENDPOINTS = {
     USER_REPORTING_UPDATE: (id: string) => `${API_BASE_URL}/api/user-reporting/${id}`,
     USER_REPORTING_DELETE: (id: string) => `${API_BASE_URL}/api/user-reporting/${id}`,
     USER_REPORTING_HIERARCHY: (userId: string) => `${API_BASE_URL}/api/user-reporting/hierarchy/${userId}`,
+  
+  // Reminders
+  REMINDERS: `${API_BASE_URL}/api/reminder`,
+  REMINDER_BY_ID: (id: string) => `${API_BASE_URL}/api/reminder/${id}`,
+  CREATE_REMINDER: `${API_BASE_URL}/api/reminder`,
+  UPDATE_REMINDER: (id: string) => `${API_BASE_URL}/api/reminder/${id}`,
+  DELETE_REMINDER: (id: string) => `${API_BASE_URL}/api/reminder/${id}`,
 };
 
 

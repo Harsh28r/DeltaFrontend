@@ -320,6 +320,12 @@ export const useSidebarData = () => {
               ],
             },
             {
+              name: "Follow-ups",
+              id: uniqueId(),
+              icon: "solar:calendar-line-duotone",
+              url: "/apps/follow-ups",
+            },
+            {
               name: "Channel Partners",
               id: uniqueId(),
               icon: "solar:handshake-line-duotone",

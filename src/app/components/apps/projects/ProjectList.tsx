@@ -3,6 +3,7 @@ import React, { useEffect, useState } from "react";
 import CardBox from "@/app/components/shared/CardBox";
 import Image from "next/image";
 import { API_ENDPOINTS } from "@/lib/config";
+import { useWebSocket } from "@/app/context/WebSocketContext";
 
 type Project = {
   _id: string;
@@ -13,6 +14,7 @@ type Project = {
 };
 
 const ProjectList: React.FC = () => {
+  const { socket, connected } = useWebSocket();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -51,6 +53,54 @@ const ProjectList: React.FC = () => {
       mounted = false;
     };
   }, []);
+
+  // WebSocket event listeners for real-time updates
+  useEffect(() => {
+    if (!socket) {
+      console.log('🔌 No socket available for projects list');
+      return;
+    }
+
+    console.log('🔌 Setting up projects event listeners');
+
+    // Listen for project events
+    socket.on('project-created', (data) => {
+      console.log('🆕 New project created:', data);
+      setProjects(prev => {
+        const newProjects = [data.project, ...prev];
+        console.log('📝 Updated projects list:', newProjects);
+        return newProjects;
+      });
+    });
+
+    socket.on('project-updated', (data) => {
+      console.log('✏️ Project updated:', data);
+      setProjects(prev => {
+        const updatedProjects = prev.map(project =>
+          project._id === data.project._id ? data.project : project
+        );
+        console.log('📝 Updated projects list:', updatedProjects);
+        return updatedProjects;
+      });
+    });
+
+    socket.on('project-deleted', (data) => {
+      console.log('🗑️ Project deleted:', data);
+      setProjects(prev => {
+        const filteredProjects = prev.filter(project => project._id !== data.projectId);
+        console.log('📝 Updated projects list:', filteredProjects);
+        return filteredProjects;
+      });
+    });
+
+    // Cleanup event listeners
+    return () => {
+      console.log('🧹 Cleaning up projects event listeners');
+      socket.off('project-created');
+      socket.off('project-updated');
+      socket.off('project-deleted');
+    };
+  }, [socket]);
 
   if (loading) {
     return (

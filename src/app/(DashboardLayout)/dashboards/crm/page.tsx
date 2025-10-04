@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Card, Badge, Button, Alert } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
+import { useWebSocket } from "@/app/context/WebSocketContext";
 import { API_BASE_URL } from "@/lib/config";
 import ChartCard from "@/app/components/dashboards/crm/ChartCard";
 import type { Metadata } from "next";
@@ -33,6 +34,21 @@ interface ChartData {
     name: string | null;
     count: number;
   }>;
+}
+
+interface CPSourcingUser {
+  _id: string;
+  name: string;
+  email: string;
+  userId?: string;
+  channelPartnerId?: {
+    _id: string;
+    name: string;
+  };
+  projectId?: {
+    _id: string;
+    name: string;
+  };
 }
 
 interface Lead {
@@ -153,11 +169,12 @@ interface DashboardData {
 
 const CrmDashboard = () => {
   const { token, user } = useAuth();
+  const { socket, connected } = useWebSocket();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [channelPartners, setChannelPartners] = useState<any[]>([]);
-  const [cpSourcingOptions, setCpSourcingOptions] = useState<any[]>([]);
+  const [cpSourcingOptions, setCpSourcingOptions] = useState<CPSourcingUser[]>([]);
 
   // Fetch dashboard data
   useEffect(() => {
@@ -228,7 +245,8 @@ const CrmDashboard = () => {
 
         // Set channel partners and CP sourcing data
         setChannelPartners(channelPartnersData.channelPartners || channelPartnersData || []);
-        setCpSourcingOptions(cpSourcingData.cpSourcing || cpSourcingData || []);
+        setCpSourcingOptions(Array.isArray(cpSourcingData.cpSourcing) ? cpSourcingData.cpSourcing : 
+                            Array.isArray(cpSourcingData) ? cpSourcingData : []);
 
         // Combine the data
         const combinedData: DashboardData = {
@@ -252,6 +270,50 @@ const CrmDashboard = () => {
 
     fetchDashboardData();
   }, [token, user]);
+
+  // WebSocket event listeners for real-time updates
+  useEffect(() => {
+    if (!socket) {
+      console.log('🔌 No socket available for CRM dashboard');
+      return;
+    }
+
+    console.log('🔌 Setting up CRM dashboard event listeners');
+
+    // Listen for lead events that should refresh dashboard
+    socket.on('lead-created', (data) => {
+      console.log('🆕 New lead created - refreshing dashboard:', data);
+      // Refresh dashboard data when new leads are created
+      window.location.reload(); // Simple refresh for now
+    });
+
+    socket.on('lead-updated', (data) => {
+      console.log('✏️ Lead updated - refreshing dashboard:', data);
+      // Refresh dashboard data when leads are updated
+      window.location.reload(); // Simple refresh for now
+    });
+
+    socket.on('lead-deleted', (data) => {
+      console.log('🗑️ Lead deleted - refreshing dashboard:', data);
+      // Refresh dashboard data when leads are deleted
+      window.location.reload(); // Simple refresh for now
+    });
+
+    socket.on('lead-status-changed', (data) => {
+      console.log('🔄 Lead status changed - refreshing dashboard:', data);
+      // Refresh dashboard data when lead status changes
+      window.location.reload(); // Simple refresh for now
+    });
+
+    // Cleanup event listeners
+    return () => {
+      console.log('🧹 Cleaning up CRM dashboard event listeners');
+      socket.off('lead-created');
+      socket.off('lead-updated');
+      socket.off('lead-deleted');
+      socket.off('lead-status-changed');
+    };
+  }, [socket]);
 
   // Loading state
   if (loading) {
@@ -298,9 +360,9 @@ const CrmDashboard = () => {
         
         // Add CP sourcing info if available
         const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-        if (cpSourcingId) {
+        if (cpSourcingId && Array.isArray(cpSourcingOptions)) {
           const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
-          if (cpSourcing) {
+          if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
             sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
           }
         }
@@ -308,9 +370,9 @@ const CrmDashboard = () => {
       } else {
         // If channel partner not found, try to get name from CP sourcing data
         const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-        if (cpSourcingId) {
+        if (cpSourcingId && Array.isArray(cpSourcingOptions)) {
           const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
-          if (cpSourcing) {
+          if (cpSourcing && cpSourcing.channelPartnerId) {
             return `Channel Partner: ${cpSourcing.channelPartnerId.name}`;
           }
         }
@@ -388,6 +450,10 @@ const CrmDashboard = () => {
               <div className="flex items-center space-x-2">
                 <Icon icon="solar:users-group-rounded-line-duotone" className="text-xl" />
                 <span>Team Performance: {performance.length} Members</span>
+              </div>
+              <div className="flex items-center space-x-2">
+                <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                <span>{connected ? 'Live Updates' : 'Offline'}</span>
               </div>
             </div>
           </div>

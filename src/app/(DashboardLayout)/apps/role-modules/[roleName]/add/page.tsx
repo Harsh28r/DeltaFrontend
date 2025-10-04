@@ -221,14 +221,24 @@ const AddUserPage = () => {
     setIsSubmitting(true);
 
     try {
-      // First, create the user
-      const response = await fetch(API_ENDPOINTS.CREATE_USER, {
+      // Create user with project assignment
+      const userPayload = {
+        name: formData.name,
+        email: formData.email,
+        password: formData.password,
+        mobile: formData.mobile,
+        roleName: formData.roleName,
+        level: role?.level , // Use role level or default to 1
+        projects: formData.projectId ? [formData.projectId] : [],
+      };
+      
+      const response = await fetch(API_ENDPOINTS.CREATE_USER_WITH_PROJECTS, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(userPayload),
       });
 
       const data = await response.json();

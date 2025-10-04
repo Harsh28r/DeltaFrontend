@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Button, Card, Table, Badge, Modal, TextInput, Label, Alert, Select } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
+import { useWebSocket } from "@/app/context/WebSocketContext";
 import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
 
 interface LeadSource {
@@ -39,6 +40,7 @@ interface FormData {
 
 const LeadManagementPage = () => {
   const { token } = useAuth();
+  const { socket, connected, subscribeToLead, subscribeToLeadSources, subscribeToLeadStatuses } = useWebSocket();
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -77,8 +79,92 @@ const LeadManagementPage = () => {
   useEffect(() => {
     if (token) {
       fetchData();
+      // Subscribe to lead sources and statuses for real-time updates
+      subscribeToLeadSources();
+      subscribeToLeadStatuses();
     }
-  }, [token]);
+  }, [token, subscribeToLeadSources, subscribeToLeadStatuses]);
+
+  // WebSocket event listeners for real-time updates
+  useEffect(() => {
+    if (!socket) {
+      console.log('🔌 No socket available for lead management page');
+      return;
+    }
+
+    console.log('🔌 Setting up lead management event listeners');
+
+    // Listen for lead source updates
+    socket.on('lead-source-created', (data) => {
+      console.log('🆕 New lead source created:', data);
+      setLeadSources(prev => {
+        const newSources = [data.source, ...prev];
+        console.log('📝 Updated lead sources list:', newSources);
+        return newSources;
+      });
+    });
+
+    socket.on('lead-source-updated', (data) => {
+      console.log('✏️ Lead source updated:', data);
+      setLeadSources(prev => {
+        const updatedSources = prev.map(source =>
+          source._id === data.source._id ? data.source : source
+        );
+        console.log('📝 Updated lead sources list:', updatedSources);
+        return updatedSources;
+      });
+    });
+
+    socket.on('lead-source-deleted', (data) => {
+      console.log('🗑️ Lead source deleted:', data);
+      setLeadSources(prev => {
+        const filteredSources = prev.filter(source => source._id !== data.sourceId);
+        console.log('📝 Updated lead sources list:', filteredSources);
+        return filteredSources;
+      });
+    });
+
+    // Listen for lead status updates
+    socket.on('lead-status-created', (data) => {
+      console.log('🆕 New lead status created:', data);
+      setLeadStatuses(prev => {
+        const newStatuses = [data.status, ...prev];
+        console.log('📝 Updated lead statuses list:', newStatuses);
+        return newStatuses;
+      });
+    });
+
+    socket.on('lead-status-updated', (data) => {
+      console.log('✏️ Lead status updated:', data);
+      setLeadStatuses(prev => {
+        const updatedStatuses = prev.map(status =>
+          status._id === data.status._id ? data.status : status
+        );
+        console.log('📝 Updated lead statuses list:', updatedStatuses);
+        return updatedStatuses;
+      });
+    });
+
+    socket.on('lead-status-deleted', (data) => {
+      console.log('🗑️ Lead status deleted:', data);
+      setLeadStatuses(prev => {
+        const filteredStatuses = prev.filter(status => status._id !== data.statusId);
+        console.log('📝 Updated lead statuses list:', filteredStatuses);
+        return filteredStatuses;
+      });
+    });
+
+    // Cleanup event listeners
+    return () => {
+      console.log('🧹 Cleaning up lead management event listeners');
+      socket.off('lead-source-created');
+      socket.off('lead-source-updated');
+      socket.off('lead-source-deleted');
+      socket.off('lead-status-created');
+      socket.off('lead-status-updated');
+      socket.off('lead-status-deleted');
+    };
+  }, [socket]);
 
   const fetchData = async () => {
     try {
@@ -477,6 +563,10 @@ const LeadManagementPage = () => {
                   <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
                     <Icon icon="solar:clipboard-list-line-duotone" className="text-2xl" />
                     <span className="font-semibold">{leadStatuses.length} Lead Statuses</span>
+                  </div>
+                  <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
+                    <div className={`w-3 h-3 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+                    <span className="font-semibold">{connected ? 'Live Updates' : 'Offline'}</span>
                   </div>
                   <div className="flex items-center gap-3 bg-white/20 backdrop-blur-sm rounded-full px-6 py-3">
                     <Icon icon="solar:settings-line-duotone" className="text-2xl" />

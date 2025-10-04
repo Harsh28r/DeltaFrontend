@@ -10,6 +10,9 @@ import { Toaster } from "@/app/components/shadcn-ui/Default-Ui/toaster";
 import { CustomizerContextProvider } from "./context/CustomizerContext";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
+import { WebSocketProvider } from "./context/WebSocketContext";
+import { NotificationProvider } from "./context/NotificationContext";
+import NotificationToast from "./components/NotificationToast";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -33,9 +36,16 @@ export default function RootLayout({
         <Flowbite theme={{ theme: customTheme }}>
           <NextTopLoader color="var(--color-primary)" />
           <AuthProvider>
-            <PermissionProvider>
-              <CustomizerContextProvider>{children}</CustomizerContextProvider>
-            </PermissionProvider>
+            <WebSocketProvider>
+              <NotificationProvider>
+                <PermissionProvider>
+                  <CustomizerContextProvider>
+                    {children}
+                    <NotificationToast />
+                  </CustomizerContextProvider>
+                </PermissionProvider>
+              </NotificationProvider>
+            </WebSocketProvider>
           </AuthProvider>
         </Flowbite>
         <Toaster />

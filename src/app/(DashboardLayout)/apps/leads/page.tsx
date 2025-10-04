@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Button, Card, Table, Badge, Modal, TextInput, Label, Alert, Select, Textarea, Pagination } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
+import { useWebSocket } from "@/app/context/WebSocketContext";
 import { API_ENDPOINTS, createRefreshEvent, API_BASE_URL } from "@/lib/config";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PERMISSIONS } from "@/app/types/permissions";
@@ -46,6 +47,14 @@ interface CPSourcingUser {
   name: string;
   email: string;
   userId?: string;
+  channelPartnerId?: {
+    _id: string;
+    name: string;
+  };
+  projectId?: {
+    _id: string;
+    name: string;
+  };
 }
 
 interface FormField {
@@ -135,6 +144,7 @@ interface User {
 
 const LeadsPage = () => {
   const { token, user } = useAuth();
+  const { socket, connected, subscribeToAllLeads } = useWebSocket();
   const { hasPermission } = usePermissions();
   const searchParams = useSearchParams();
   const router = useRouter();
@@ -218,8 +228,10 @@ const LeadsPage = () => {
       setTimeout(() => {
         fetchLeads();
       }, 2000);
+      // Subscribe to all leads for real-time updates
+      subscribeToAllLeads();
     }
-  }, [token]);
+  }, [token, subscribeToAllLeads]);
 
   // Refetch leads when pagination changes
   useEffect(() => {
@@ -253,6 +265,82 @@ const LeadsPage = () => {
       fetchCPSourcingOptions(formData.channelPartner, formData.projectId);
     }
   }, [editingLead, formData.channelPartner, formData.projectId, token]);
+
+  // WebSocket event listeners for real-time updates
+  useEffect(() => {
+    if (!socket) {
+      console.log('🔌 No socket available for leads page');
+      return;
+    }
+
+    console.log('🔌 Setting up leads event listeners');
+
+    // Listen for new lead created
+    socket.on('lead-created', (data) => {
+      console.log('🆕 New lead created:', data);
+      setLeads(prev => {
+        const newLeads = [data.lead, ...prev];
+        console.log('📝 Updated leads list:', newLeads);
+        return newLeads;
+      });
+    });
+
+    // Listen for lead updates
+    socket.on('lead-updated', (data) => {
+      console.log('✏️ Lead updated:', data);
+      setLeads(prev => {
+        const updatedLeads = prev.map(lead =>
+          lead._id === data.lead._id ? data.lead : lead
+        );
+        console.log('📝 Updated leads list:', updatedLeads);
+        return updatedLeads;
+      });
+    });
+
+    // Listen for lead deletion
+    socket.on('lead-deleted', (data) => {
+      console.log('🗑️ Lead deleted:', data);
+      setLeads(prev => {
+        const filteredLeads = prev.filter(lead => lead._id !== data.leadId);
+        console.log('📝 Updated leads list:', filteredLeads);
+        return filteredLeads;
+      });
+    });
+
+    // Listen for lead status changes
+    socket.on('lead-status-changed', (data) => {
+      console.log('🔄 Lead status changed:', data);
+      setLeads(prev => {
+        const updatedLeads = prev.map(lead =>
+          lead._id === data.lead._id ? data.lead : lead
+        );
+        console.log('📝 Updated leads list:', updatedLeads);
+        return updatedLeads;
+      });
+    });
+
+    // Listen for lead assignment
+    socket.on('lead-assigned', (data) => {
+      console.log('👤 Lead assigned:', data);
+      setLeads(prev => {
+        const updatedLeads = prev.map(lead =>
+          lead._id === data.lead._id ? data.lead : lead
+        );
+        console.log('📝 Updated leads list:', updatedLeads);
+        return updatedLeads;
+      });
+    });
+
+    // Cleanup event listeners
+    return () => {
+      console.log('🧹 Cleaning up leads event listeners');
+      socket.off('lead-created');
+      socket.off('lead-updated');
+      socket.off('lead-deleted');
+      socket.off('lead-status-changed');
+      socket.off('lead-assigned');
+    };
+  }, [socket]);
 
   // Get required fields for selected status
   const getRequiredFieldsForStatus = (statusId: string) => {
@@ -326,8 +414,17 @@ const LeadsPage = () => {
           const name: string = user?.name || item?.name || '';
           const email: string = user?.email || item?.email || '';
           const userId: string | undefined = user?._id || item?.userId;
+          const channelPartnerId = item?.channelPartnerId || user?.channelPartnerId;
+          const projectId = item?.projectId || user?.projectId;
           if (!id) return;
-          uniqueUsers.set(id, { _id: id, userId, name, email });
+          uniqueUsers.set(id, { 
+            _id: id, 
+            userId, 
+            name, 
+            email,
+            channelPartnerId,
+            projectId
+          });
         });
         const normalized = Array.from(uniqueUsers.values());
         console.log('Normalized CP sourcing users:', normalized);

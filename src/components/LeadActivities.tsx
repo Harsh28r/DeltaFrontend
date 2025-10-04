@@ -4,6 +4,7 @@ import { Card, Badge, Button, Alert, Timeline } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
 import { useAuth } from "@/app/context/AuthContext";
+import { useWebSocket } from "@/app/context/WebSocketContext";
 
 interface LeadActivity {
   _id: string;
@@ -25,6 +26,7 @@ interface LeadActivity {
 
 const LeadActivities = () => {
   const { token } = useAuth();
+  const { socket, connected } = useWebSocket();
   const [activities, setActivities] = useState<LeadActivity[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -75,6 +77,54 @@ const LeadActivities = () => {
   useEffect(() => {
     fetchActivities();
   }, [token]);
+
+  // WebSocket event listeners for real-time updates
+  useEffect(() => {
+    if (!socket) {
+      console.log('🔌 No socket available for lead activities');
+      return;
+    }
+
+    console.log('🔌 Setting up lead activities event listeners');
+
+    // Listen for lead activities
+    socket.on('lead-activity-created', (data) => {
+      console.log('🆕 New lead activity created:', data);
+      setActivities(prev => {
+        const newActivities = [data.activity, ...prev];
+        console.log('📝 Updated activities list:', newActivities);
+        return newActivities;
+      });
+    });
+
+    // Listen for lead updates that might create activities
+    socket.on('lead-updated', (data) => {
+      console.log('✏️ Lead updated - refreshing activities:', data);
+      // Refresh activities when leads are updated
+      fetchActivities();
+    });
+
+    socket.on('lead-created', (data) => {
+      console.log('🆕 Lead created - refreshing activities:', data);
+      // Refresh activities when new leads are created
+      fetchActivities();
+    });
+
+    socket.on('lead-deleted', (data) => {
+      console.log('🗑️ Lead deleted - refreshing activities:', data);
+      // Refresh activities when leads are deleted
+      fetchActivities();
+    });
+
+    // Cleanup event listeners
+    return () => {
+      console.log('🧹 Cleaning up lead activities event listeners');
+      socket.off('lead-activity-created');
+      socket.off('lead-updated');
+      socket.off('lead-created');
+      socket.off('lead-deleted');
+    };
+  }, [socket]);
 
   const getActionIcon = (action: string) => {
     switch (action) {
@@ -279,7 +329,13 @@ const LeadActivities = () => {
             Track all lead-related activities and changes
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 items-center">
+          <div className="flex items-center gap-2">
+            <div className={`w-2 h-2 rounded-full ${connected ? 'bg-green-400' : 'bg-red-400'}`}></div>
+            <span className="text-xs text-gray-500">
+              {connected ? 'Live Updates' : 'Offline'}
+            </span>
+          </div>
           <Button 
             onClick={fetchActivities} 
             color="gray"
