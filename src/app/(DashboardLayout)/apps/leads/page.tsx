@@ -220,6 +220,17 @@ const LeadsPage = () => {
   const [pageSize, setPageSize] = useState(10);
   const [serverTotalItems, setServerTotalItems] = useState<number | null>(null);
   const [serverTotalPages, setServerTotalPages] = useState<number | null>(null);
+  
+  // Bulk upload state
+  const [bulkUploadModalOpen, setBulkUploadModalOpen] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadResults, setUploadResults] = useState<{
+    success: number;
+    failed: number;
+    errors: Array<{ row: number; error: string }>;
+  } | null>(null);
 
   useEffect(() => {
     if (token) {
@@ -626,7 +637,7 @@ const LeadsPage = () => {
               sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
             }
           } else {
-            cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingRef);
+            cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
             if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
               sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
             }
@@ -1643,6 +1654,165 @@ const LeadsPage = () => {
     }
   };
 
+  // Handle file selection for bulk upload
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Check if file is CSV or Excel
+      const validTypes = [
+        'text/csv',
+        'application/vnd.ms-excel',
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+      ];
+      
+      if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+        setAlertMessage({ type: 'error', message: 'Please select a valid CSV or Excel file' });
+        return;
+      }
+      
+      setSelectedFile(file);
+      setUploadResults(null);
+    }
+  };
+
+  // Handle bulk upload
+  const handleBulkUpload = async () => {
+    if (!selectedFile) {
+      setAlertMessage({ type: 'error', message: 'Please select a file to upload' });
+      return;
+    }
+
+    try {
+      setIsUploading(true);
+      setUploadProgress(0);
+
+      const formData = new FormData();
+      formData.append('file', selectedFile);
+
+      const response = await fetch(`${API_BASE_URL}/api/leads/bulk-upload`, {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        body: formData,
+      });
+
+      setUploadProgress(100);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Failed to upload file: ${response.status}`);
+      }
+
+      const result = await response.json();
+      
+      setUploadResults({
+        success: result.success || result.successCount || 0,
+        failed: result.failed || result.failedCount || 0,
+        errors: result.errors || []
+      });
+
+      // Refresh the leads list
+      if (result.success > 0 || result.successCount > 0) {
+        await fetchLeads();
+      }
+
+      // Reset file selection after successful upload
+      setSelectedFile(null);
+      
+      setAlertMessage({ 
+        type: 'success', 
+        message: `Successfully uploaded ${result.success || result.successCount || 0} lead(s)` 
+      });
+      
+    } catch (err: any) {
+      console.error('Error uploading file:', err);
+      setAlertMessage({ type: 'error', message: err.message || 'Failed to upload file' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Download sample template
+  const handleDownloadLeadsTemplate = () => {
+    // Create a sample CSV template with userId (either as email or leave blank for auto-assignment)
+    const headers = [
+      'firstName',
+      'lastName',
+      'email',
+      'phone',
+      'leadSource',
+      'project',
+      'userId',
+      'leadPriority',
+      'propertyType',
+      'configuration',
+      'fundingMode',
+      'gender',
+      'budget',
+      'notes'
+    ];
+    const sampleData = [
+      [
+        'John',
+        'Doe',
+        'john.doe@example.com',
+        '9876543210',
+        'Website',
+        'Project Name',
+        'user@example.com',
+        'Hot',
+        'Residential',
+        '2 BHK',
+        'Self Funded',
+        'Male',
+        '50 Lakhs - 1 Crore',
+        'Interested in 2BHK apartment'
+      ],
+      [
+        'Jane',
+        'Smith',
+        'jane.smith@example.com',
+        '9876543211',
+        'Referral',
+        'Project Name',
+        'user@example.com',
+        'Warm',
+        'Commercial',
+        'Commercial Office',
+        'Loan',
+        'Female',
+        '1-2 Crores',
+        'Looking for office space'
+      ]
+    ];
+    
+    const csvContent = [
+      headers.join(','),
+      ...sampleData.map(row => row.map(cell => `"${cell}"`).join(','))
+    ].join('\n');
+    
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    const url = URL.createObjectURL(blob);
+    
+    link.setAttribute('href', url);
+    link.setAttribute('download', 'leads_template.csv');
+    link.style.visibility = 'hidden';
+    
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // Close bulk upload modal
+  const closeBulkUploadModal = () => {
+    setBulkUploadModalOpen(false);
+    setSelectedFile(null);
+    setUploadResults(null);
+    setUploadProgress(0);
+  };
+
   const handleDelete = async (id: string) => {
     if (!window.confirm("Are you sure you want to delete this lead?")) return;
 
@@ -2026,22 +2196,34 @@ const LeadsPage = () => {
             {selectedLeads.length === 0 ? "Select Leads to Transfer" : `Transfer (${selectedLeads.length})`}
           </Button>
           {finalPermissions.canCreateLeads && (
-            <Button 
-              onClick={handleAddNew} 
-              color="primary"
-              disabled={projects.length === 0 || finalPermissions.permissionsLoading}
-              title={
-                projects.length === 0 
-                  ? "No projects available. Please create a project first." 
-                  : finalPermissions.permissionsLoading 
-                    ? "Loading permissions..." 
-                    : ""
-              }
-              className="w-full lg:w-auto"
-            >
-              <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
-              Add New Lead
-            </Button>
+            <>
+              <Button 
+                onClick={() => setBulkUploadModalOpen(true)}
+                color="indigo"
+                disabled={projects.length === 0}
+                title={projects.length === 0 ? "No projects available. Please create a project first." : "Bulk upload leads"}
+                className="w-full lg:w-auto"
+              >
+                <Icon icon="solar:upload-line-duotone" className="mr-2" />
+                Bulk Upload
+              </Button>
+              <Button 
+                onClick={handleAddNew} 
+                color="primary"
+                disabled={projects.length === 0 || finalPermissions.permissionsLoading}
+                title={
+                  projects.length === 0 
+                    ? "No projects available. Please create a project first." 
+                    : finalPermissions.permissionsLoading 
+                      ? "Loading permissions..." 
+                      : ""
+                }
+                className="w-full lg:w-auto"
+              >
+                <Icon icon="solar:add-circle-line-duotone" className="mr-2" />
+                Add New Lead
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -2394,9 +2576,9 @@ const LeadsPage = () => {
                                     ? (cpRef.user?._id || cpRef._id)
                                     : cpRef;
                                   // Attempt lookups by _id first
-                                  let cpUser = cpSourcingOptions.find(u => u._id === refId);
+                                  let cpUser = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(u => u._id === refId) : null;
                                   // Fallback: if we have userId separate
-                                  if (!cpUser) {
+                                  if (!cpUser && Array.isArray(cpSourcingOptions)) {
                                     cpUser = cpSourcingOptions.find(u => u.userId === refId);
                                   }
                                   return cpUser ? `${cpUser.name} (${cpUser.email})` : 'N/A';
@@ -3258,6 +3440,179 @@ const LeadsPage = () => {
               </>
             )}
           </Button>
+        </Modal.Footer>
+      </Modal>
+
+      {/* Bulk Upload Modal */}
+      <Modal show={bulkUploadModalOpen} onClose={closeBulkUploadModal} size="2xl">
+        <Modal.Header>
+          <div className="flex items-center gap-2">
+            <Icon icon="solar:upload-line-duotone" className="w-5 h-5 text-indigo-600" />
+            <span>Bulk Upload Leads</span>
+          </div>
+        </Modal.Header>
+        <Modal.Body>
+          <div className="space-y-6">
+            {/* Instructions */}
+            <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
+              <div className="flex items-start gap-3">
+                <Icon icon="solar:info-circle-line-duotone" className="w-5 h-5 text-blue-600 dark:text-blue-400 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Upload Instructions</h4>
+                  <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
+                    <li>Download the sample template to see the required format</li>
+                    <li>Fill in the lead details in the template</li>
+                    <li><strong>userId</strong>: Enter the user's email address (e.g., user@example.com) who will be assigned these leads</li>
+                    <li>Use exact names for: Lead Source, Project, Lead Priority, Property Type, Configuration, Funding Mode, Gender, Budget</li>
+                    <li>Save the file as CSV or Excel format</li>
+                    <li>Upload the completed file using the button below</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
+            {/* Download Template Button */}
+            <div className="flex justify-center">
+              <Button
+                color="gray"
+                onClick={handleDownloadLeadsTemplate}
+                className="flex items-center gap-2"
+              >
+                <Icon icon="solar:download-line-duotone" className="w-4 h-4" />
+                Download Sample Template
+              </Button>
+            </div>
+
+            {/* File Upload Section */}
+            <div className="border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-lg p-6">
+              <div className="text-center">
+                <Icon icon="solar:file-text-line-duotone" className="w-12 h-12 text-gray-400 mx-auto mb-4" />
+                <div className="flex items-center justify-center">
+                  <label className="cursor-pointer">
+                    <input
+                      type="file"
+                      accept=".csv,.xlsx,.xls"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                    <div className="px-4 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors">
+                      <Icon icon="solar:upload-line-duotone" className="w-4 h-4 inline mr-2" />
+                      Select File
+                    </div>
+                  </label>
+                </div>
+                {selectedFile && (
+                  <div className="mt-4 flex items-center justify-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <Icon icon="solar:file-line-duotone" className="w-4 h-4" />
+                    <span>{selectedFile.name}</span>
+                    <button
+                      onClick={() => setSelectedFile(null)}
+                      className="text-red-500 hover:text-red-700"
+                      disabled={isUploading}
+                    >
+                      <Icon icon="solar:close-circle-line-duotone" className="w-4 h-4" />
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Upload Progress */}
+            {isUploading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+                  <span>Uploading...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <div className="w-full bg-gray-200 rounded-full h-2">
+                  <div
+                    className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${uploadProgress}%` }}
+                  ></div>
+                </div>
+              </div>
+            )}
+
+            {/* Upload Results */}
+            {uploadResults && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 border border-green-200 dark:border-green-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon icon="solar:check-circle-line-duotone" className="w-5 h-5 text-green-600 dark:text-green-400" />
+                      <span className="font-semibold text-green-900 dark:text-green-100">Success</span>
+                    </div>
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">
+                      {uploadResults.success}
+                    </p>
+                    <p className="text-sm text-green-700 dark:text-green-300">
+                      Leads created successfully
+                    </p>
+                  </div>
+
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-700">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon icon="solar:close-circle-line-duotone" className="w-5 h-5 text-red-600 dark:text-red-400" />
+                      <span className="font-semibold text-red-900 dark:text-red-100">Failed</span>
+                    </div>
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">
+                      {uploadResults.failed}
+                    </p>
+                    <p className="text-sm text-red-700 dark:text-red-300">
+                      Leads failed to create
+                    </p>
+                  </div>
+                </div>
+
+                {/* Error Details */}
+                {uploadResults.errors && uploadResults.errors.length > 0 && (
+                  <div className="bg-red-50 dark:bg-red-900/20 rounded-lg p-4 border border-red-200 dark:border-red-700 max-h-40 overflow-y-auto">
+                    <h5 className="font-semibold text-red-900 dark:text-red-100 mb-2 flex items-center gap-2">
+                      <Icon icon="solar:danger-circle-line-duotone" className="w-4 h-4" />
+                      Error Details
+                    </h5>
+                    <ul className="space-y-1 text-sm text-red-700 dark:text-red-300">
+                      {uploadResults.errors.map((error, index) => (
+                        <li key={index}>
+                          Row {error.row}: {error.error}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            color="gray"
+            onClick={closeBulkUploadModal}
+            disabled={isUploading}
+          >
+            {uploadResults ? 'Close' : 'Cancel'}
+          </Button>
+          {!uploadResults && (
+            <Button
+              color="indigo"
+              onClick={handleBulkUpload}
+              disabled={!selectedFile || isUploading}
+              className="flex items-center gap-2"
+            >
+              {isUploading ? (
+                <>
+                  <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                  Uploading...
+                </>
+              ) : (
+                <>
+                  <Icon icon="solar:upload-line-duotone" className="w-4 h-4" />
+                  Upload File
+                </>
+              )}
+            </Button>
+          )}
         </Modal.Footer>
       </Modal>
 

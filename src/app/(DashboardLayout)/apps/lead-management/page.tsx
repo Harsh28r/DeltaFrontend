@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useWebSocket } from "@/app/context/WebSocketContext";
 import { API_ENDPOINTS, createRefreshEvent } from "@/lib/config";
+import DateTimePicker from "@/components/DateTimePicker";
 
 interface LeadSource {
   _id: string;
@@ -1298,11 +1299,13 @@ const LeadManagementPage = () => {
 
                         {/* Preview of field type */}
                         <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-                          <div className="flex items-center gap-2 mb-2">
+                          <div className="flex items-center gap-2 mb-3">
                             <Icon icon="solar:eye-line-duotone" className="text-gray-600 dark:text-gray-400 text-sm" />
                             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Field Preview</span>
                           </div>
-                          <div className="text-sm text-gray-600 dark:text-gray-400">
+                          
+                          {/* Field Info */}
+                          <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
                             <span className="font-medium">{field.name || 'Field Name'}</span>
                             <span className="mx-2">•</span>
                             <span className="capitalize">{field.type}</span>
@@ -1320,6 +1323,98 @@ const LeadManagementPage = () => {
                               </div>
                             )}
                           </div>
+
+                          {/* Interactive Preview for DateTime Fields */}
+                          {(field.type === 'date' || field.type === 'datetime' || field.type === 'time') && (
+                            <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                Interactive Preview (try selecting a value):
+                        </div>
+                              <DateTimePicker
+                                id={`preview-${index}`}
+                                type={field.type as 'date' | 'datetime' | 'time'}
+                                value=""
+                                onChange={() => {}} // No-op for preview
+                                placeholder={`Select ${field.name.toLowerCase() || 'value'}`}
+                                className="w-full"
+                                required={field.required}
+                              />
+                      </div>
+                          )}
+
+                          {/* Preview for other field types */}
+                          {!['date', 'datetime', 'time'].includes(field.type) && (
+                            <div className="mt-3 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-600">
+                              <div className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                                Preview (this is how the field will appear):
+                              </div>
+                              {field.type === 'text' && (
+                                <TextInput
+                                  placeholder={`Enter ${field.name.toLowerCase() || 'value'}`}
+                                  disabled
+                                  className="w-full"
+                                />
+                              )}
+                              {field.type === 'email' && (
+                                <TextInput
+                                  type="email"
+                                  placeholder={`Enter ${field.name.toLowerCase() || 'email'}`}
+                                  disabled
+                                  className="w-full"
+                                />
+                              )}
+                              {field.type === 'number' && (
+                                <TextInput
+                                  type="number"
+                                  placeholder={`Enter ${field.name.toLowerCase() || 'number'}`}
+                                  disabled
+                                  className="w-full"
+                                />
+                              )}
+                              {field.type === 'phone' && (
+                                <TextInput
+                                  type="tel"
+                                  placeholder={`Enter ${field.name.toLowerCase() || 'phone'}`}
+                                  disabled
+                                  className="w-full"
+                                />
+                              )}
+                              {field.type === 'textarea' && (
+                                <textarea
+                                  placeholder={`Enter ${field.name.toLowerCase() || 'text'}`}
+                                  disabled
+                                  className="w-full p-2 border border-gray-300 dark:border-gray-600 rounded-lg bg-gray-50 dark:bg-gray-700 text-gray-500 dark:text-gray-400"
+                                  rows={3}
+                                />
+                              )}
+                              {field.type === 'select' && field.options && field.options.length > 0 && (
+                                <Select disabled className="w-full">
+                                  <option>Select {field.name.toLowerCase() || 'option'}</option>
+                                  {field.options.map((option, optIndex) => (
+                                    <option key={optIndex} value={option}>
+                                      {option}
+                                    </option>
+                                  ))}
+                                </Select>
+                              )}
+                              {field.type === 'checkbox' && field.options && field.options.length > 0 && (
+                                <div className="space-y-2">
+                                  {field.options.map((option, optIndex) => (
+                                    <div key={optIndex} className="flex items-center">
+                                      <input
+                                        type="checkbox"
+                                        disabled
+                                        className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500"
+                                      />
+                                      <label className="ml-2 text-sm text-gray-500 dark:text-gray-400">
+                                        {option}
+                                      </label>
+                  </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       </div>
                     ))}

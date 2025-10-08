@@ -10,6 +10,8 @@ import { useAuth } from "@/app/context/AuthContext";
 
 import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
 
+import DateTimePicker from "@/components/DateTimePicker";
+
 import { useParams, useRouter } from "next/navigation";
 
 import Link from "next/link";
@@ -283,14 +285,49 @@ const LeadDetailPage = () => {
   // Dynamic form fields based on selected status
   const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
 
+  // Function to resolve status name from various possible identifiers
+  const resolveStatusName = (statusId: string, statuses: any[]) => {
+    if (!statusId || !statuses || statuses.length === 0) {
+      console.log('Status resolution failed - no statusId or statuses:', { statusId, statusesLength: statuses?.length });
+      return statusId || 'Unknown Status';
+    }
+    
+    console.log('Resolving status:', { statusId, availableStatuses: statuses.map(s => ({ id: s._id, name: s.name })) });
+    
+    // Try to find by _id first
+    let status = statuses.find(s => s._id === statusId);
+    if (status) {
+      console.log('Found status by _id:', status.name);
+      return status.name;
+    }
+    
+    // Try to find by name
+    status = statuses.find(s => s.name === statusId);
+    if (status) {
+      console.log('Found status by name:', status.name);
+      return status.name;
+    }
+    
+    // Try to find by id (alternative field)
+    status = statuses.find(s => s.id === statusId);
+    if (status) {
+      console.log('Found status by id field:', status.name);
+      return status.name;
+    }
+    
+    // If no match found, return the original ID or a fallback
+    console.log('No status found for ID:', statusId);
+    return statusId || 'Unknown Status';
+  };
+
   // Function to get source name with channel partner info
   const getSourceName = (lead: Lead) => {
     console.log('getSourceName Debug:', {
       leadCustomData: lead.customData,
       channelPartnerId: lead.customData?.["Channel Partner"],
       cpSourcingId: lead.customData?.["Channel Partner Sourcing"],
-      channelPartners: channelPartners.length,
-      cpSourcingOptions: cpSourcingOptions.length,
+      channelPartners: channelPartners?.length || 0,
+      cpSourcingOptions: cpSourcingOptions?.length || 0,
       leadSource: lead.leadSource
     });
     
@@ -298,13 +335,13 @@ const LeadDetailPage = () => {
     const channelPartnerId = lead.customData?.["Channel Partner"];
     if (channelPartnerId) {
       // Find the channel partner name
-      const channelPartner = channelPartners.find(cp => cp._id === channelPartnerId);
+      const channelPartner = channelPartners?.find(cp => cp._id === channelPartnerId);
       if (channelPartner) {
         let sourceName = `Channel Partner: ${channelPartner.name}`;
         
         // Add CP sourcing info if available
         const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-        if (cpSourcingId) {
+        if (cpSourcingId && Array.isArray(cpSourcingOptions)) {
           const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
           if (cpSourcing) {
             sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
@@ -314,7 +351,7 @@ const LeadDetailPage = () => {
       } else {
         // If channel partner not found, try to get name from CP sourcing data
         const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-        if (cpSourcingId) {
+        if (cpSourcingId && Array.isArray(cpSourcingOptions)) {
           const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
           if (cpSourcing) {
             return `Channel Partner: ${cpSourcing.channelPartnerId.name}`;
@@ -472,9 +509,12 @@ const LeadDetailPage = () => {
       if (statusesResponse.ok) {
 
         const statusesData = await statusesResponse.json();
+        const statuses = statusesData.leadStatuses || statusesData || [];
+        console.log('Loaded lead statuses:', statuses);
+        setLeadStatuses(statuses);
 
-        setLeadStatuses(statusesData.leadStatuses || statusesData || []);
-
+      } else {
+        console.error('Failed to load lead statuses:', statusesResponse.status, statusesResponse.statusText);
       }
 
 
@@ -555,9 +595,16 @@ const LeadDetailPage = () => {
       if (cpSourcingResponse.ok) {
         const cpSourcingData = await cpSourcingResponse.json();
         console.log('CP Sourcing API Response:', cpSourcingData);
-        setCPSourcingOptions(cpSourcingData.cpSourcing || cpSourcingData || []);
+        // Ensure we always set an array
+        const cpSourcingArray = Array.isArray(cpSourcingData.cpSourcing) 
+          ? cpSourcingData.cpSourcing 
+          : Array.isArray(cpSourcingData) 
+            ? cpSourcingData 
+            : [];
+        setCPSourcingOptions(cpSourcingArray);
       } else {
         console.error('CP Sourcing API error:', cpSourcingResponse.status, cpSourcingResponse.statusText);
+        setCPSourcingOptions([]); // Ensure it's always an array
       }
 
     } catch (error) {
@@ -683,34 +730,75 @@ const LeadDetailPage = () => {
               <Icon icon="solar:arrow-right-line-duotone" className="text-blue-600 dark:text-blue-400" />
               <span className="font-medium">Status Changed</span>
             </div>
+            {(() => {
+              console.log('Status change activity details:', {
+                activityDetails: activity.details,
+                leadStatuses: leadStatuses,
+                oldStatus: activity.details.oldStatus,
+                newStatusId: activity.details.newStatusId,
+                newStatus: activity.details.newStatus
+              });
+              
+              // Show debug info if status resolution fails
+              const oldStatusId = activity.details.oldStatus || activity.details.oldStatusId;
+              const newStatusId = activity.details.newStatusId || activity.details.newStatus;
+              const oldStatusFound = leadStatuses.find(s => s._id === oldStatusId);
+              const newStatusFound = leadStatuses.find(s => s._id === newStatusId);
+              
+              if (!oldStatusFound || !newStatusFound) {
+                return (
+                  <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-3 border border-yellow-200 dark:border-yellow-700 mb-3">
+                    <div className="flex items-center gap-2 mb-2">
+                      <Icon icon="solar:info-circle-line-duotone" className="text-yellow-600 dark:text-yellow-400" />
+                      <span className="text-sm font-medium text-yellow-800 dark:text-yellow-200">Debug Info</span>
+                    </div>
+                    <div className="text-xs text-yellow-700 dark:text-yellow-300 space-y-1">
+                      <div>Old Status ID: {oldStatusId} {!oldStatusFound && '(Not found in statuses)'}</div>
+                      <div>New Status ID: {newStatusId} {!newStatusFound && '(Not found in statuses)'}</div>
+                      <div>Available Statuses: {leadStatuses.length}</div>
+                      <div>Status IDs: {leadStatuses.map(s => s._id).join(', ')}</div>
+                    </div>
+                  </div>
+                );
+              }
+              return null;
+            })()}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-3 border border-blue-200 dark:border-blue-700">
               <div className="flex items-center gap-2 mb-2">
                 <span className="text-sm font-medium text-blue-800 dark:text-blue-200">From:</span>
                 <Badge color="gray" size="sm">
-                  {(() => {
-                    const oldStatus = leadStatuses.find(status => status._id === activity.details.oldStatus);
-                    console.log('Old status resolution:', {
-                      oldStatusId: activity.details.oldStatus,
-                      foundStatus: oldStatus,
-                      allStatuses: leadStatuses.map(s => ({ id: s._id, name: s.name }))
-                    });
-                    return oldStatus?.name || activity.details.oldStatus || 'Unknown Status';
-                  })()}
+                  {resolveStatusName(activity.details.oldStatus || activity.details.oldStatusId, leadStatuses)}
                 </Badge>
+                {(() => {
+                  const oldStatusId = activity.details.oldStatus || activity.details.oldStatusId;
+                  const oldStatus = leadStatuses.find(s => s._id === oldStatusId);
+                  if (!oldStatus && oldStatusId) {
+                    return (
+                      <span className="text-xs text-orange-600 dark:text-orange-400 ml-2">
+                        (ID: {oldStatusId})
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-blue-800 dark:text-blue-200">To:</span>
                 <Badge color="green" size="sm">
-                  {(() => {
-                    const newStatus = leadStatuses.find(status => status._id === activity.details.newStatusId);
-                    console.log('New status resolution:', {
-                      newStatusId: activity.details.newStatusId,
-                      foundStatus: newStatus,
-                      allStatuses: leadStatuses.map(s => ({ id: s._id, name: s.name }))
-                    });
-                    return newStatus?.name || activity.details.newStatusId || 'Unknown Status';
-                  })()}
+                  {resolveStatusName(activity.details.newStatusId || activity.details.newStatus, leadStatuses)}
                 </Badge>
+                {(() => {
+                  const newStatusId = activity.details.newStatusId || activity.details.newStatus;
+                  const newStatus = leadStatuses.find(s => s._id === newStatusId);
+                  if (!newStatus && newStatusId) {
+                    return (
+                      <span className="text-xs text-orange-600 dark:text-orange-400 ml-2">
+                        (ID: {newStatusId})
+                      </span>
+                    );
+                  }
+                  return null;
+                })()}
               </div>
             </div>
             {activity.details.statusFields && Object.keys(activity.details.statusFields).length > 0 && (
@@ -1856,19 +1944,19 @@ const LeadDetailPage = () => {
                 <p className="text-lg font-semibold text-gray-900 dark:text-gray-100">
                   {(() => {
                     const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-                    const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+                    const cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingId) : null;
                     console.log('CP Sourcing Debug:', {
                       cpSourcingId,
                       cpSourcing,
-                      cpSourcingOptions: cpSourcingOptions.length,
-                      allIds: cpSourcingOptions.map(cp => cp._id)
+                      cpSourcingOptions: Array.isArray(cpSourcingOptions) ? cpSourcingOptions.length : 0,
+                      allIds: Array.isArray(cpSourcingOptions) ? cpSourcingOptions.map(cp => cp._id) : []
                     });
                     return cpSourcing ? `${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name}` : 'Loading...';
                   })()}
                 </p>
                 {(() => {
                   const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
-                  const cpSourcing = cpSourcingOptions.find(cp => cp._id === cpSourcingId);
+                  const cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingId) : null;
                   return cpSourcing ? (
                     <div className="mt-2 text-xs text-gray-600 dark:text-gray-300">
                       <p>Visits: {cpSourcing.sourcingHistory.length}</p>
@@ -3685,12 +3773,32 @@ const LeadDetailPage = () => {
                                 required={field.required}
                               />
                             ) : field.type === 'date' ? (
-                              <TextInput
+                              <DateTimePicker
                                 id={`statusField_${field._id}`}
                                 type="date"
                                 value={editFormData[field.name as keyof typeof editFormData] || ''}
-                                onChange={(e) => setEditFormData({ ...editFormData, [field.name]: e.target.value })}
-                                placeholder={`Enter ${field.name.toLowerCase()}`}
+                                onChange={(value) => setEditFormData({ ...editFormData, [field.name]: value })}
+                                placeholder={`Select ${field.name.toLowerCase()}`}
+                                className="w-full"
+                                required={field.required}
+                              />
+                            ) : field.type === 'datetime' ? (
+                              <DateTimePicker
+                                id={`statusField_${field._id}`}
+                                type="datetime"
+                                value={editFormData[field.name as keyof typeof editFormData] || ''}
+                                onChange={(value) => setEditFormData({ ...editFormData, [field.name]: value })}
+                                placeholder={`Select ${field.name.toLowerCase()}`}
+                                className="w-full"
+                                required={field.required}
+                              />
+                            ) : field.type === 'time' ? (
+                              <DateTimePicker
+                                id={`statusField_${field._id}`}
+                                type="time"
+                                value={editFormData[field.name as keyof typeof editFormData] || ''}
+                                onChange={(value) => setEditFormData({ ...editFormData, [field.name]: value })}
+                                placeholder={`Select ${field.name.toLowerCase()}`}
                                 className="w-full"
                                 required={field.required}
                               />
@@ -4134,18 +4242,50 @@ const LeadDetailPage = () => {
                               required={field.required}
                             />
                           ) : field.type === 'date' ? (
-                            <TextInput
+                            <DateTimePicker
                               id={`statusField_${field._id}`}
                               type="date"
                               value={lead.customData?.[field.name] || ''}
-                              onChange={(e) => {
+                              onChange={(value) => {
                                 const updatedLead = { ...lead };
                                 if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
+                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: value };
                                   setLead(updatedLead);
                                 }
                               }}
-                              placeholder={`Enter ${field.name.toLowerCase()}`}
+                              placeholder={`Select ${field.name.toLowerCase()}`}
+                              className="w-full"
+                              required={field.required}
+                            />
+                          ) : field.type === 'datetime' ? (
+                            <DateTimePicker
+                              id={`statusField_${field._id}`}
+                              type="datetime"
+                              value={lead.customData?.[field.name] || ''}
+                              onChange={(value) => {
+                                const updatedLead = { ...lead };
+                                if (updatedLead) {
+                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: value };
+                                  setLead(updatedLead);
+                                }
+                              }}
+                              placeholder={`Select ${field.name.toLowerCase()}`}
+                              className="w-full"
+                              required={field.required}
+                            />
+                          ) : field.type === 'time' ? (
+                            <DateTimePicker
+                              id={`statusField_${field._id}`}
+                              type="time"
+                              value={lead.customData?.[field.name] || ''}
+                              onChange={(value) => {
+                                const updatedLead = { ...lead };
+                                if (updatedLead) {
+                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: value };
+                                  setLead(updatedLead);
+                                }
+                              }}
+                              placeholder={`Select ${field.name.toLowerCase()}`}
                               className="w-full"
                               required={field.required}
                             />
