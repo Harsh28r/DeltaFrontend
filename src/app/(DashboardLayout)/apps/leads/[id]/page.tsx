@@ -411,29 +411,29 @@ const LeadDetailPage = () => {
         if (data.lead) {
 
           const baseFormData = {
-            firstName: data.lead.customData?.["First Name"] || '',
+            firstName: data.lead.customData?.["First Name"] || data.lead.customData?.name || '',
 
-            email: data.lead.customData?.["Email"] || '',
+            email: data.lead.customData?.["Email"] || data.lead.customData?.email || '',
 
-            phone: data.lead.customData?.["Phone"] || '',
+            phone: data.lead.customData?.["Phone"] || data.lead.customData?.phone || data.lead.customData?.contact || '',
 
-            notes: data.lead.customData?.["Notes"] || '',
+            notes: data.lead.customData?.["Notes"] || data.lead.customData?.notes || '',
 
             leadSource: data.lead.leadSource?._id || '',
 
             project: data.lead.project?._id || '',
 
-            leadPriority: data.lead.customData?.["Lead Priority"] || '',
+            leadPriority: data.lead.customData?.["Lead Priority"] || data.lead.customData?.leadPriority || '',
 
-            propertyType: data.lead.customData?.["Property Type"] || '',
+            propertyType: data.lead.customData?.["Property Type"] || data.lead.customData?.propertyType || '',
 
-            configuration: data.lead.customData?.["Configuration"] || '',
+            configuration: data.lead.customData?.["Configuration"] || data.lead.customData?.configuration || '',
 
-            fundingMode: data.lead.customData?.["Funding Mode"] || '',
+            fundingMode: data.lead.customData?.["Funding Mode"] || data.lead.customData?.fundingMode || '',
 
-            gender: data.lead.customData?.["Gender"] || '',
+            gender: data.lead.customData?.["Gender"] || data.lead.customData?.gender || '',
 
-            budget: data.lead.customData?.["Budget"] || ''
+            budget: data.lead.customData?.["Budget"] || data.lead.customData?.budget || ''
 
           };
 
@@ -1088,25 +1088,25 @@ const LeadDetailPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
 
-                  <div><strong>Name:</strong> {activity.details.oldData.customData?.["First Name"] || ''} {activity.details.oldData.customData?.["Last Name"] || ''}</div>
+                  <div><strong>Name:</strong> {activity.details.oldData.customData?.["First Name"] || activity.details.oldData.customData?.name || ''} {activity.details.oldData.customData?.["Last Name"] || ''}</div>
 
-                  <div><strong>Email:</strong> {activity.details.oldData.customData?.["Email"] || 'N/A'}</div>
+                  <div><strong>Email:</strong> {activity.details.oldData.customData?.["Email"] || activity.details.oldData.customData?.email || 'N/A'}</div>
 
-                  <div><strong>Phone:</strong> {activity.details.oldData.customData?.["Phone"] || 'N/A'}</div>
+                  <div><strong>Phone:</strong> {activity.details.oldData.customData?.["Phone"] || activity.details.oldData.customData?.phone || activity.details.oldData.customData?.contact || 'N/A'}</div>
 
-                  <div><strong>Company:</strong> {activity.details.oldData.customData?.["Company"] || 'N/A'}</div>
+                  <div><strong>Company:</strong> {activity.details.oldData.customData?.["Company"] || activity.details.oldData.customData?.company || 'N/A'}</div>
 
-                  <div><strong>Priority:</strong> {activity.details.oldData.customData?.["Lead Priority"] || 'N/A'}</div>
+                  <div><strong>Priority:</strong> {activity.details.oldData.customData?.["Lead Priority"] || activity.details.oldData.customData?.leadPriority || 'N/A'}</div>
 
-                  <div><strong>Property Type:</strong> {activity.details.oldData.customData?.["Property Type"] || 'N/A'}</div>
+                  <div><strong>Property Type:</strong> {activity.details.oldData.customData?.["Property Type"] || activity.details.oldData.customData?.propertyType || 'N/A'}</div>
 
-                  <div><strong>Configuration:</strong> {activity.details.oldData.customData?.["Configuration"] || 'N/A'}</div>
+                  <div><strong>Configuration:</strong> {activity.details.oldData.customData?.["Configuration"] || activity.details.oldData.customData?.configuration || 'N/A'}</div>
 
-                  <div><strong>Funding Mode:</strong> {activity.details.oldData.customData?.["Funding Mode"] || 'N/A'}</div>
+                  <div><strong>Funding Mode:</strong> {activity.details.oldData.customData?.["Funding Mode"] || activity.details.oldData.customData?.fundingMode || 'N/A'}</div>
 
-                  <div><strong>Gender:</strong> {activity.details.oldData.customData?.["Gender"] || 'N/A'}</div>
+                  <div><strong>Gender:</strong> {activity.details.oldData.customData?.["Gender"] || activity.details.oldData.customData?.gender || 'N/A'}</div>
 
-                  <div><strong>Budget:</strong> {activity.details.oldData.customData?.["Budget"] || 'N/A'}</div>
+                  <div><strong>Budget:</strong> {activity.details.oldData.customData?.["Budget"] || activity.details.oldData.customData?.budget || 'N/A'}</div>
 
                   {activity.details.oldData.currentStatus && (
 
@@ -1174,23 +1174,23 @@ const LeadDetailPage = () => {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
 
-                  <div><strong>Name:</strong> {activity.details.newData.customData?.["First Name"] || ''}</div>
+                  <div><strong>Name:</strong> {activity.details.newData.customData?.["First Name"] || activity.details.newData.customData?.name || ''}</div>
 
-                  <div><strong>Phone:</strong> {activity.details.newData.customData?.["Phone"] || ''}</div>
+                  <div><strong>Phone:</strong> {activity.details.newData.customData?.["Phone"] || activity.details.newData.customData?.phone || activity.details.newData.customData?.contact || ''}</div>
 
-                  <div><strong>Company:</strong> {activity.details.newData.customData?.["Company"] || 'N/A'}</div>
+                  <div><strong>Company:</strong> {activity.details.newData.customData?.["Company"] || activity.details.newData.customData?.company || 'N/A'}</div>
 
-                  <div><strong>Priority:</strong> {activity.details.newData.customData?.["Lead Priority"] || ''}</div>
+                  <div><strong>Priority:</strong> {activity.details.newData.customData?.["Lead Priority"] || activity.details.newData.customData?.leadPriority || ''}</div>
 
-                  <div><strong>Property Type:</strong> {activity.details.newData.customData?.["Property Type"] || ''}</div>
+                  <div><strong>Property Type:</strong> {activity.details.newData.customData?.["Property Type"] || activity.details.newData.customData?.propertyType || ''}</div>
 
-                  <div><strong>Configuration:</strong> {activity.details.newData.customData?.["Configuration"] || ''}</div>
+                  <div><strong>Configuration:</strong> {activity.details.newData.customData?.["Configuration"] || activity.details.newData.customData?.configuration || ''}</div>
 
-                  <div><strong>Funding Mode:</strong> {activity.details.newData.customData?.["Funding Mode"] || ''}</div>
+                  <div><strong>Funding Mode:</strong> {activity.details.newData.customData?.["Funding Mode"] || activity.details.newData.customData?.fundingMode || ''}</div>
 
-                  <div><strong>Gender:</strong> {activity.details.newData.customData?.["Gender"] || ''}</div>
+                  <div><strong>Gender:</strong> {activity.details.newData.customData?.["Gender"] || activity.details.newData.customData?.gender || ''}</div>
 
-                  <div><strong>Budget:</strong> {activity.details.newData.customData?.["Budget"] || ''}</div>
+                  <div><strong>Budget:</strong> {activity.details.newData.customData?.["Budget"] || activity.details.newData.customData?.budget || ''}</div>
 
                   {/* Lead Status Fields for new data */}
                   {lead?.currentStatus?.formFields && lead.currentStatus.formFields.length > 0 && (
@@ -1285,17 +1285,17 @@ const LeadDetailPage = () => {
 
       project: lead?.project?._id || '',
 
-      leadPriority: lead?.customData?.["Lead Priority"] || '',
+      leadPriority: lead?.customData?.["Lead Priority"] || lead?.customData?.leadPriority || '',
 
-      propertyType: lead?.customData?.["Property Type"] || '',
+      propertyType: lead?.customData?.["Property Type"] || lead?.customData?.propertyType || '',
 
-      configuration: lead?.customData?.["Configuration"] || '',
+      configuration: lead?.customData?.["Configuration"] || lead?.customData?.configuration || '',
 
-      fundingMode: lead?.customData?.["Funding Mode"] || '',
+      fundingMode: lead?.customData?.["Funding Mode"] || lead?.customData?.fundingMode || '',
 
-      gender: lead?.customData?.["Gender"] || '',
+      gender: lead?.customData?.["Gender"] || lead?.customData?.gender || '',
 
-      budget: lead?.customData?.["Budget"] || ''
+      budget: lead?.customData?.["Budget"] || lead?.customData?.budget || ''
 
     });
 
@@ -1323,17 +1323,17 @@ const LeadDetailPage = () => {
 
         project: lead.project?._id || '',
 
-        leadPriority: lead.customData?.["Lead Priority"] || '',
+        leadPriority: lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || '',
 
-        propertyType: lead.customData?.["Property Type"] || '',
+        propertyType: lead.customData?.["Property Type"] || lead.customData?.propertyType || '',
 
-        configuration: lead.customData?.["Configuration"] || '',
+        configuration: lead.customData?.["Configuration"] || lead.customData?.configuration || '',
 
-        fundingMode: lead.customData?.["Funding Mode"] || '',
+        fundingMode: lead.customData?.["Funding Mode"] || lead.customData?.fundingMode || '',
 
-        gender: lead.customData?.["Gender"] || '',
+        gender: lead.customData?.["Gender"] || lead.customData?.gender || '',
 
-        budget: lead.customData?.["Budget"] || ''
+        budget: lead.customData?.["Budget"] || lead.customData?.budget || ''
 
       });
 
@@ -1492,33 +1492,34 @@ const LeadDetailPage = () => {
           newStatusId: statusFormData.newStatusId,
           newData: {
 
-            "First Name": lead.customData?.["First Name"] || '',
+            "First Name": lead.customData?.["First Name"] || lead.customData?.name || '',
 
-            "Email": lead.customData?.["Email"] || '',
+            "Email": lead.customData?.["Email"] || lead.customData?.email || '',
 
-            "Phone": lead.customData?.["Phone"] || '',
+            "Phone": lead.customData?.["Phone"] || lead.customData?.phone || lead.customData?.contact || '',
 
-            "Notes": lead.customData?.["Notes"] || '',
+            "Notes": lead.customData?.["Notes"] || lead.customData?.notes || '',
 
-            "Lead Priority": lead.customData?.["Lead Priority"] || '',
+            "Lead Priority": lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || '',
 
-            "Property Type": lead.customData?.["Property Type"] || '',
+            "Property Type": lead.customData?.["Property Type"] || lead.customData?.propertyType || '',
 
-            "Configuration": lead.customData?.["Configuration"] || '',
+            "Configuration": lead.customData?.["Configuration"] || lead.customData?.configuration || '',
 
-            "Funding Mode": lead.customData?.["Funding Mode"] || '',
+            "Funding Mode": lead.customData?.["Funding Mode"] || lead.customData?.fundingMode || '',
 
-            "Gender": lead.customData?.["Gender"] || '',
+            "Gender": lead.customData?.["Gender"] || lead.customData?.gender || '',
 
-            "Budget": lead.customData?.["Budget"] || '',
+            "Budget": lead.customData?.["Budget"] || lead.customData?.budget || '',
 
+            
             "Remark": statusFormData.statusRemark || 'Status updated'
 
           },
 
           // Include all dynamic fields in newData instead of separate statusFields
           ...Object.keys(lead.customData || {}).reduce((acc, key) => {
-            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget", "Remark"].includes(key)) {
+            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget", "Remark", "name", "email", "phone", "contact", "notes", "leadPriority", "propertyType", "configuration", "fundingMode", "gender", "budget"].includes(key)) {
               acc[key] = lead.customData?.[key];
             }
             return acc;
@@ -2110,11 +2111,11 @@ const LeadDetailPage = () => {
 
                     <p className="text-gray-900 dark:text-white font-medium">
 
-                      {lead.customData?.["First Name"] || ''} 
+                      {lead.customData?.["First Name"] || lead.customData?.name || 'N/A'} 
 
                     </p>
 
-                    {lead.customData?.["First Name"] && (
+                    {(lead.customData?.["First Name"] || lead.customData?.name) && (
 
                       <Badge color="blue" size="sm">
 
@@ -2132,7 +2133,7 @@ const LeadDetailPage = () => {
 
                   <label className="text-sm font-medium text-gray-700 dark:text-gray-300">Company</label>
 
-                  <p className="text-gray-900 dark:text-white">{lead.customData?.["Company"] || 'N/A'}</p>
+                  <p className="text-gray-900 dark:text-white">{lead.customData?.["Company"] || lead.customData?.company || 'N/A'}</p>
 
                 </div>
 
@@ -2148,11 +2149,11 @@ const LeadDetailPage = () => {
 
                   <div className="flex items-center gap-2 mt-1">
 
-                    <p className="text-gray-900 dark:text-white">{lead.customData?.["Email"] || 'N/A'}</p>
+                    <p className="text-gray-900 dark:text-white">{lead.customData?.["Email"] || lead.customData?.email || 'N/A'}</p>
 
-                    {lead.customData?.["Email"] && (
+                    {(lead.customData?.["Email"] || lead.customData?.email) && (
 
-                      <Button size="xs" color="light" onClick={() => window.open(`mailto:${lead.customData?.["Email"]}`)}>
+                      <Button size="xs" color="light" onClick={() => window.open(`mailto:${lead.customData?.["Email"] || lead.customData?.email}`)}>
 
                         <Icon icon="solar:letter-unread-line-duotone" className="w-3 h-3" />
 
@@ -2170,11 +2171,11 @@ const LeadDetailPage = () => {
 
                   <div className="flex items-center gap-2 mt-1">
 
-                    <p className="text-gray-900 dark:text-white">{lead.customData?.["Phone"] || 'N/A'}</p>
+                    <p className="text-gray-900 dark:text-white">{lead.customData?.["Phone"] || lead.customData?.phone || lead.customData?.contact || 'N/A'}</p>
 
-                    {lead.customData?.["Phone"] && (
+                    {(lead.customData?.["Phone"] || lead.customData?.phone || lead.customData?.contact) && (
 
-                      <Button size="xs" color="light" onClick={() => window.open(`tel:${lead.customData?.["Phone"]}`)}>
+                      <Button size="xs" color="light" onClick={() => window.open(`tel:${lead.customData?.["Phone"] || lead.customData?.phone || lead.customData?.contact}`)}>
 
                         <Icon icon="solar:phone-line-duotone" className="w-3 h-3" />
 
@@ -2198,7 +2199,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white text-sm">
 
-                    {lead.customData?.["Notes"] || 'No notes available'}
+                    {lead.customData?.["Notes"] || lead.customData?.notes || 'No notes available'}
 
                   </p>
 
@@ -2222,11 +2223,11 @@ const LeadDetailPage = () => {
 
                       color={
 
-                        lead.customData?.["Lead Priority"] === 'Hot' ? 'red' :
+                        (lead.customData?.["Lead Priority"] || lead.customData?.leadPriority) === 'Hot' ? 'red' :
 
-                          lead.customData?.["Lead Priority"] === 'Warm' ? 'orange' :
+                          (lead.customData?.["Lead Priority"] || lead.customData?.leadPriority) === 'Warm' ? 'orange' :
 
-                            lead.customData?.["Lead Priority"] === 'Cold' ? 'blue' : 'gray'
+                            (lead.customData?.["Lead Priority"] || lead.customData?.leadPriority) === 'Cold' ? 'blue' : 'gray'
 
                       }
 
@@ -2234,7 +2235,7 @@ const LeadDetailPage = () => {
 
                     >
 
-                      {lead.customData?.["Lead Priority"] || 'Not Set'}
+                      {lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || 'Not Set'}
 
                     </Badge>
 
@@ -2248,7 +2249,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white mt-1">
 
-                    {lead.customData?.["Property Type"] || 'N/A'}
+                    {lead.customData?.["Property Type"] || lead.customData?.propertyType || 'N/A'}
 
                   </p>
 
@@ -2266,7 +2267,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white mt-1">
 
-                    {lead.customData?.["Configuration"] || 'N/A'}
+                    {lead.customData?.["Configuration"] || lead.customData?.configuration || 'N/A'}
 
                   </p>
 
@@ -2278,7 +2279,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white mt-1">
 
-                    {lead.customData?.["Funding Mode"] || 'N/A'}
+                    {lead.customData?.["Funding Mode"] || lead.customData?.fundingMode || 'N/A'}
 
                   </p>
 
@@ -2296,7 +2297,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white mt-1">
 
-                    {lead.customData?.["Gender"] || 'N/A'}
+                    {lead.customData?.["Gender"] || lead.customData?.gender || 'N/A'}
 
                   </p>
 
@@ -2308,7 +2309,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white mt-1">
 
-                    {lead.customData?.["Budget"] || 'N/A'}
+                    {lead.customData?.["Budget"] || lead.customData?.budget || 'N/A'}
 
                   </p>
 
@@ -2385,6 +2386,43 @@ const LeadDetailPage = () => {
                                 <Icon icon="solar:calendar-line-duotone" className="text-gray-500 dark:text-gray-400" />
                                 <span className="text-gray-900 dark:text-white">
                                   {new Date(lead.customData[field.name]).toLocaleDateString()}
+                                </span>
+                              </div>
+                            ) : field.type === 'datetime' && lead.customData?.[field.name] ? (
+                              <div className="flex items-center gap-2">
+                                <Icon icon="solar:calendar-add-line-duotone" className="text-gray-500 dark:text-gray-400" />
+                                <span className="text-gray-900 dark:text-white">
+                                  {new Date(lead.customData[field.name]).toLocaleString('en-US', {
+                                    year: 'numeric',
+                                    month: 'short',
+                                    day: 'numeric',
+                                    hour: '2-digit',
+                                    minute: '2-digit',
+                                    hour12: true
+                                  })}
+                                </span>
+                              </div>
+                            ) : field.type === 'time' && lead.customData?.[field.name] ? (
+                              <div className="flex items-center gap-2">
+                                <Icon icon="solar:clock-circle-line-duotone" className="text-gray-500 dark:text-gray-400" />
+                                <span className="text-gray-900 dark:text-white">
+                                  {(() => {
+                                    try {
+                                      // Handle time-only values or datetime values
+                                      const timeValue = lead.customData[field.name];
+                                      if (timeValue.includes('T') || timeValue.includes(':')) {
+                                        const date = new Date(timeValue.includes('T') ? timeValue : `2000-01-01T${timeValue}`);
+                                        return date.toLocaleTimeString('en-US', {
+                                          hour: '2-digit',
+                                          minute: '2-digit',
+                                          hour12: true
+                                        });
+                                      }
+                                      return timeValue;
+                                    } catch {
+                                      return lead.customData[field.name];
+                                    }
+                                  })()}
                                 </span>
                               </div>
                             ) : field.type === 'number' && lead.customData?.[field.name] ? (
@@ -4024,7 +4062,7 @@ const LeadDetailPage = () => {
 
                   <span className="text-gray-600 dark:text-gray-400">Property Type:</span>
 
-                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Property Type"] || 'N/A'}</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Property Type"] || lead?.customData?.propertyType || 'N/A'}</span>
 
                 </div>
 
@@ -4032,7 +4070,7 @@ const LeadDetailPage = () => {
 
                   <span className="text-gray-600 dark:text-gray-400">Configuration:</span>
 
-                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Configuration"] || 'N/A'}</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Configuration"] || lead?.customData?.configuration || 'N/A'}</span>
 
                 </div>
 
@@ -4040,7 +4078,7 @@ const LeadDetailPage = () => {
 
                   <span className="text-gray-600 dark:text-gray-400">Funding Mode:</span>
 
-                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Funding Mode"] || 'N/A'}</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Funding Mode"] || lead?.customData?.fundingMode || 'N/A'}</span>
 
                 </div>
 
@@ -4048,7 +4086,7 @@ const LeadDetailPage = () => {
 
                   <span className="text-gray-600 dark:text-gray-400">Budget:</span>
 
-                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Budget"] || 'N/A'}</span>
+                  <span className="ml-2 text-gray-900 dark:text-white">{lead?.customData?.["Budget"] || lead?.customData?.budget || 'N/A'}</span>
 
                 </div>
 

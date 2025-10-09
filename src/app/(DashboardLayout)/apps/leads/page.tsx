@@ -8,6 +8,7 @@ import { API_ENDPOINTS, createRefreshEvent, API_BASE_URL } from "@/lib/config";
 import { useSearchParams, useRouter } from "next/navigation";
 import { PERMISSIONS } from "@/app/types/permissions";
 import { usePermissions } from "@/app/context/PermissionContext";
+import DateTimePicker from "@/components/DateTimePicker";
 
 const formatDateToDDMMYYYY = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0');
@@ -657,11 +658,11 @@ const LeadsPage = () => {
 
       return {
         ...lead,
-        name: `${lead.customData?.["First Name"] || ''}`.trim() || 'N/A',
-        email: lead.customData?.["Email"] || 'N/A',
-        phone: lead.customData?.["Phone"] || 'N/A',
+        name: lead.customData?.["First Name"] || lead.customData?.name || 'N/A',
+        email: lead.customData?.["Email"] || lead.customData?.email || 'N/A',
+        phone: lead.customData?.["Phone"] || lead.customData?.phone || lead.customData?.contact || 'N/A',
         company: 'N/A',
-        notes: lead.customData?.["Notes"] || '',
+        notes: lead.customData?.["Notes"] || lead.customData?.notes || '',
         source: sourceName,
         status: lead.currentStatus?._id || 'N/A',
         projectName: lead.project?.name || 'N/A',
@@ -973,16 +974,16 @@ const LeadsPage = () => {
           const statusUpdateBody = {
             newStatusId: formData.status, // new status id
             newData: { 
-              "First Name": editingLead.customData?.["First Name"] || 'N/A',
-              "Email": editingLead.customData?.["Email"] || editingLead.email || 'N/A',
-              "Phone": editingLead.customData?.["Phone"] || editingLead.phone || 'N/A',
-              "Notes": editingLead.customData?.["Notes"] || editingLead.notes || '',
-              "Lead Priority": editingLead.customData?.["Lead Priority"] || '',
-              "Property Type": editingLead.customData?.["Property Type"] || '',
-              "Configuration": editingLead.customData?.["Configuration"] || '',
-              "Funding Mode": editingLead.customData?.["Funding Mode"] || '',
-              "Gender": editingLead.customData?.["Gender"] || '',
-              "Budget": editingLead.customData?.["Budget"] || '',
+              "First Name": editingLead.customData?.["First Name"] || editingLead.customData?.name || editingLead.name || 'N/A',
+              "Email": editingLead.customData?.["Email"] || editingLead.customData?.email || editingLead.email || 'N/A',
+              "Phone": editingLead.customData?.["Phone"] || editingLead.customData?.phone || editingLead.customData?.contact || editingLead.phone || 'N/A',
+              "Notes": editingLead.customData?.["Notes"] || editingLead.customData?.notes || editingLead.notes || '',
+              "Lead Priority": editingLead.customData?.["Lead Priority"] || editingLead.customData?.leadPriority || '',
+              "Property Type": editingLead.customData?.["Property Type"] || editingLead.customData?.propertyType || '',
+              "Configuration": editingLead.customData?.["Configuration"] || editingLead.customData?.configuration || '',
+              "Funding Mode": editingLead.customData?.["Funding Mode"] || editingLead.customData?.fundingMode || '',
+              "Gender": editingLead.customData?.["Gender"] || editingLead.customData?.gender || '',
+              "Budget": editingLead.customData?.["Budget"] || editingLead.customData?.budget || '',
               "Remark": formData.remark || 'Status updated',
               ...dynamicFields // Include dynamic fields
             } // form data
@@ -1155,20 +1156,20 @@ const LeadsPage = () => {
       const requestBody = {
         newStatusId, // new status id
         newData: { 
-          "First Name": currentLead?.customData?.["First Name"] || '',
-          "Email": currentLead?.customData?.["Email"] || '',
-          "Phone": currentLead?.customData?.["Phone"] || '',
-          "Notes": currentLead?.customData?.["Notes"] || '',
-          "Lead Priority": currentLead?.customData?.["Lead Priority"] || '',
-          "Property Type": currentLead?.customData?.["Property Type"] || '',
-          "Configuration": currentLead?.customData?.["Configuration"] || '',
-          "Funding Mode": currentLead?.customData?.["Funding Mode"] || '',
-          "Gender": currentLead?.customData?.["Gender"] || '',
-          "Budget": currentLead?.customData?.["Budget"] || '',
+          "First Name": currentLead?.customData?.["First Name"] || currentLead?.customData?.name || '',
+          "Email": currentLead?.customData?.["Email"] || currentLead?.customData?.email || '',
+          "Phone": currentLead?.customData?.["Phone"] || currentLead?.customData?.phone || currentLead?.customData?.contact || '',
+          "Notes": currentLead?.customData?.["Notes"] || currentLead?.customData?.notes || '',
+          "Lead Priority": currentLead?.customData?.["Lead Priority"] || currentLead?.customData?.leadPriority || '',
+          "Property Type": currentLead?.customData?.["Property Type"] || currentLead?.customData?.propertyType || '',
+          "Configuration": currentLead?.customData?.["Configuration"] || currentLead?.customData?.configuration || '',
+          "Funding Mode": currentLead?.customData?.["Funding Mode"] || currentLead?.customData?.fundingMode || '',
+          "Gender": currentLead?.customData?.["Gender"] || currentLead?.customData?.gender || '',
+          "Budget": currentLead?.customData?.["Budget"] || currentLead?.customData?.budget || '',
           "Remark": remark || 'Status updated',
           // Include all dynamic fields from current lead's customData
           ...Object.keys(currentLead?.customData || {}).reduce((acc, key) => {
-            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget"].includes(key)) {
+            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget", "name", "email", "phone", "contact", "notes", "leadPriority", "propertyType", "configuration", "fundingMode", "gender", "budget"].includes(key)) {
               acc[key] = currentLead?.customData?.[key];
             }
             return acc;
@@ -1735,55 +1736,77 @@ const LeadsPage = () => {
 
   // Download sample template
   const handleDownloadLeadsTemplate = () => {
-    // Create a sample CSV template with userId (either as email or leave blank for auto-assignment)
+    // Create a sample CSV template matching the bulk upload guide
     const headers = [
-      'firstName',
-      'lastName',
+      'name',
+      'contact',
       'email',
-      'phone',
+      'userEmail',
+      'projectName',
       'leadSource',
-      'project',
-      'userId',
+      'channelPartnerName',
+      'channelPartnerPhone',
       'leadPriority',
       'propertyType',
-      'configuration',
       'fundingMode',
-      'gender',
-      'budget',
-      'notes'
+      'gender'
     ];
     const sampleData = [
       [
-        'John',
-        'Doe',
-        'john.doe@example.com',
+        'John Doe',
         '9876543210',
+        'john@example.com',
+        'sales@company.com',
+        'Skyline Towers',
         'Website',
-        'Project Name',
-        'user@example.com',
-        'Hot',
+        '',
+        '',
+        'High',
         'Residential',
-        '2 BHK',
-        'Self Funded',
-        'Male',
-        '50 Lakhs - 1 Crore',
-        'Interested in 2BHK apartment'
+        'Home Loan',
+        'Male'
       ],
       [
-        'Jane',
-        'Smith',
-        'jane.smith@example.com',
+        'Jane Smith',
         '9876543211',
+        'jane@example.com',
+        'sales@company.com',
+        'Green Valley',
         'Referral',
-        'Project Name',
-        'user@example.com',
-        'Warm',
+        '',
+        '',
+        'Medium',
         'Commercial',
-        'Commercial Office',
-        'Loan',
-        'Female',
-        '1-2 Crores',
-        'Looking for office space'
+        'Cash',
+        'Female'
+      ],
+      [
+        'Robert Johnson',
+        '9876543212',
+        'robert@example.com',
+        'manager@company.com',
+        'Ocean View',
+        'Channel Partner',
+        'ABC Realty',
+        '9999888877',
+        'Low',
+        'Residential',
+        'Bank Finance',
+        'Male'
+      ],
+      [
+        'Sarah Williams',
+        '9876543213',
+        'sarah@example.com',
+        'sales@company.com',
+        'Skyline Towers',
+        'Channel Partner',
+        '',
+        '9999888866',
+        'High',
+        'Residential',
+        'Home Loan',
+        'Female'
       ]
     ];
     
@@ -1797,7 +1820,7 @@ const LeadsPage = () => {
     const url = URL.createObjectURL(blob);
     
     link.setAttribute('href', url);
-    link.setAttribute('download', 'leads_template.csv');
+    link.setAttribute('download', 'leads_bulk_upload_template.csv');
     link.style.visibility = 'hidden';
     
     document.body.appendChild(link);
@@ -1853,12 +1876,12 @@ const LeadsPage = () => {
       projectId: lead.project?._id || '',
       userId: user?.id || '', // Always use current user's ID
       remark: '', // Reset remark for new status update
-      leadPriority: lead.customData?.["Lead Priority"] || '',
-      propertyType: lead.customData?.["Property Type"] || '',
-      configuration: lead.customData?.["Configuration"] || '',
-      fundingMode: lead.customData?.["Funding Mode"] || '',
-      gender: lead.customData?.["Gender"] || '',
-      budget: lead.customData?.["Budget"] || '',
+      leadPriority: lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || '',
+      propertyType: lead.customData?.["Property Type"] || lead.customData?.propertyType || '',
+      configuration: lead.customData?.["Configuration"] || lead.customData?.configuration || '',
+      fundingMode: lead.customData?.["Funding Mode"] || lead.customData?.fundingMode || '',
+      gender: lead.customData?.["Gender"] || lead.customData?.gender || '',
+      budget: lead.customData?.["Budget"] || lead.customData?.budget || '',
       channelPartner: lead.customData?.["Channel Partner"] || '',
       cpSourcingId: lead.customData?.["Channel Partner Sourcing"] || ''
     });
@@ -2600,12 +2623,12 @@ const LeadsPage = () => {
                         <Table.Cell>
                           <div className="text-sm">
                             <div className="font-medium text-gray-900 dark:text-white">
-                              {lead.user?.name || 'Unassigned'}
+                              {lead.user?.name && lead.user.name !== 'N/A' ? lead.user.name : 'Unassigned'}
                             </div>
                             <div className="text-gray-500 dark:text-gray-400 text-xs">
-                              {lead.user?.email || ''}
+                              {lead.user?.email && lead.user.email !== 'N/A' ? lead.user.email : ''}
                             </div>
-                            {lead.user?.role && (
+                            {lead.user?.role && lead.user.role !== 'N/A' && (
                               <div className="mt-1">
                                 <Badge color="blue" size="xs">
                                   {lead.user.role}
@@ -3013,7 +3036,7 @@ const LeadsPage = () => {
                             className="w-full"
                             disabled={!!editingLead}
                           />
-                        ) : field.type === 'tel' ? (
+                        ) : field.type === 'tel' || field.type === 'phone' ? (
                           <TextInput
                             id={field.name}
                             type="tel"
@@ -3048,6 +3071,26 @@ const LeadsPage = () => {
                               const currentStatus = leadStatuses.find(s => s._id === formData.status);
                               return currentStatus?.is_final_status === true;
                             })()}
+                          />
+                        ) : field.type === 'datetime' ? (
+                          <DateTimePicker
+                            id={field.name}
+                            type="datetime"
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
+                            placeholder={`Select ${field.name.toLowerCase()}...`}
+                            className="w-full"
+                            required={field.required}
+                          />
+                        ) : field.type === 'time' ? (
+                          <DateTimePicker
+                            id={field.name}
+                            type="time"
+                            value={dynamicFields[field.name] || ''}
+                            onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
+                            placeholder={`Select ${field.name.toLowerCase()}...`}
+                            className="w-full"
+                            required={field.required}
                           />
                         ) : field.type === 'textarea' ? (
                           <Textarea
@@ -3453,6 +3496,22 @@ const LeadsPage = () => {
         </Modal.Header>
         <Modal.Body>
           <div className="space-y-6">
+            {/* Prerequisites Warning */}
+            <div className="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 border border-yellow-200 dark:border-yellow-700">
+              <div className="flex items-start gap-3">
+                <Icon icon="solar:danger-triangle-line-duotone" className="w-5 h-5 text-yellow-600 dark:text-yellow-400 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-yellow-900 dark:text-yellow-100 mb-2">⚠️ Before You Upload</h4>
+                  <ul className="text-sm text-yellow-800 dark:text-yellow-200 space-y-1 list-disc list-inside">
+                    <li><strong>Create Lead Sources First:</strong> Go to Lead Sources page and create "Website", "Referral", etc.</li>
+                    <li><strong>Verify Projects:</strong> Ensure project names in CSV match existing projects exactly</li>
+                    <li><strong>Check User Emails:</strong> All user emails must be registered in the system</li>
+                    <li><strong>Channel Partners:</strong> Must exist if using Channel Partner lead source</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+
             {/* Instructions */}
             <div className="bg-blue-50 dark:bg-blue-900/20 rounded-lg p-4 border border-blue-200 dark:border-blue-700">
               <div className="flex items-start gap-3">
@@ -3461,11 +3520,14 @@ const LeadsPage = () => {
                   <h4 className="font-semibold text-blue-900 dark:text-blue-100 mb-2">Upload Instructions</h4>
                   <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
                     <li>Download the sample template to see the required format</li>
-                    <li>Fill in the lead details in the template</li>
-                    <li><strong>userId</strong>: Enter the user's email address (e.g., user@example.com) who will be assigned these leads</li>
-                    <li>Use exact names for: Lead Source, Project, Lead Priority, Property Type, Configuration, Funding Mode, Gender, Budget</li>
-                    <li>Save the file as CSV or Excel format</li>
-                    <li>Upload the completed file using the button below</li>
+                    <li><strong>Required:</strong> name (or firstName/lastName) and projectName (or projectId)</li>
+                    <li><strong>userEmail:</strong> Enter user's email to assign leads (defaults to you if blank)</li>
+                    <li><strong>Smart Detection:</strong> Use names instead of IDs (projectName, channelPartnerName)</li>
+                    <li><strong>Lead Source:</strong> Website, Referral, or Channel Partner (defaults to Channel Partner)</li>
+                    <li><strong>Channel Partner Lookup:</strong> Provide channelPartnerPhone (searched first) or channelPartnerName</li>
+                    <li><strong>Phone Priority:</strong> If both phone and name are provided, phone is used first for matching</li>
+                    <li>Supports CSV (.csv) and Excel (.xls, .xlsx) formats</li>
+                    <li>See LEAD_BULK_UPLOAD_GUIDE.md for complete field documentation</li>
                   </ul>
                 </div>
               </div>

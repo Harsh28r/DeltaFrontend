@@ -1,0 +1,5 @@
+name,contact,email,userEmail,projectName,leadSource,channelPartnerName,channelPartnerPhone,leadPriority,propertyType,fundingMode,gender
+John Doe,9876543210,john@example.com,sales@company.com,Skyline Towers,Website,,,High,Residential,Home Loan,Male
+Jane Smith,9876543211,jane@example.com,sales@company.com,Green Valley,Referral,,,Medium,Commercial,Cash,Female
+Robert Johnson,9876543212,robert@example.com,manager@company.com,Ocean View,Channel Partner,ABC Realty,9999888877,Low,Residential,Bank Finance,Male
+Sarah Williams,9876543213,sarah@example.com,sales@company.com,Skyline Towers,Channel Partner,,9999888866,High,Residential,Home Loan,Female

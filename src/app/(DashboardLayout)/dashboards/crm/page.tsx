@@ -78,21 +78,34 @@ interface Lead {
     is_final_status: boolean;
   };
   customData: {
-    "First Name": string;
+    "First Name"?: string;
     "Last Name"?: string;
-    Email: string;
-    Phone: string;
-    "Lead Priority": string;
-    "Property Type": string;
-    Configuration: string;
-    "Funding Mode": string;
-    Gender: string;
-    Budget: string;
+    Email?: string;
+    Phone?: string;
+    "Lead Priority"?: string;
+    "Property Type"?: string;
+    Configuration?: string;
+    "Funding Mode"?: string;
+    Gender?: string;
+    Budget?: string;
     Notes?: string;
     Remark?: string;
     "Booking Date"?: string;
     "Channel Partner"?: string;
     "Channel Partner Sourcing"?: string;
+    // Bulk upload lowercase fields
+    name?: string;
+    email?: string;
+    phone?: string;
+    contact?: string;
+    leadPriority?: string;
+    propertyType?: string;
+    configuration?: string;
+    fundingMode?: string;
+    gender?: string;
+    budget?: string;
+    notes?: string;
+    [key: string]: any; // Allow any additional fields
   };
   cpSourcingId: string | {
     _id: string;
@@ -176,18 +189,23 @@ interface FollowUp {
   };
   lead: {
     id: string;
-    status: string;
-    customData: {
-      "First Name": string;
+    status?: string; // This is the lead status name like "New", "Negotiation", etc.
+    statusId?: string; // This is the status ID
+    currentStatus?: {
+      _id: string;
+      name: string;
+    };
+    customData?: {
+      "First Name"?: string;
       "Last Name"?: string;
-      Email: string;
-      Phone: string;
-      "Lead Priority": string;
-      "Property Type": string;
-      Configuration: string;
-      "Funding Mode": string;
-      Gender: string;
-      Budget: string;
+      Email?: string;
+      Phone?: string;
+      "Lead Priority"?: string;
+      "Property Type"?: string;
+      Configuration?: string;
+      "Funding Mode"?: string;
+      Gender?: string;
+      Budget?: string;
       Notes?: string;
       Remark?: string;
       "Booking Date"?: string;
@@ -198,6 +216,19 @@ interface FollowUp {
       "Call Back Date"?: string;
       "Visit Date"?: string;
       "Summary of the conversation"?: string;
+      // Bulk upload lowercase fields
+      name?: string;
+      email?: string;
+      phone?: string;
+      contact?: string;
+      leadPriority?: string;
+      propertyType?: string;
+      configuration?: string;
+      fundingMode?: string;
+      gender?: string;
+      budget?: string;
+      notes?: string;
+      [key: string]: any;
     };
     project: string;
     assignedTo: {
@@ -623,42 +654,59 @@ const CrmDashboard = () => {
   // Filtered follow-ups functions
   const getFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
-    const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => followUp.lead.status === todayFilter);
+    const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
+    );
     return showMoreToday ? filtered : filtered.slice(0, 2);
   };
 
   const getFilteredTomorrowsFollowUps = () => {
     const tomorrowsFollowUps = getTomorrowsFollowUps();
-    const filtered = tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => followUp.lead.status === tomorrowFilter);
+    const filtered = tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
+    );
     return showMoreTomorrow ? filtered : filtered.slice(0, 2);
   };
 
   const getFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
-    const filtered = pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => followUp.lead.status === pendingFilter);
+    const filtered = pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === pendingFilter
+    );
     return showMorePending ? filtered : filtered.slice(0, 2);
   };
 
   // Get total filtered counts (without limit)
   const getTotalFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
-    return todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => followUp.lead.status === todayFilter);
+    return todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
+    );
   };
 
   const getTotalFilteredTomorrowsFollowUps = () => {
     const tomorrowsFollowUps = getTomorrowsFollowUps();
-    return tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => followUp.lead.status === tomorrowFilter);
+    return tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
+    );
   };
 
   const getTotalFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
-    return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => followUp.lead.status === pendingFilter);
+    return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === pendingFilter
+    );
   };
 
   // Get unique statuses for filter options
   const getUniqueStatuses = () => {
     if (!followUps?.followUps) return [];
-    const statuses = new Set(followUps.followUps.map(followUp => followUp.lead.status));
+    const statuses = new Set(
+      followUps.followUps
+        .filter(followUp => followUp.lead) // Filter out null leads
+        .map(followUp => followUp.lead.status || followUp.lead.currentStatus?.name) // Get status name
+        .filter(status => status) // Remove null/undefined values
+    );
     return Array.from(statuses).sort();
   };
 
@@ -841,12 +889,12 @@ const CrmDashboard = () => {
                 >
                   <div className="h-8 w-8 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
                     <span className="text-white text-sm font-semibold">
-                      {(lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
+                      {(lead.customData?.["First Name"] || lead.customData?.name || 'U').charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
                     <p className="font-medium text-gray-900 dark:text-white">
-                      {lead.customData?.["First Name"] || 'Unknown'} - {lead.project.name}
+                      {lead.customData?.["First Name"] || lead.customData?.name || 'Unknown'} - {lead.project.name}
                     </p>
                     <p className="text-xs text-gray-500 dark:text-gray-400">
                       Follow-up: {(lead.customData as any)?.["Follow-up Date"] || (lead.customData as any)?.["Booking Date"]}
@@ -1084,7 +1132,7 @@ const CrmDashboard = () => {
             icon=""
             data={(() => {
               const priorityCounts = leads.reduce((acc, lead) => {
-                const priority = lead.customData["Lead Priority"];
+                const priority = lead.customData["Lead Priority"] || lead.customData.leadPriority || 'Not Set';
                 acc[priority] = (acc[priority] || 0) + 1;
                 return acc;
               }, {} as Record<string, number>);
@@ -1102,19 +1150,19 @@ const CrmDashboard = () => {
           <div className="mt-4 grid grid-cols-3 gap-4">
             <div className="text-center p-3 bg-red-50 dark:bg-red-900 rounded-lg">
               <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                {leads.filter(lead => lead.customData["Lead Priority"] === 'Hot').length}
+                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Hot').length}
               </p>
               <p className="text-xs text-red-700 dark:text-red-200">Hot Leads</p>
             </div>
             <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900 rounded-lg">
               <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {leads.filter(lead => lead.customData["Lead Priority"] === 'Warm').length}
+                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Warm').length}
               </p>
               <p className="text-xs text-yellow-700 dark:text-yellow-200">Warm Leads</p>
             </div>
             <div className="text-center p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
               <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {leads.filter(lead => lead.customData["Lead Priority"] === 'Cold').length}
+                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Cold').length}
               </p>
               <p className="text-xs text-blue-700 dark:text-blue-200">Cold Leads</p>
             </div>
@@ -1186,7 +1234,7 @@ const CrmDashboard = () => {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Hot Leads</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => lead.customData["Lead Priority"] === 'Hot').length}
+                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Hot').length}
               </p>
             </div>
             <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
@@ -1220,7 +1268,7 @@ const CrmDashboard = () => {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">High Value Leads</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => lead.customData.Budget === 'Above 5 Crores').length}
+                {leads.filter(lead => (lead.customData.Budget || lead.customData.budget) === 'Above 5 Crores').length}
               </p>
             </div>
             <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-full">
@@ -1452,34 +1500,30 @@ const CrmDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredTodaysFollowUps().map(followUp => (
+                  {getFilteredTodaysFollowUps().filter(followUp => followUp.lead).map(followUp => (
                     <tr 
                       key={followUp.id} 
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
                           <div className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center">
                             <span className="text-white font-semibold text-xs">
-                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
+                              {(followUp.lead.customData?.["First Name"] || followUp.lead.customData?.name || 'U').charAt(0).toUpperCase()}
                             </span>
                           </div>
                           <span className="font-medium text-gray-900 dark:text-white">
-                            {followUp.lead.customData?.["First Name"] || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
+                            {followUp.lead.customData?.["First Name"] || followUp.lead.customData?.name || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
                           </span>
                         </div>
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || 'N/A'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
                       <td className="px-2 py-2">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          followUp.lead.status === 'Hot' ? 'bg-red-100 text-red-800' :
-                          followUp.lead.status === 'Warm' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {followUp.lead.status}
+                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
@@ -1491,7 +1535,7 @@ const CrmDashboard = () => {
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
                         {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
                       </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || 'N/A'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1560,11 +1604,11 @@ const CrmDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredTomorrowsFollowUps().map(followUp => (
+                  {getFilteredTomorrowsFollowUps().filter(followUp => followUp.lead).map(followUp => (
                     <tr 
                       key={followUp.id} 
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
@@ -1580,14 +1624,10 @@ const CrmDashboard = () => {
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || 'N/A'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
                       <td className="px-2 py-2">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          followUp.lead.status === 'Hot' ? 'bg-red-100 text-red-800' :
-                          followUp.lead.status === 'Warm' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {followUp.lead.status}
+                        <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
+                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
@@ -1599,7 +1639,7 @@ const CrmDashboard = () => {
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
                         {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
                       </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || 'N/A'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1668,11 +1708,11 @@ const CrmDashboard = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredPendingFollowUps().map(followUp => (
+                  {getFilteredPendingFollowUps().filter(followUp => followUp.lead).map(followUp => (
                     <tr 
                       key={followUp.id} 
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
@@ -1688,14 +1728,10 @@ const CrmDashboard = () => {
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || 'N/A'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
                       <td className="px-2 py-2">
-                        <span className={`px-2 py-1 text-xs rounded-full ${
-                          followUp.lead.status === 'Hot' ? 'bg-red-100 text-red-800' :
-                          followUp.lead.status === 'Warm' ? 'bg-yellow-100 text-yellow-800' :
-                          'bg-blue-100 text-blue-800'
-                        }`}>
-                          {followUp.lead.status}
+                        <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
@@ -1707,7 +1743,7 @@ const CrmDashboard = () => {
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
                         {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
                       </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || 'N/A'}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -1756,24 +1792,24 @@ const CrmDashboard = () => {
                 <div className="flex items-center gap-4">
                   <div className="h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
                     <span className="text-white font-bold text-2xl">
-                      {(selectedLead?.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
+                      {(selectedLead?.customData?.["First Name"] || selectedLead?.customData?.name || 'U').charAt(0).toUpperCase()}
                     </span>
                   </div>
                   <div>
                     <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {selectedLead?.customData?.["First Name"] || 'Unknown'} {selectedLead?.customData?.["Last Name"] || ''}
+                      {selectedLead?.customData?.["First Name"] || selectedLead?.customData?.name || 'Unknown'} {selectedLead?.customData?.["Last Name"] || ''}
                     </h3>
                     <p className="text-gray-600 dark:text-gray-400 text-lg">{selectedLead?.project.name}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge color="info" size="sm">{selectedLead?.currentStatus.name}</Badge>
                       <Badge 
                         color={
-                          selectedLead?.customData?.["Lead Priority"] === 'Hot' ? 'failure' :
-                          selectedLead?.customData?.["Lead Priority"] === 'Warm' ? 'warning' : 'success'
+                          (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Hot' ? 'failure' :
+                          (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Warm' ? 'warning' : 'success'
                         } 
                         size="sm"
                       >
-                        {selectedLead?.customData?.["Lead Priority"] || 'Low'} Priority
+                        {selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority || 'Low'} Priority
                       </Badge>
                     </div>
                   </div>
@@ -1790,11 +1826,11 @@ const CrmDashboard = () => {
                   <div className="space-y-2">
                     <div>
                       <span className="text-sm text-gray-600 dark:text-gray-400">Phone:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Phone"] || 'N/A'}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Phone"] || selectedLead?.customData?.phone || selectedLead?.customData?.contact || 'N/A'}</p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600 dark:text-gray-400">Email:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Email"] || 'N/A'}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Email"] || selectedLead?.customData?.email || 'N/A'}</p>
                     </div>
                     <div>
                       <span className="text-sm text-gray-600 dark:text-gray-400">Assigned To:</span>
@@ -1817,10 +1853,10 @@ const CrmDashboard = () => {
                       <span className="text-sm text-gray-600 dark:text-gray-400">Lead Source:</span>
                       <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.leadSource.name}</p>
                     </div>
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Property Type:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Property Type"] || 'N/A'}</p>
-                    </div>
+                  <div>
+                    <span className="text-sm text-gray-600 dark:text-gray-400">Property Type:</span>
+                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Property Type"] || selectedLead?.customData?.propertyType || 'N/A'}</p>
+                  </div>
                   </div>
                 </div>
               </div>
@@ -1834,19 +1870,19 @@ const CrmDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Configuration:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Configuration"] || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Configuration"] || selectedLead?.customData?.configuration || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Funding Mode:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Funding Mode"] || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Funding Mode"] || selectedLead?.customData?.fundingMode || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Budget:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Budget"] || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Budget"] || selectedLead?.customData?.budget || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Gender:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Gender"] || 'N/A'}</p>
+                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Gender"] || selectedLead?.customData?.gender || 'N/A'}</p>
                   </div>
                   <div>
                     <span className="text-sm text-gray-600 dark:text-gray-400">Created:</span>
@@ -1867,7 +1903,7 @@ const CrmDashboard = () => {
                     Notes
                   </h4>
                   <p className="text-gray-700 dark:text-gray-300">
-                    {selectedLead?.customData?.["Notes"] || selectedLead?.customData?.["Remark"] || 'No notes available'}
+                    {selectedLead?.customData?.["Notes"] || selectedLead?.customData?.notes || selectedLead?.customData?.["Remark"] || 'No notes available'}
                   </p>
                 </div>
               )}
