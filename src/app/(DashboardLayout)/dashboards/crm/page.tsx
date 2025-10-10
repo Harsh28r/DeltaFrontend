@@ -250,17 +250,17 @@ interface FollowUp {
 }
 
 interface FollowUpsData {
-  followUps: FollowUp[];
-  pagination: {
-    currentPage: number;
-    totalPages: number;
-    totalItems: number;
-    limit: number;
+  followUps: {
+    today: FollowUp[];
+    tomorrow: FollowUp[];
+    upcoming: FollowUp[];
+    pending: FollowUp[];
   };
   summary: {
     total: number;
     type: string;
   };
+  timestamp?: string;
 }
 
 interface FollowUpsStats {
@@ -316,11 +316,13 @@ const CrmDashboard = () => {
   // Filter states for each section
   const [todayFilter, setTodayFilter] = useState<string>('all');
   const [tomorrowFilter, setTomorrowFilter] = useState<string>('all');
+  const [upcomingFilter, setUpcomingFilter] = useState<string>('all');
   const [pendingFilter, setPendingFilter] = useState<string>('all');
   
   // Show more states for each section
   const [showMoreToday, setShowMoreToday] = useState(false);
   const [showMoreTomorrow, setShowMoreTomorrow] = useState(false);
+  const [showMoreUpcoming, setShowMoreUpcoming] = useState(false);
   const [showMorePending, setShowMorePending] = useState(false);
 
   // Fetch dashboard data
@@ -611,44 +613,29 @@ const CrmDashboard = () => {
     });
   };
 
-  // Helper functions for follow-ups categorization
+  // Helper functions for follow-ups categorization - Backend already categorizes them
   const getTodaysFollowUps = () => {
-    if (!followUps?.followUps) return [];
-    const today = new Date();
-    return followUps.followUps.filter(followUp => {
-      const followUpDate = new Date(followUp.dateTime.iso);
-      return followUpDate.toDateString() === today.toDateString();
-    });
+    const todayArray = followUps?.followUps?.today;
+    if (!todayArray || !Array.isArray(todayArray)) return [];
+    return todayArray;
   };
 
   const getTomorrowsFollowUps = () => {
-    if (!followUps?.followUps) return [];
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return followUps.followUps.filter(followUp => {
-      const followUpDate = new Date(followUp.dateTime.iso);
-      return followUpDate.toDateString() === tomorrow.toDateString();
-    });
+    const tomorrowArray = followUps?.followUps?.tomorrow;
+    if (!tomorrowArray || !Array.isArray(tomorrowArray)) return [];
+    return tomorrowArray;
+  };
+
+  const getUpcomingFollowUps = () => {
+    const upcomingArray = followUps?.followUps?.upcoming;
+    if (!upcomingArray || !Array.isArray(upcomingArray)) return [];
+    return upcomingArray;
   };
 
   const getPendingFollowUps = () => {
-    if (!followUps?.followUps) return [];
-    const today = new Date();
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    return followUps.followUps.filter(followUp => {
-      const followUpDate = new Date(followUp.dateTime.iso);
-      return followUpDate > tomorrow;
-    });
-  };
-
-  const getOverdueFollowUps = () => {
-    if (!followUps?.followUps) return [];
-    const today = new Date();
-    return followUps.followUps.filter(followUp => {
-      const followUpDate = new Date(followUp.dateTime.iso);
-      return followUpDate < today;
-    });
+    const pendingArray = followUps?.followUps?.pending;
+    if (!pendingArray || !Array.isArray(pendingArray)) return [];
+    return pendingArray;
   };
 
   // Filtered follow-ups functions
@@ -666,6 +653,14 @@ const CrmDashboard = () => {
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
     );
     return showMoreTomorrow ? filtered : filtered.slice(0, 2);
+  };
+
+  const getFilteredUpcomingFollowUps = () => {
+    const upcomingFollowUps = getUpcomingFollowUps();
+    const filtered = upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === upcomingFilter
+    );
+    return showMoreUpcoming ? filtered : filtered.slice(0, 2);
   };
 
   const getFilteredPendingFollowUps = () => {
@@ -691,6 +686,13 @@ const CrmDashboard = () => {
     );
   };
 
+  const getTotalFilteredUpcomingFollowUps = () => {
+    const upcomingFollowUps = getUpcomingFollowUps();
+    return upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp => 
+      followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === upcomingFilter
+    );
+  };
+
   const getTotalFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
     return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
@@ -701,8 +703,17 @@ const CrmDashboard = () => {
   // Get unique statuses for filter options
   const getUniqueStatuses = () => {
     if (!followUps?.followUps) return [];
+    
+    // Combine all follow-ups from all categories since backend returns categorized data
+    const allFollowUps = [
+      ...(Array.isArray(followUps.followUps.today) ? followUps.followUps.today : []),
+      ...(Array.isArray(followUps.followUps.tomorrow) ? followUps.followUps.tomorrow : []),
+      ...(Array.isArray(followUps.followUps.upcoming) ? followUps.followUps.upcoming : []),
+      ...(Array.isArray(followUps.followUps.pending) ? followUps.followUps.pending : [])
+    ];
+    
     const statuses = new Set(
-      followUps.followUps
+      allFollowUps
         .filter(followUp => followUp.lead) // Filter out null leads
         .map(followUp => followUp.lead.status || followUp.lead.currentStatus?.name) // Get status name
         .filter(status => status) // Remove null/undefined values
@@ -1669,13 +1680,117 @@ const CrmDashboard = () => {
             )}
           </div>
 
-          {/* Pending Follow-ups */}
+          {/* Upcoming Follow-ups (after tomorrow) */}
           <div className="border-l-4 border-blue-500 pl-4">
             <div className="flex items-center justify-between mb-3">
               <div className="flex items-center gap-2">
-                <Icon icon="solar:clock-circle-line-duotone" className="text-blue-500 text-lg" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Pending Follow-ups</h3>
-                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredPendingFollowUps().length}</span>
+                <Icon icon="solar:calendar-mark-line-duotone" className="text-blue-500 text-lg" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Follow-ups</h3>
+                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredUpcomingFollowUps().length}</span>
+              </div>
+              <div className="flex items-center gap-2">
+                <Label htmlFor="upcomingFilter" value="Filter by Status:" className="text-sm text-gray-600 dark:text-gray-400" />
+                <Select
+                  id="upcomingFilter"
+                  value={upcomingFilter}
+                  onChange={(e) => setUpcomingFilter(e.target.value)}
+                  className="w-32"
+                >
+                  <option value="all">All Status</option>
+                  {getUniqueStatuses().map(status => (
+                    <option key={status} value={status}>{status}</option>
+                  ))}
+                </Select>
+              </div>
+            </div>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50 dark:bg-gray-800">
+                  <tr>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Assigned To</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Processed By</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Mobile</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Next Schedule</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comment</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Email</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
+                  {getFilteredUpcomingFollowUps().filter(followUp => followUp.lead).map(followUp => (
+                    <tr 
+                      key={followUp.id} 
+                      className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
+                    >
+                      <td className="px-2 py-2">
+                        <div className="flex items-center gap-2">
+                          <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
+                            <span className="text-white font-semibold text-xs">
+                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
+                            </span>
+                          </div>
+                          <span className="font-medium text-gray-900 dark:text-white">
+                            {followUp.lead.customData?.["First Name"] || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
+                          </span>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
+                      <td className="px-2 py-2">
+                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
+                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
+                        <div>
+                          <div className="font-medium">{followUp.dateTime.date}</div>
+                          <div className="text-xs text-gray-500">{followUp.dateTime.time}</div>
+                        </div>
+                      </td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
+                        {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
+                      </td>
+                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              
+              {getFilteredUpcomingFollowUps().length === 0 && (
+                <div className="text-center py-8">
+                  <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
+                  <p className="text-gray-500 dark:text-gray-400">No upcoming follow-ups!</p>
+                </div>
+              )}
+            </div>
+            
+            {/* Show More Button for Upcoming Follow-ups */}
+            {getTotalFilteredUpcomingFollowUps().length > 2 && (
+              <div className="mt-4 text-center">
+                <Button
+                  color="light"
+                  size="sm"
+                  onClick={() => setShowMoreUpcoming(!showMoreUpcoming)}
+                  className="flex items-center gap-2 mx-auto"
+                >
+                  <Icon icon={showMoreUpcoming ? "solar:arrow-up-line-duotone" : "solar:arrow-down-line-duotone"} className="text-sm" />
+                  {showMoreUpcoming ? 'Show Less' : `Show More (${getTotalFilteredUpcomingFollowUps().length - 2} more)`}
+                </Button>
+              </div>
+            )}
+          </div>
+
+          {/* Pending Follow-ups (Overdue) */}
+          <div className="border-l-4 border-orange-500 pl-4">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Icon icon="solar:danger-triangle-line-duotone" className="text-orange-500 text-lg" />
+                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Pending Follow-ups (Overdue)</h3>
+                <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredPendingFollowUps().length}</span>
               </div>
               <div className="flex items-center gap-2">
                 <Label htmlFor="pendingFilter" value="Filter by Status:" className="text-sm text-gray-600 dark:text-gray-400" />
@@ -1716,7 +1831,7 @@ const CrmDashboard = () => {
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
+                          <div className="h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center">
                             <span className="text-white font-semibold text-xs">
                               {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
                             </span>
@@ -1730,14 +1845,14 @@ const CrmDashboard = () => {
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
                       <td className="px-2 py-2">
-                        <span className="px-2 py-1 text-xs rounded-full bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200">
+                        <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
                           {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
                         </span>
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
                         <div>
-                          <div className="font-medium">{followUp.dateTime.date}</div>
-                          <div className="text-xs text-gray-500">{followUp.dateTime.time}</div>
+                          <div className="font-medium text-orange-600 dark:text-orange-400">{followUp.dateTime.date}</div>
+                          <div className="text-xs text-orange-500 dark:text-orange-500">{followUp.dateTime.time}</div>
                         </div>
                       </td>
                       <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
@@ -1752,7 +1867,7 @@ const CrmDashboard = () => {
               {getFilteredPendingFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
-                  <p className="text-gray-500 dark:text-gray-400">No pending follow-ups!</p>
+                  <p className="text-gray-500 dark:text-gray-400">No overdue follow-ups!</p>
                 </div>
               )}
             </div>

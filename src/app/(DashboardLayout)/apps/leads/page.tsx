@@ -171,8 +171,20 @@ const LeadsPage = () => {
   const [isLoading, setIsLoading] = useState(true);
   
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
+  // Close export menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      const target = event.target as HTMLElement;
+      if (showExportMenu && !target.closest('.export-menu-container')) {
+        setShowExportMenu(false);
+      }
+    };
 
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [showExportMenu]);
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterSource, setFilterSource] = useState<string>("all");
@@ -462,33 +474,41 @@ const LeadsPage = () => {
     }
   };
 
-  const fetchAllCPSourcingUsers = async () => {
-    if (!token) return;
+  // const fetchAllCPSourcingUsers = async () => {
+  //   if (!token) return;
 
-    try {
-      const response = await fetch(API_ENDPOINTS.CP_SOURCING_UNIQUE_USERS_ALL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
+  //   try {
+  //     const response = await fetch(API_ENDPOINTS.CP_SOURCING_UNIQUE_USERS_ALL, {
+  //       headers: { Authorization: `Bearer ${token}` },
+  //     });
 
-      if (response.ok) {
-        const data = await response.json();
-        setCPSourcingOptions(Array.isArray(data) ? data : []);
-      } else {
-        console.error('Failed to fetch all CP sourcing users:', response.statusText);
-        setCPSourcingOptions([]);
-      }
-    } catch (error) {
-      console.error('Error fetching all CP sourcing users:', error);
-      setCPSourcingOptions([]);
-    }
-  };
+  //     if (response.ok) {
+  //       const data = await response.json();
+  //       setCPSourcingOptions(Array.isArray(data) ? data : []);
+  //     } else {
+  //       console.error('Failed to fetch all CP sourcing users:', response.statusText);
+  //       setCPSourcingOptions([]);
+  //     }
+  //   } catch (error) {
+  //     console.error('Error fetching all CP sourcing users:', error);
+  //     setCPSourcingOptions([]);
+  //   }
+  // };
 
   const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSource = e.target.value;
     
+    console.log('🔍 Source changed:', {
+      newSource,
+      selectedSourceName: leadSources.find(s => s._id === newSource)?.name || 'Unknown',
+      allLeadSources: leadSources.map(s => ({ id: s._id, name: s.name }))
+    });
+    
     // Check if the selected source is a channel partner (either by ID or manual value)
     const isChannelPartner = newSource === 'channel-partner' || 
       leadSources.some(source => source._id === newSource && source.name.toLowerCase() === 'channel partner');
+    
+    console.log('🔍 Is Channel Partner:', isChannelPartner);
     
     // Single functional update to prevent stale overwrites
     setFormData(prev => ({ 
@@ -608,47 +628,67 @@ const LeadsPage = () => {
 
   const transformLeadData = (leadsData: any[]): Lead[] => {
     return leadsData.map(lead => {
-      // Determine source name prioritizing top-level relations first
+      // Determine source name - PRIORITIZE leadSource field first
       let sourceName = 'N/A';
 
-      // Prefer top-level populated channelPartner
-      if (lead.channelPartner) {
+      // First check if leadSource exists and is NOT Channel Partner
+      if (lead.leadSource?._id) {
+        const leadSourceName = lead.leadSource?.name || '';
+        
+        // If the lead source is "Channel Partner", then show channel partner details
+        if (leadSourceName.toLowerCase() === 'channel partner') {
+          // Show detailed channel partner info
+          if (lead.channelPartner) {
+            const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
+            const cpName = cpObj?.name;
+            if (cpName) {
+              sourceName = `Channel Partner: ${cpName}`;
+            } else {
+              // fallback to custom data id mapping
+              const cpIdFromCustom = lead.customData?.["Channel Partner"];
+              const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+              if (cp) sourceName = `Channel Partner: ${cp.name}`;
+              else sourceName = 'Channel Partner';
+            }
+
+            // Append sourcing info if available
+            const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+            if (cpSourcingRef) {
+              let cpSourcing: any = null;
+              if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
+                cpSourcing = cpSourcingRef;
+                // Check if it has userId.name (new format)
+                if (cpSourcing.userId && cpSourcing.userId.name) {
+                  sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
+                } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
+                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+                }
+              } else {
+                cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
+                if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
+                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+                }
+              }
+            }
+          } else {
+            // No channel partner details, just show the source name
+            sourceName = leadSourceName;
+          }
+        } else {
+          // It's a regular source (Website, Newspaper, etc.) - just use the name
+          sourceName = leadSourceName;
+        }
+      } else if (lead.channelPartner) {
+        // Legacy case: channel partner exists but no leadSource field
         const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
         const cpName = cpObj?.name;
         if (cpName) {
           sourceName = `Channel Partner: ${cpName}`;
         } else {
-          // fallback to custom data id mapping
-          const cpIdFromCustom = lead.customData?.["Channel Partner"];
-          const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
-          if (cp) sourceName = `Channel Partner: ${cp.name}`;
-          else sourceName = 'Channel Partner';
+          sourceName = 'Channel Partner';
         }
-
-        // Append sourcing info if available
-        const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
-        if (cpSourcingRef) {
-          let cpSourcing: any = null;
-          if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
-            cpSourcing = cpSourcingRef;
-            // Check if it has userId.name (new format)
-            if (cpSourcing.userId && cpSourcing.userId.name) {
-              sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
-            } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
-              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
-            }
-          } else {
-            cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
-            if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
-              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
-            }
-          }
-        }
-      } else if (lead.leadSource?._id) {
-        // Regular lead source
-        sourceName = lead.leadSource?.name || 'N/A';
       } else {
-        // Final fallback: infer from customData if present
+        // Final fallback: check customData
         const cpIdFromCustom = lead.customData?.["Channel Partner"];
         if (cpIdFromCustom) {
           const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
@@ -799,7 +839,7 @@ const LeadsPage = () => {
         const channelPartnersData = await channelPartnersResponse.json();
         const partners = channelPartnersData.channelPartners || channelPartnersData || [];
         setChannelPartners(partners);
-        await fetchAllCPSourcingUsers(); // Fetch all CP sourcing users
+        // await fetchAllCPSourcingUsers(); // Fetch all CP sourcing users
       }
 
       // Fetch CP sourcing options - will be fetched dynamically when channel partner is selected
@@ -1021,6 +1061,10 @@ const LeadsPage = () => {
           }
         } else {
           // Regular lead update (no status change)
+          // Check if the selected source is a channel partner
+          const isChannelPartnerSource = formData.source === 'channel-partner' || 
+            leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
+          
         const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
           method: 'PUT',
           headers: {
@@ -1031,9 +1075,9 @@ const LeadsPage = () => {
             // Always send the selected lead source id (do not replace with CP id)
             leadSource: formData.source,
             currentStatus: formData.status,
-            // Send CP details only if provided
-            channelPartner: formData.channelPartner || undefined,
-            cpSourcingId: formData.cpSourcingId || undefined,
+            // Only send CP details if the source is channel partner
+            ...(isChannelPartnerSource && formData.channelPartner ? { channelPartner: formData.channelPartner } : {}),
+            ...(isChannelPartnerSource && formData.cpSourcingId ? { cpSourcingId: formData.cpSourcingId } : {}),
             customData: {
               "First Name": formData.name.split(' ')[0] || formData.name,
               "Email": formData.email,
@@ -1045,6 +1089,9 @@ const LeadsPage = () => {
               "Funding Mode": formData.fundingMode,
               "Gender": formData.gender,
               "Budget": formData.budget,
+              // Only add channel partner to customData if the source is channel partner
+              ...(isChannelPartnerSource && formData.channelPartner ? { "Channel Partner": formData.channelPartner } : {}),
+              ...(isChannelPartnerSource && formData.cpSourcingId ? { "Channel Partner Sourcing": formData.cpSourcingId } : {}),
               ...dynamicFields // Include dynamic fields
             },
               userId: formData.userId
@@ -1068,13 +1115,18 @@ const LeadsPage = () => {
         }
       } else {
         // Create new lead
+        // Check if the selected source is a channel partner
+        const isChannelPartnerSource = formData.source === 'channel-partner' || 
+          leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
+        
         const requestBody = {
           // Always send the selected lead source id (do not replace with CP id)
           leadSource: formData.source,
           currentStatus: formData.status,
           project: formData.projectId, // Add required project field
-          channelPartner: formData.channelPartner || undefined,
-          cpSourcingId: formData.cpSourcingId || undefined,
+          // Only include channel partner fields if the source is actually channel partner
+          ...(isChannelPartnerSource && formData.channelPartner ? { channelPartner: formData.channelPartner } : {}),
+          ...(isChannelPartnerSource && formData.cpSourcingId ? { cpSourcingId: formData.cpSourcingId } : {}),
           customData: {
             "First Name": formData.name.split(' ')[0] || formData.name,
             "Email": formData.email,
@@ -1086,18 +1138,21 @@ const LeadsPage = () => {
             "Funding Mode": formData.fundingMode,
             "Gender": formData.gender,
             "Budget": formData.budget,
-            // Add channel partner and CP sourcing IDs to customData for proper display
-            "Channel Partner": formData.channelPartner || undefined,
-            "Channel Partner Sourcing": formData.cpSourcingId || undefined,
+            // Only add channel partner to customData if the source is channel partner
+            ...(isChannelPartnerSource && formData.channelPartner ? { "Channel Partner": formData.channelPartner } : {}),
+            ...(isChannelPartnerSource && formData.cpSourcingId ? { "Channel Partner Sourcing": formData.cpSourcingId } : {}),
             ...dynamicFields // Include dynamic fields
           },
           userId: formData.userId
         };
         
-        console.log('Creating new lead with CP data:', {
+        console.log('Creating new lead with data:', {
+          selectedSource: formData.source,
+          isChannelPartnerSource,
           channelPartner: formData.channelPartner,
           cpSourcingId: formData.cpSourcingId,
-          requestBody
+          leadSourceFromList: leadSources.find(s => s._id === formData.source),
+          fullRequestBody: requestBody
         });
         
         const response = await fetch(API_ENDPOINTS.CREATE_LEAD(formData.projectId), {
@@ -1110,6 +1165,8 @@ const LeadsPage = () => {
         });
 
         if (response.ok) {
+          const responseData = await response.json();
+          console.log('Lead created successfully - Backend response:', responseData);
           setAlertMessage({ type: 'success', message: 'Lead created successfully!' });
           setTimeout(() => fetchLeads(), 2000);
         } else {
@@ -1734,6 +1791,184 @@ const LeadsPage = () => {
     }
   };
 
+  // Export leads to CSV
+  const handleExportToCSV = () => {
+    if (filteredLeads.length === 0) {
+      setAlertMessage({ type: 'error', message: 'No leads to export' });
+      return;
+    }
+
+    // Define CSV headers
+    const headers = [
+      'Name',
+      'Email',
+      'Phone',
+      'Lead Source',
+      'Current Status',
+      'Project',
+      'Assigned To',
+      'Assigned To Email',
+      'Lead Priority',
+      'Property Type',
+      'Configuration',
+      'Funding Mode',
+      'Gender',
+      'Budget',
+      'Created Date',
+      'Last Updated',
+      'Notes'
+    ];
+
+    // Convert leads to CSV rows
+    const rows = filteredLeads.map(lead => [
+      lead.name || 'N/A',
+      lead.email || 'N/A',
+      lead.phone || 'N/A',
+      lead.source || 'N/A',
+      lead.currentStatus?.name || 'N/A',
+      lead.projectName || 'N/A',
+      lead.user?.name || 'Unassigned',
+      lead.user?.email || 'N/A',
+      lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || 'N/A',
+      lead.customData?.["Property Type"] || lead.customData?.propertyType || 'N/A',
+      lead.customData?.["Configuration"] || lead.customData?.configuration || 'N/A',
+      lead.customData?.["Funding Mode"] || lead.customData?.fundingMode || 'N/A',
+      lead.customData?.["Gender"] || lead.customData?.gender || 'N/A',
+      lead.customData?.["Budget"] || lead.customData?.budget || 'N/A',
+      new Date(lead.createdAt).toLocaleString('en-US', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
+      new Date(lead.updatedAt).toLocaleString('en-US', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: true
+      }),
+      lead.customData?.["Notes"] || lead.customData?.notes || 'N/A'
+    ]);
+
+    // Create CSV content
+    const csvContent = [
+      headers.join(','),
+      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(','))
+    ].join('\n');
+
+    // Create and trigger download
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.setAttribute('href', url);
+    link.setAttribute('download', `leads_export_${new Date().toISOString().split('T')[0]}.csv`);
+    link.style.visibility = 'hidden';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+
+    setAlertMessage({ type: 'success', message: `Exported ${filteredLeads.length} leads to CSV` });
+  };
+
+  // Export leads to PDF
+  const handleExportToPDF = () => {
+    if (filteredLeads.length === 0) {
+      setAlertMessage({ type: 'error', message: 'No leads to export' });
+      return;
+    }
+
+    // Create PDF content as HTML
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <style>
+          body { font-family: Arial, sans-serif; padding: 20px; }
+          h1 { color: #333; text-align: center; margin-bottom: 30px; }
+          .meta { text-align: center; color: #666; margin-bottom: 20px; font-size: 12px; }
+          table { width: 100%; border-collapse: collapse; margin-top: 20px; font-size: 10px; }
+          th { background-color: #4F46E5; color: white; padding: 8px; text-align: left; border: 1px solid #ddd; }
+          td { padding: 6px; border: 1px solid #ddd; }
+          tr:nth-child(even) { background-color: #f9f9f9; }
+          .footer { margin-top: 30px; text-align: center; font-size: 10px; color: #666; }
+        </style>
+      </head>
+      <body>
+        <h1>Leads Export Report</h1>
+        <div class="meta">
+          <p>Generated on: ${new Date().toLocaleString()}</p>
+          <p>Total Leads: ${filteredLeads.length}</p>
+          ${filterStatus !== 'all' ? `<p>Filtered by Status: ${leadStatuses.find(s => s._id === filterStatus)?.name || filterStatus}</p>` : ''}
+          ${filterSource !== 'all' ? `<p>Filtered by Source: ${leadSources.find(s => s._id === filterSource)?.name || filterSource}</p>` : ''}
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Phone</th>
+              <th>Source</th>
+              <th>Status</th>
+              <th>Project</th>
+              <th>Assigned To</th>
+              <th>User Email</th>
+              <th>Priority</th>
+              <th>Created</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${filteredLeads.map((lead, index) => `
+              <tr>
+                <td>${index + 1}</td>
+                <td>${lead.name || 'N/A'}</td>
+                <td>${lead.email || 'N/A'}</td>
+                <td>${lead.phone || 'N/A'}</td>
+                <td>${lead.source || 'N/A'}</td>
+                <td>${lead.currentStatus?.name || 'N/A'}</td>
+                <td>${lead.projectName || 'N/A'}</td>
+                <td>${lead.user?.name || 'Unassigned'}</td>
+                <td>${lead.user?.email || 'N/A'}</td>
+                <td>${lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || 'N/A'}</td>
+                <td>${new Date(lead.createdAt).toLocaleDateString('en-US', {
+                  day: '2-digit',
+                  month: 'short',
+                  year: 'numeric'
+                })}</td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>
+        <div class="footer">
+          <p>This report contains ${filteredLeads.length} lead(s)</p>
+        </div>
+      </body>
+      </html>
+    `;
+
+    // Create blob and download
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = URL.createObjectURL(blob);
+    
+    // Open in new window for printing as PDF
+    const printWindow = window.open(url, '_blank');
+    if (printWindow) {
+      printWindow.onload = () => {
+        setTimeout(() => {
+          printWindow.print();
+        }, 250);
+      };
+    }
+    
+    URL.revokeObjectURL(url);
+    setAlertMessage({ type: 'success', message: `PDF export ready for ${filteredLeads.length} leads` });
+  };
+
   // Download sample template
   const handleDownloadLeadsTemplate = () => {
     // Create a sample CSV template matching the bulk upload guide
@@ -2218,6 +2453,54 @@ const LeadsPage = () => {
             <Icon icon="solar:transfer-horizontal-line-duotone" className="mr-2" />
             {selectedLeads.length === 0 ? "Select Leads to Transfer" : `Transfer (${selectedLeads.length})`}
           </Button>
+          {/* Export Button with Dropdown */}
+          <div className="relative export-menu-container">
+            <Button 
+              onClick={() => setShowExportMenu(!showExportMenu)}
+              color="success"
+              disabled={filteredLeads.length === 0}
+              title={filteredLeads.length === 0 ? "No leads to export" : "Export leads"}
+              className="w-full lg:w-auto"
+            >
+              <Icon icon="solar:download-minimalistic-line-duotone" className="mr-2" />
+              Export ({filteredLeads.length})
+              <Icon icon={showExportMenu ? "solar:alt-arrow-up-line-duotone" : "solar:alt-arrow-down-line-duotone"} className="ml-2" />
+            </Button>
+            
+            {/* Dropdown Menu */}
+            {showExportMenu && filteredLeads.length > 0 && (
+              <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
+                <div className="py-2">
+                  <button
+                    onClick={() => {
+                      handleExportToCSV();
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300 transition-colors"
+                  >
+                    <Icon icon="solar:file-text-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
+                    <div>
+                      <div className="font-medium">Export to CSV</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Download as spreadsheet</div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => {
+                      handleExportToPDF();
+                      setShowExportMenu(false);
+                    }}
+                    className="w-full px-4 py-2 text-left hover:bg-gray-100 dark:hover:bg-gray-700 flex items-center gap-3 text-gray-700 dark:text-gray-300 transition-colors"
+                  >
+                    <Icon icon="solar:document-text-line-duotone" className="text-red-600 dark:text-red-400 text-xl" />
+                    <div>
+                      <div className="font-medium">Export to PDF</div>
+                      <div className="text-xs text-gray-500 dark:text-gray-400">Print-ready document</div>
+                    </div>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
           {finalPermissions.canCreateLeads && (
             <>
               <Button 
@@ -2638,7 +2921,15 @@ const LeadsPage = () => {
                           </div>
                         </Table.Cell>
                         <Table.Cell className="whitespace-nowrap text-gray-500 dark:text-gray-400">
-                          {lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : 'N/A'}
+                          {lead.createdAt ? (
+                            <span className="font-medium text-gray-900 dark:text-white">
+                              {new Date(lead.createdAt).toLocaleDateString('en-US', {
+                                day: '2-digit',
+                                month: 'short',
+                                year: 'numeric'
+                              })}
+                            </span>
+                          ) : 'N/A'}
                         </Table.Cell>
                         <Table.Cell>
                           <div className="flex flex-col sm:flex-row gap-2">

@@ -326,6 +326,43 @@ export const useSidebarData = () => {
               url: "/apps/follow-ups",
             },
             {
+              name: "Attendance",
+              id: uniqueId(),
+              icon: "solar:clock-circle-line-duotone",
+              children: [
+                {
+                  id: uniqueId(),
+                  name: "Check-In/Out",
+                  url: "/apps/attendance/check-in",
+                },
+                {
+                  id: uniqueId(),
+                  name: "My History",
+                  url: "/apps/attendance/my-history",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Live Dashboard",
+                  url: "/apps/attendance/admin/dashboard",
+                },
+                {
+                  id: uniqueId(),
+                  name: "All Attendance",
+                  url: "/apps/attendance/admin/all-attendance",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Statistics",
+                  url: "/apps/attendance/admin/statistics",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Manual Entry",
+                  url: "/apps/attendance/admin/manual-entry",
+                },
+              ],
+            },
+            {
               name: "Channel Partners",
               id: uniqueId(),
               icon: "solar:handshake-line-duotone",

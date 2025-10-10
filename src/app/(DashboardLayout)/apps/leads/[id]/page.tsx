@@ -1512,7 +1512,7 @@ const LeadDetailPage = () => {
 
             "Budget": lead.customData?.["Budget"] || lead.customData?.budget || '',
 
-            
+
             "Remark": statusFormData.statusRemark || 'Status updated'
 
           },
