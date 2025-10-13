@@ -275,7 +275,7 @@ const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string
                   type="date"
                   value={startDate}
                   onChange={(e) => setStartDate(e.target.value)}
-                  icon={IconCalendar}
+                  icon={() => <IconCalendar size={20} />}
                 />
               </div>
 
@@ -287,7 +287,7 @@ const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string
                   type="date"
                   value={endDate}
                   onChange={(e) => setEndDate(e.target.value)}
-                  icon={IconCalendar}
+                  icon={() => <IconCalendar size={20} />}
                 />
               </div>
 

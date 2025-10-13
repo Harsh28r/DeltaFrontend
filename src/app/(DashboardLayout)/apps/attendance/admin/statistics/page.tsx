@@ -181,7 +181,7 @@ const StatisticsPage = () => {
               type="date"
               value={startDate}
               onChange={(e) => setStartDate(e.target.value)}
-              icon={IconCalendar}
+              icon={() => <IconCalendar size={20} />}
             />
           </div>
 
@@ -193,7 +193,7 @@ const StatisticsPage = () => {
               type="date"
               value={endDate}
               onChange={(e) => setEndDate(e.target.value)}
-              icon={IconCalendar}
+              icon={() => <IconCalendar size={20} />}
             />
           </div>
 
