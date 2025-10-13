@@ -251,7 +251,7 @@ const ManualEntryPage = () => {
               type="date"
               value={formData.date}
               onChange={handleChange}
-              icon={IconCalendar}
+              icon={() => <IconCalendar size={20} />}
               required
             />
           </div>
@@ -267,7 +267,7 @@ const ManualEntryPage = () => {
               type="time"
               value={formData.checkInTime}
               onChange={handleChange}
-              icon={IconClock}
+              icon={() => <IconClock size={20} />}
               required
               helperText="Enter the time when the user started work"
             />
@@ -284,7 +284,7 @@ const ManualEntryPage = () => {
               type="time"
               value={formData.checkOutTime}
               onChange={handleChange}
-              icon={IconClock}
+              icon={() => <IconClock size={20} />}
               helperText="Leave empty if user is still working or hasn't checked out"
             />
           </div>
@@ -372,4 +372,8 @@ const ManualEntryPage = () => {
 };
 
 export default ManualEntryPage;
+
+
+
+
 

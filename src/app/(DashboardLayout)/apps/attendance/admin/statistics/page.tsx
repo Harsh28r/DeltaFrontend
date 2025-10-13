@@ -15,7 +15,6 @@ import {
   IconCalendar,
   IconUsers,
   IconClock,
-  IconCoffee,
   IconMapPin,
   IconFileDownload,
   IconChartBar,
@@ -285,18 +284,6 @@ const StatisticsPage = () => {
                 <IconChartBar size={40} className="text-purple-600 dark:text-purple-300" />
               </div>
             </Card>
-
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-600 dark:text-orange-300">Total Break Time</p>
-                  <p className="text-3xl font-bold text-orange-900 dark:text-white">
-                    {formatDuration(stats.totalBreakTime)}
-                  </p>
-                </div>
-                <IconCoffee size={40} className="text-orange-600 dark:text-orange-300" />
-              </div>
-            </Card>
           </div>
 
           {/* Status Breakdown */}
@@ -448,4 +435,8 @@ const StatisticsPage = () => {
 };
 
 export default StatisticsPage;
+
+
+
+
 

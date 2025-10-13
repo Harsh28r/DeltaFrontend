@@ -1,6 +1,6 @@
 // Attendance API Service
 
-import { API_BASE_URL } from '@/lib/config';
+import { API_BASE_URL, API_ENDPOINTS } from '@/lib/config';
 import type {
   Attendance,
   AttendanceStatus,
@@ -18,7 +18,11 @@ import type {
 } from '@/app/(DashboardLayout)/types/attendance';
 
 const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
+  // Try to get token from multiple possible storage locations
+  let token = localStorage.getItem('auth_token') || 
+              sessionStorage.getItem('auth_token') || 
+              localStorage.getItem('token');
+  
   return {
     'Content-Type': 'application/json',
     Authorization: `Bearer ${token}`,
@@ -31,7 +35,7 @@ const getAuthHeaders = () => {
  * Check-in with GPS location
  */
 export const checkIn = async (data: CheckInRequest): Promise<Attendance> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/check-in`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_CHECK_IN, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -50,7 +54,7 @@ export const checkIn = async (data: CheckInRequest): Promise<Attendance> => {
  * Check-out with GPS location
  */
 export const checkOut = async (data: CheckOutRequest): Promise<Attendance> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/check-out`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_CHECK_OUT, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -69,7 +73,7 @@ export const checkOut = async (data: CheckOutRequest): Promise<Attendance> => {
  * Get current attendance status
  */
 export const getAttendanceStatus = async (): Promise<AttendanceStatus> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/status`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_STATUS, {
     headers: getAuthHeaders(),
   });
 
@@ -84,7 +88,7 @@ export const getAttendanceStatus = async (): Promise<AttendanceStatus> => {
  * Start a break
  */
 export const startBreak = async (data: BreakStartRequest): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/break/start`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_BREAK_START, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -102,7 +106,7 @@ export const startBreak = async (data: BreakStartRequest): Promise<any> => {
  * End current break
  */
 export const endBreak = async (): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/break/end`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_BREAK_END, {
     method: 'POST',
     headers: getAuthHeaders(),
   });
@@ -119,7 +123,7 @@ export const endBreak = async (): Promise<any> => {
  * Add work location
  */
 export const addWorkLocation = async (data: WorkLocationRequest): Promise<any> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/work-location`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_WORK_LOCATION, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -148,7 +152,7 @@ export const getMyAttendanceHistory = async (params?: {
   if (params?.page) queryParams.append('page', params.page.toString());
   if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-  const url = `${API_BASE_URL}/attendance/my-history${
+  const url = `${API_ENDPOINTS.ATTENDANCE_MY_HISTORY}${
     queryParams.toString() ? `?${queryParams.toString()}` : ''
   }`;
 
@@ -168,8 +172,15 @@ export const getMyAttendanceHistory = async (params?: {
 /**
  * Get live attendance dashboard
  */
-export const getLiveDashboard = async (): Promise<LiveDashboard> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/admin/live`, {
+export const getLiveDashboard = async (date?: string): Promise<LiveDashboard> => {
+  let url = API_ENDPOINTS.ATTENDANCE_ADMIN_LIVE;
+  
+  if (date) {
+    // Use the same date for both startDate and endDate to get data for a specific day
+    url = `${url}?startDate=${date}&endDate=${date}`;
+  }
+    
+  const response = await fetch(url, {
     headers: getAuthHeaders(),
   });
 
@@ -201,7 +212,7 @@ export const getAllAttendance = async (params?: {
   if (params?.page) queryParams.append('page', params.page.toString());
   if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-  const url = `${API_BASE_URL}/attendance/admin/all${
+  const url = `${API_ENDPOINTS.ATTENDANCE_ADMIN_ALL}${
     queryParams.toString() ? `?${queryParams.toString()}` : ''
   }`;
 
@@ -234,7 +245,7 @@ export const getUserAttendanceDetail = async (
   if (params?.page) queryParams.append('page', params.page.toString());
   if (params?.limit) queryParams.append('limit', params.limit.toString());
 
-  const url = `${API_BASE_URL}/attendance/admin/user/${userId}${
+  const url = `${API_ENDPOINTS.ATTENDANCE_ADMIN_USER(userId)}${
     queryParams.toString() ? `?${queryParams.toString()}` : ''
   }`;
 
@@ -262,7 +273,7 @@ export const getAttendanceStats = async (params?: {
   if (params?.endDate) queryParams.append('endDate', params.endDate);
   if (params?.userId) queryParams.append('userId', params.userId);
 
-  const url = `${API_BASE_URL}/attendance/admin/stats${
+  const url = `${API_ENDPOINTS.ATTENDANCE_ADMIN_STATS}${
     queryParams.toString() ? `?${queryParams.toString()}` : ''
   }`;
 
@@ -293,7 +304,7 @@ export const getUserLocationHistory = async (
   if (params?.startDate) queryParams.append('startDate', params.startDate);
   if (params?.endDate) queryParams.append('endDate', params.endDate);
 
-  const url = `${API_BASE_URL}/attendance/admin/location-history/${userId}${
+  const url = `${API_ENDPOINTS.ATTENDANCE_ADMIN_LOCATION_HISTORY(userId)}${
     queryParams.toString() ? `?${queryParams.toString()}` : ''
   }`;
 
@@ -312,7 +323,7 @@ export const getUserLocationHistory = async (
  * Create manual attendance entry
  */
 export const createManualEntry = async (data: ManualEntryRequest): Promise<Attendance> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/admin/manual-entry`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_ADMIN_MANUAL_ENTRY, {
     method: 'POST',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -334,7 +345,7 @@ export const updateAttendance = async (
   attendanceId: string,
   data: UpdateAttendanceRequest
 ): Promise<Attendance> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/admin/${attendanceId}`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_ADMIN_UPDATE(attendanceId), {
     method: 'PUT',
     headers: getAuthHeaders(),
     body: JSON.stringify(data),
@@ -353,7 +364,7 @@ export const updateAttendance = async (
  * Delete attendance record
  */
 export const deleteAttendance = async (attendanceId: string): Promise<void> => {
-  const response = await fetch(`${API_BASE_URL}/attendance/admin/${attendanceId}`, {
+  const response = await fetch(API_ENDPOINTS.ATTENDANCE_ADMIN_DELETE(attendanceId), {
     method: 'DELETE',
     headers: getAuthHeaders(),
   });
@@ -363,4 +374,7 @@ export const deleteAttendance = async (attendanceId: string): Promise<void> => {
     throw new Error(error.message || 'Failed to delete attendance');
   }
 };
+
+
+
 

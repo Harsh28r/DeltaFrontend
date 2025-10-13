@@ -638,39 +638,39 @@ const LeadsPage = () => {
         // If the lead source is "Channel Partner", then show channel partner details
         if (leadSourceName.toLowerCase() === 'channel partner') {
           // Show detailed channel partner info
-          if (lead.channelPartner) {
-            const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
-            const cpName = cpObj?.name;
-            if (cpName) {
-              sourceName = `Channel Partner: ${cpName}`;
-            } else {
-              // fallback to custom data id mapping
-              const cpIdFromCustom = lead.customData?.["Channel Partner"];
-              const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
-              if (cp) sourceName = `Channel Partner: ${cp.name}`;
-              else sourceName = 'Channel Partner';
-            }
+      if (lead.channelPartner) {
+        const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
+        const cpName = cpObj?.name;
+        if (cpName) {
+          sourceName = `Channel Partner: ${cpName}`;
+        } else {
+          // fallback to custom data id mapping
+          const cpIdFromCustom = lead.customData?.["Channel Partner"];
+          const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+          if (cp) sourceName = `Channel Partner: ${cp.name}`;
+          else sourceName = 'Channel Partner';
+        }
 
-            // Append sourcing info if available
-            const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
-            if (cpSourcingRef) {
-              let cpSourcing: any = null;
-              if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
-                cpSourcing = cpSourcingRef;
-                // Check if it has userId.name (new format)
-                if (cpSourcing.userId && cpSourcing.userId.name) {
-                  sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
-                } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
-                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
-                }
-              } else {
-                cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
-                if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
-                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
-                }
-              }
+        // Append sourcing info if available
+        const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+        if (cpSourcingRef) {
+          let cpSourcing: any = null;
+          if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
+            cpSourcing = cpSourcingRef;
+            // Check if it has userId.name (new format)
+            if (cpSourcing.userId && cpSourcing.userId.name) {
+              sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
+            } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
+              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
             }
           } else {
+            cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
+            if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
+              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+            }
+          }
+        }
+      } else {
             // No channel partner details, just show the source name
             sourceName = leadSourceName;
           }

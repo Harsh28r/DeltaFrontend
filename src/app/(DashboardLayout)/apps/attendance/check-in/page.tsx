@@ -32,6 +32,7 @@ import {
   canTakeBreak,
   getTimeGreeting,
 } from '@/utils/attendanceUtils';
+import Link from 'next/link';
 
 const CheckInPage = () => {
   const [loading, setLoading] = useState(true);
@@ -46,13 +47,18 @@ const CheckInPage = () => {
     address: string;
     accuracy: number;
   } | null>(null);
-  const [notes, setNotes] = useState('');
   const [breakReason, setBreakReason] = useState('');
   const [workActivity, setWorkActivity] = useState('');
   const [workNotes, setWorkNotes] = useState('');
   const [showBreakModal, setShowBreakModal] = useState(false);
   const [showWorkLocationModal, setShowWorkLocationModal] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [showCameraModal, setShowCameraModal] = useState(false);
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [capturedSelfie, setCapturedSelfie] = useState<string | null>(null);
+  const [actionType, setActionType] = useState<'checkin' | 'checkout'>('checkin');
+  const videoRef = React.useRef<HTMLVideoElement>(null);
+  const canvasRef = React.useRef<HTMLCanvasElement>(null);
 
   // Update current time every second
   useEffect(() => {
@@ -68,7 +74,26 @@ const CheckInPage = () => {
       setAttendanceStatus(status);
       setError('');
     } catch (err: any) {
-      setError(err.message || 'Failed to fetch attendance status');
+      let errorMessage = 'Failed to fetch attendance status.';
+      
+      // Handle specific error types
+      if (err.message?.includes('JSON')) {
+        errorMessage = 'Backend server error. Please check if the attendance API endpoint is configured correctly.';
+      } else if (err.message?.includes('fetch')) {
+        errorMessage = 'Cannot connect to backend. Please ensure the server is running.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      
+      // Set a default status so UI can still render
+      setAttendanceStatus({
+        status: 'not-checked-in',
+        attendance: null,
+        canCheckIn: true,
+        canCheckOut: false,
+      });
     } finally {
       setLoading(false);
     }
@@ -79,6 +104,15 @@ const CheckInPage = () => {
     fetchAttendanceStatus();
     getLocation();
   }, []);
+
+  // Cleanup camera stream on unmount
+  useEffect(() => {
+    return () => {
+      if (cameraStream) {
+        cameraStream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [cameraStream]);
 
   // Get current location
   const getLocation = async () => {
@@ -92,16 +126,97 @@ const CheckInPage = () => {
       });
       setError('');
     } catch (err: any) {
-      setError(err.message || 'Failed to get location');
+      setError(err.message || 'Failed to get location. Please enable location access.');
     } finally {
       setLocationLoading(false);
     }
+  };
+
+  // Start camera for selfie
+  const startCamera = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: 'user', width: 640, height: 480 },
+        audio: false,
+      });
+      setCameraStream(stream);
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err: any) {
+      setError('Failed to access camera. Please allow camera permission.');
+      setShowCameraModal(false);
+    }
+  };
+
+  // Stop camera
+  const stopCamera = () => {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach((track) => track.stop());
+      setCameraStream(null);
+    }
+    if (videoRef.current) {
+      videoRef.current.srcObject = null;
+    }
+  };
+
+  // Capture selfie from video
+  const captureSelfie = async () => {
+    if (videoRef.current && canvasRef.current) {
+      const video = videoRef.current;
+      const canvas = canvasRef.current;
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.drawImage(video, 0, 0);
+        const imageData = canvas.toDataURL('image/jpeg', 0.8);
+        setCapturedSelfie(imageData);
+        stopCamera();
+        
+        // Capture location immediately when photo is taken
+        try {
+          setLocationLoading(true);
+          const location = await getCurrentLocation();
+          const address = await reverseGeocode(location.latitude, location.longitude);
+          setCurrentLocation({
+            ...location,
+            address,
+          });
+          setSuccess('Photo and location captured successfully!');
+        } catch (err: any) {
+          setError('Location captured failed. Please enable location access.');
+        } finally {
+          setLocationLoading(false);
+        }
+      }
+    }
+  };
+
+  // Open camera modal for check-in/check-out
+  const openCameraForAction = (type: 'checkin' | 'checkout') => {
+    setActionType(type);
+    setCapturedSelfie(null);
+    setShowCameraModal(true);
+    setTimeout(() => startCamera(), 100);
+  };
+
+  // Close camera modal
+  const closeCameraModal = () => {
+    stopCamera();
+    setShowCameraModal(false);
+    setCapturedSelfie(null);
   };
 
   // Handle check-in
   const handleCheckIn = async () => {
     if (!currentLocation) {
       setError('Please enable location access');
+      return;
+    }
+
+    if (!capturedSelfie) {
+      setError('Please capture a selfie first');
       return;
     }
 
@@ -113,11 +228,11 @@ const CheckInPage = () => {
         longitude: currentLocation.longitude,
         address: currentLocation.address,
         accuracy: currentLocation.accuracy,
-        notes: notes || undefined,
+        selfie: capturedSelfie,
         platform: getPlatformInfo(),
       });
       setSuccess('Checked in successfully!');
-      setNotes('');
+      setCapturedSelfie(null);
       await fetchAttendanceStatus();
     } catch (err: any) {
       setError(err.message || 'Check-in failed');
@@ -133,6 +248,11 @@ const CheckInPage = () => {
       return;
     }
 
+    if (!capturedSelfie) {
+      setError('Please capture a selfie first');
+      return;
+    }
+
     try {
       setActionLoading(true);
       setError('');
@@ -141,10 +261,10 @@ const CheckInPage = () => {
         longitude: currentLocation.longitude,
         address: currentLocation.address,
         accuracy: currentLocation.accuracy,
-        notes: notes || undefined,
+        selfie: capturedSelfie,
       });
       setSuccess('Checked out successfully!');
-      setNotes('');
+      setCapturedSelfie(null);
       await fetchAttendanceStatus();
     } catch (err: any) {
       setError(err.message || 'Check-out failed');
@@ -226,10 +346,11 @@ const CheckInPage = () => {
 
   // Calculate hours worked
   const getHoursWorked = () => {
-    if (!attendanceStatus?.attendance?.checkInTime) return 0;
-    const checkInTime = new Date(attendanceStatus.attendance.checkInTime);
+    const checkInTime = attendanceStatus?.attendance?.checkInTime || attendanceStatus?.attendance?.checkIn?.time;
+    if (!checkInTime) return 0;
+    const checkInDate = new Date(checkInTime);
     const now = new Date();
-    const diff = now.getTime() - checkInTime.getTime();
+    const diff = now.getTime() - checkInDate.getTime();
     return diff / (1000 * 60 * 60);
   };
 
@@ -240,7 +361,10 @@ const CheckInPage = () => {
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
-        <Spinner size="xl" />
+        <div className="text-center">
+          <Spinner size="xl" />
+          <p className="mt-4 text-gray-600 dark:text-gray-400">Loading attendance data...</p>
+        </div>
       </div>
     );
   }
@@ -248,18 +372,26 @@ const CheckInPage = () => {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-          {getTimeGreeting()}!
-        </h1>
-        <p className="text-gray-600 dark:text-gray-400">
-          {currentTime.toLocaleDateString('en-US', {
-            weekday: 'long',
-            year: 'numeric',
-            month: 'long',
-            day: 'numeric',
-          })}
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+            {getTimeGreeting()}!
+          </h1>
+          <p className="text-gray-600 dark:text-gray-400">
+            {currentTime.toLocaleDateString('en-US', {
+              weekday: 'long',
+              year: 'numeric',
+              month: 'long',
+              day: 'numeric',
+            })}
+          </p>
+        </div>
+        <Link href="/apps/attendance/my-history">
+          <Button color="light">
+            <IconClock className="mr-2" size={16} />
+            View History
+          </Button>
+        </Link>
       </div>
 
       {/* Alerts */}
@@ -294,7 +426,7 @@ const CheckInPage = () => {
                   second: '2-digit',
                 })}
               </div>
-              {attendanceStatus.attendance.checkInTime && (
+              {(attendanceStatus.attendance.checkInTime || attendanceStatus.attendance.checkIn?.time) && (
                 <div className="mt-2 text-sm text-gray-600 dark:text-gray-400">
                   Working for {formatHours(getHoursWorked())}
                 </div>
@@ -303,13 +435,15 @@ const CheckInPage = () => {
 
             {/* Status Details */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {attendanceStatus.attendance.checkInTime && (
+              {(attendanceStatus.attendance.checkInTime || attendanceStatus.attendance.checkIn?.time) && (
                 <div className="flex items-center space-x-3 p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
                   <IconLogin className="text-green-600 dark:text-green-400" size={24} />
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Check-In Time</div>
                     <div className="font-semibold">
-                      {new Date(attendanceStatus.attendance.checkInTime).toLocaleTimeString('en-US', {
+                      {new Date(
+                        attendanceStatus.attendance.checkInTime || attendanceStatus.attendance.checkIn!.time
+                      ).toLocaleTimeString('en-US', {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
@@ -318,13 +452,15 @@ const CheckInPage = () => {
                 </div>
               )}
 
-              {attendanceStatus.attendance.checkOutTime && (
+              {(attendanceStatus.attendance.checkOutTime || attendanceStatus.attendance.checkOut?.time) && (
                 <div className="flex items-center space-x-3 p-3 bg-red-50 dark:bg-red-900/20 rounded-lg">
                   <IconLogout className="text-red-600 dark:text-red-400" size={24} />
                   <div>
                     <div className="text-sm text-gray-600 dark:text-gray-400">Check-Out Time</div>
                     <div className="font-semibold">
-                      {new Date(attendanceStatus.attendance.checkOutTime).toLocaleTimeString('en-US', {
+                      {new Date(
+                        attendanceStatus.attendance.checkOutTime || attendanceStatus.attendance.checkOut!.time
+                      ).toLocaleTimeString('en-US', {
                         hour: '2-digit',
                         minute: '2-digit',
                       })}
@@ -360,6 +496,94 @@ const CheckInPage = () => {
                   You are currently on a break
                 </div>
               </Alert>
+            )}
+
+            {/* Check-in Location */}
+            {attendanceStatus.attendance.checkIn?.location && (
+              <div className="mt-4 p-3 bg-white dark:bg-gray-800 rounded-lg border border-gray-200 dark:border-gray-700">
+                <div className="flex items-start space-x-2">
+                  <IconMapPinFilled className="text-green-500 flex-shrink-0 mt-0.5" size={18} />
+                  <div className="flex-1">
+                    <div className="text-xs text-gray-500 dark:text-gray-400 mb-1">Check-In Location</div>
+                    <div className="text-sm font-medium text-gray-900 dark:text-white">
+                      Lat: {attendanceStatus.attendance.checkIn.location.coordinates[1]?.toFixed(4)}, 
+                      Lng: {attendanceStatus.attendance.checkIn.location.coordinates[0]?.toFixed(4)}
+                    </div>
+                    {attendanceStatus.attendance.checkIn.location.accuracy && (
+                      <div className="text-xs text-gray-500 mt-1">
+                        Accuracy: {attendanceStatus.attendance.checkIn.location.accuracy}m
+                      </div>
+                    )}
+                  </div>
+                  <Button
+                    size="xs"
+                    color="light"
+                    onClick={() => {
+                      const coords = attendanceStatus.attendance!.checkIn!.location.coordinates;
+                      const url = `https://www.google.com/maps?q=${coords[1]},${coords[0]}`;
+                      window.open(url, '_blank');
+                    }}
+                  >
+                    <IconMapPin size={14} className="mr-1" />
+                    View on Map
+                  </Button>
+                </div>
+              </div>
+            )}
+
+            {/* Work Locations Summary */}
+            {attendanceStatus.attendance.workLocations && attendanceStatus.attendance.workLocations.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <IconMapPin className="text-purple-600" size={18} />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Work Locations Today
+                    </span>
+                  </div>
+                  <Badge color="purple">{attendanceStatus.attendance.workLocations.length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {attendanceStatus.attendance.workLocations.slice(0, 3).map((loc, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-purple-50 dark:bg-purple-900/20 p-2 rounded">
+                      <span className="font-medium">{loc.activity}</span>
+                      <span className="text-gray-500">
+                        {new Date(loc.time).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                      </span>
+                    </div>
+                  ))}
+                  {attendanceStatus.attendance.workLocations.length > 3 && (
+                    <div className="text-xs text-center text-gray-500">
+                      +{attendanceStatus.attendance.workLocations.length - 3} more locations
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Breaks Summary */}
+            {attendanceStatus.attendance.breaks && attendanceStatus.attendance.breaks.length > 0 && (
+              <div className="mt-4">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <IconCoffee className="text-orange-600" size={18} />
+                    <span className="text-sm font-medium text-gray-900 dark:text-white">
+                      Breaks Today
+                    </span>
+                  </div>
+                  <Badge color="orange">{attendanceStatus.attendance.breaks.length}</Badge>
+                </div>
+                <div className="space-y-2">
+                  {attendanceStatus.attendance.breaks.map((breakItem, idx) => (
+                    <div key={idx} className="flex items-center justify-between text-xs bg-orange-50 dark:bg-orange-900/20 p-2 rounded">
+                      <span className="font-medium">{breakItem.reason}</span>
+                      <span className="text-gray-500">
+                        {breakItem.duration ? formatDuration(breakItem.duration) : 'Ongoing'}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
             )}
           </div>
         )}
@@ -404,23 +628,48 @@ const CheckInPage = () => {
         )}
       </Card>
 
-      {/* Notes Input */}
-      {(attendanceStatus?.canCheckIn || attendanceStatus?.canCheckOut) && (
-        <Card>
-          <Label htmlFor="notes">Notes (Optional)</Label>
-          <Textarea
-            id="notes"
-            placeholder="Add any notes..."
-            value={notes}
-            onChange={(e) => setNotes(e.target.value)}
-            rows={3}
-          />
+      {/* Captured Selfie Preview */}
+      {capturedSelfie && (
+        <Card className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center space-x-4">
+              <img
+                src={capturedSelfie}
+                alt="Captured selfie"
+                className="w-24 h-24 rounded-lg object-cover border-2 border-green-500"
+              />
+              <div>
+                <h3 className="font-semibold text-gray-900 dark:text-white">Selfie Captured ✓</h3>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Ready to proceed with attendance</p>
+              </div>
+            </div>
+            <Button
+              size="sm"
+              color="light"
+              onClick={() => openCameraForAction(actionType)}
+            >
+              <IconCamera className="mr-1" size={16} />
+              Retake
+            </Button>
+          </div>
         </Card>
       )}
 
       {/* Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {attendanceStatus?.canCheckIn && (
+        {attendanceStatus?.canCheckIn && !capturedSelfie && (
+          <Button
+            size="xl"
+            color="success"
+            onClick={() => openCameraForAction('checkin')}
+            disabled={actionLoading || !currentLocation}
+          >
+            <IconCamera className="mr-2" size={20} />
+            Take Selfie & Check In
+          </Button>
+        )}
+
+        {attendanceStatus?.canCheckIn && capturedSelfie && (
           <Button
             size="xl"
             color="success"
@@ -432,11 +681,23 @@ const CheckInPage = () => {
             ) : (
               <IconLogin className="mr-2" size={20} />
             )}
-            Check In
+            Confirm Check In
           </Button>
         )}
 
-        {attendanceStatus?.canCheckOut && (
+        {attendanceStatus?.canCheckOut && !capturedSelfie && (
+          <Button
+            size="xl"
+            color="failure"
+            onClick={() => openCameraForAction('checkout')}
+            disabled={actionLoading || !currentLocation}
+          >
+            <IconCamera className="mr-2" size={20} />
+            Take Selfie & Check Out
+          </Button>
+        )}
+
+        {attendanceStatus?.canCheckOut && capturedSelfie && (
           <Button
             size="xl"
             color="failure"
@@ -448,7 +709,7 @@ const CheckInPage = () => {
             ) : (
               <IconLogout className="mr-2" size={20} />
             )}
-            Check Out
+            Confirm Check Out
           </Button>
         )}
 
@@ -580,6 +841,99 @@ const CheckInPage = () => {
               </div>
             </div>
           </Card>
+        </div>
+      )}
+
+      {/* Camera Modal */}
+      {showCameraModal && (
+        <div className="fixed inset-0 bg-black bg-opacity-90 flex items-center justify-center z-50">
+          <div className="w-full max-w-2xl m-4">
+            <Card>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-xl font-semibold">
+                    {actionType === 'checkin' ? 'Check-In Selfie' : 'Check-Out Selfie'}
+                  </h3>
+                  <Button size="sm" color="light" onClick={closeCameraModal}>
+                    Close
+                  </Button>
+                </div>
+
+                {/* Camera View */}
+                {!capturedSelfie && (
+                  <div className="relative bg-black rounded-lg overflow-hidden">
+                    <video
+                      ref={videoRef}
+                      autoPlay
+                      playsInline
+                      className="w-full h-auto max-h-[60vh] object-cover"
+                    />
+                    <div className="absolute bottom-4 left-0 right-0 flex justify-center">
+                      <Button
+                        size="lg"
+                        color="success"
+                        onClick={captureSelfie}
+                        disabled={!cameraStream}
+                        className="rounded-full"
+                      >
+                        <IconCamera size={24} className="mr-2" />
+                        Capture Photo
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Captured Photo Preview */}
+                {capturedSelfie && (
+                  <div className="space-y-4">
+                    <img
+                      src={capturedSelfie}
+                      alt="Captured selfie"
+                      className="w-full h-auto max-h-[60vh] rounded-lg object-cover"
+                    />
+                    <div className="flex space-x-2">
+                      <Button
+                        color="success"
+                        onClick={() => {
+                          setShowCameraModal(false);
+                          if (actionType === 'checkin') {
+                            // handleCheckIn will be called when user clicks confirm button
+                          } else {
+                            // handleCheckOut will be called when user clicks confirm button
+                          }
+                        }}
+                        className="flex-1"
+                      >
+                        <IconCamera size={18} className="mr-2" />
+                        Use This Photo
+                      </Button>
+                      <Button
+                        color="light"
+                        onClick={() => {
+                          setCapturedSelfie(null);
+                          setTimeout(() => startCamera(), 100);
+                        }}
+                        className="flex-1"
+                      >
+                        <IconRefresh size={18} className="mr-2" />
+                        Retake
+                      </Button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Instructions */}
+                <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                  <p className="text-sm text-blue-900 dark:text-blue-100">
+                    <strong>Instructions:</strong> Position your face within the frame and click "Capture Photo"
+                  </p>
+                </div>
+              </div>
+            </Card>
+          </div>
+
+          {/* Hidden canvas for photo capture */}
+          <canvas ref={canvasRef} className="hidden" />
         </div>
       )}
     </div>

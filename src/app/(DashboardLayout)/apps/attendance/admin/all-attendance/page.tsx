@@ -16,7 +16,6 @@ import {
   IconCalendar,
   IconClock,
   IconMapPin,
-  IconCoffee,
   IconSearch,
   IconLogin,
   IconLogout,
@@ -109,11 +108,14 @@ const AllAttendancePage = () => {
   };
 
   // Filter attendance based on search query
-  const filteredAttendance = attendance.filter((record) =>
-    searchQuery.trim() === '' ||
-    record.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    record.user.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filteredAttendance = attendance.filter((record) => {
+    if (searchQuery.trim() === '') return true;
+    if (typeof record.user === 'string') return false;
+    return (
+      record.user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+      record.user.email.toLowerCase().includes(searchQuery.toLowerCase())
+    );
+  });
 
   return (
     <div className="space-y-6">
@@ -186,7 +188,7 @@ const AllAttendancePage = () => {
                   setStartDate('');
                   setEndDate('');
                 }}
-                icon={IconCalendar}
+                icon={() => <IconCalendar size={20} />}
               />
             </div>
 
@@ -201,7 +203,7 @@ const AllAttendancePage = () => {
                   setStartDate(e.target.value);
                   setDateFilter('');
                 }}
-                icon={IconCalendar}
+                icon={() => <IconCalendar size={20} />}
                 disabled={!!dateFilter}
               />
             </div>
@@ -217,7 +219,8 @@ const AllAttendancePage = () => {
                   setEndDate(e.target.value);
                   setDateFilter('');
                 }}
-                icon={IconCalendar}
+                icon={() => <IconCalendar size={20} />}
+
                 disabled={!!dateFilter}
               />
             </div>
@@ -275,7 +278,7 @@ const AllAttendancePage = () => {
       <Card>
         <TextInput
           placeholder="Search by user name or email..."
-          icon={IconSearch}
+          icon={() => <IconSearch size={20} />}
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
         />
@@ -301,7 +304,6 @@ const AllAttendancePage = () => {
                   <Table.HeadCell>Check-In</Table.HeadCell>
                   <Table.HeadCell>Check-Out</Table.HeadCell>
                   <Table.HeadCell>Total Hours</Table.HeadCell>
-                  <Table.HeadCell>Break Time</Table.HeadCell>
                   <Table.HeadCell>Status</Table.HeadCell>
                   <Table.HeadCell>Actions</Table.HeadCell>
                 </Table.Head>
@@ -311,9 +313,13 @@ const AllAttendancePage = () => {
                       <Table.Row className="bg-white dark:bg-gray-800">
                         <Table.Cell>
                           <div>
-                            <div className="font-medium">{record.user.name}</div>
-                            <div className="text-sm text-gray-500">{record.user.email}</div>
-                            {record.user.role && (
+                            <div className="font-medium">
+                              {typeof record.user === 'object' ? record.user.name : 'Unknown User'}
+                            </div>
+                            <div className="text-sm text-gray-500">
+                              {typeof record.user === 'object' ? record.user.email : '-'}
+                            </div>
+                            {typeof record.user === 'object' && record.user.role && (
                               <Badge color="blue" size="xs" className="mt-1">
                                 {record.user.role}
                               </Badge>
@@ -371,12 +377,6 @@ const AllAttendancePage = () => {
                           {formatHours(record.totalHours)}
                         </Table.Cell>
                         <Table.Cell>
-                          <div className="flex items-center space-x-1">
-                            <IconCoffee size={16} className="text-orange-600" />
-                            <span>{formatDuration(record.totalBreakTime)}</span>
-                          </div>
-                        </Table.Cell>
-                        <Table.Cell>
                           <Badge color={getStatusColor(record.status)}>
                             {getStatusText(record.status)}
                           </Badge>
@@ -390,11 +390,17 @@ const AllAttendancePage = () => {
                             >
                               {expandedRow === record._id ? 'Hide' : 'Details'}
                             </Button>
-                            <Link href={`/apps/attendance/admin/user-detail/${record.user._id}`}>
-                              <Button size="xs" color="light">
+                            {(typeof record.user === 'object' && record.user?._id) || typeof record.user === 'string' ? (
+                              <Link href={`/apps/attendance/admin/user-detail/${typeof record.user === 'object' ? record.user._id : record.user}`}>
+                                <Button size="xs" color="light">
+                                  User
+                                </Button>
+                              </Link>
+                            ) : (
+                              <Button size="xs" color="light" disabled>
                                 User
                               </Button>
-                            </Link>
+                            )}
                           </div>
                         </Table.Cell>
                       </Table.Row>
@@ -402,7 +408,7 @@ const AllAttendancePage = () => {
                       {/* Expanded Row Details */}
                       {expandedRow === record._id && (
                         <Table.Row>
-                          <Table.Cell colSpan={8} className="bg-gray-50 dark:bg-gray-900">
+                          <Table.Cell colSpan={7} className="bg-gray-50 dark:bg-gray-900">
                             <div className="p-4 space-y-4">
                               {/* Locations */}
                               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -445,44 +451,6 @@ const AllAttendancePage = () => {
                                 )}
                               </div>
 
-                              {/* Breaks */}
-                              {record.breaks && record.breaks.length > 0 && (
-                                <div>
-                                  <h4 className="font-semibold mb-2 flex items-center">
-                                    <IconCoffee size={18} className="mr-2 text-orange-600" />
-                                    Breaks ({record.breaks.length})
-                                  </h4>
-                                  <div className="space-y-2">
-                                    {record.breaks.map((breakItem, index) => (
-                                      <div
-                                        key={index}
-                                        className="flex items-center justify-between text-sm bg-white dark:bg-gray-800 p-2 rounded"
-                                      >
-                                        <span className="font-medium">{breakItem.reason}</span>
-                                        <div className="flex items-center space-x-4">
-                                          <span className="text-gray-600 dark:text-gray-400">
-                                            {new Date(breakItem.startTime).toLocaleTimeString('en-US', {
-                                              hour: '2-digit',
-                                              minute: '2-digit',
-                                            })}{' '}
-                                            -{' '}
-                                            {breakItem.endTime
-                                              ? new Date(breakItem.endTime).toLocaleTimeString('en-US', {
-                                                  hour: '2-digit',
-                                                  minute: '2-digit',
-                                                })
-                                              : 'Ongoing'}
-                                          </span>
-                                          {breakItem.duration && (
-                                            <Badge color="warning">{formatDuration(breakItem.duration)}</Badge>
-                                          )}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              )}
-
                               {/* Work Locations */}
                               {record.workLocations && record.workLocations.length > 0 && (
                                 <div>
@@ -524,8 +492,19 @@ const AllAttendancePage = () => {
                               {record.isManualEntry && (
                                 <Alert color="warning">
                                   <div className="text-sm">
-                                    This is a manual entry created by{' '}
-                                    <span className="font-semibold">{record.manualEntryBy?.name}</span>
+                                    This is a manual entry
+                                    {record.manualEntryBy && (
+                                      <>
+                                        {' '}created by{' '}
+                                        <span className="font-semibold">
+                                          {typeof record.manualEntryBy === 'object' && record.manualEntryBy.name 
+                                            ? record.manualEntryBy.name 
+                                            : typeof record.manualEntryBy === 'string' 
+                                            ? record.manualEntryBy 
+                                            : 'Unknown'}
+                                        </span>
+                                      </>
+                                    )}
                                     {record.manualEntryReason && (
                                       <>
                                         <br />
@@ -584,4 +563,8 @@ const AllAttendancePage = () => {
 };
 
 export default AllAttendancePage;
+
+
+
+
 

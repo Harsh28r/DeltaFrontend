@@ -394,6 +394,7 @@ const CPSourcingPage = () => {
               <Table.Head>
                 <Table.HeadCell>Partner Name</Table.HeadCell>
                 <Table.HeadCell>Phone</Table.HeadCell>
+                <Table.HeadCell>Sourced By</Table.HeadCell>
                 <Table.HeadCell>Project</Table.HeadCell>
                 <Table.HeadCell>Latest Location</Table.HeadCell>
                 <Table.HeadCell>Map</Table.HeadCell>
@@ -424,6 +425,16 @@ const CPSourcingPage = () => {
                       </div>
                     </Table.Cell>
                     <Table.Cell>{sourcing.channelPartnerId?.phone || 'N/A'}</Table.Cell>
+                    <Table.Cell>
+                      <div className="flex flex-col">
+                        <span className="font-medium text-gray-900 dark:text-white">
+                          {sourcing.userId?.name || 'Unknown User'}
+                        </span>
+                        <span className="text-xs text-gray-500">
+                          {sourcing.userId?.email || 'N/A'}
+                        </span>
+                      </div>
+                    </Table.Cell>
                     <Table.Cell>
                       <Badge color="blue" size="sm">
                         {getProjectName(sourcing.projectId)}
@@ -526,6 +537,7 @@ const CPSourcingPage = () => {
             </p>
             <div className="bg-gray-50 p-4 rounded-lg text-left">
               <p><strong>Partner:</strong> {sourcingToDelete?.channelPartnerId?.name || 'Unknown'}</p>
+              <p><strong>Sourced By:</strong> {sourcingToDelete?.userId?.name || 'Unknown User'}</p>
               <p><strong>Project:</strong> {getProjectName(sourcingToDelete?.projectId)}</p>
               <p><strong>Status:</strong> {sourcingToDelete?.isActive ? 'Active' : 'Inactive'}</p>
               <p><strong>Visits:</strong> {sourcingToDelete?.sourcingHistory?.length || 0} visit(s)</p>

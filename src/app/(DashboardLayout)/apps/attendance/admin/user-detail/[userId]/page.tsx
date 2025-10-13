@@ -15,7 +15,6 @@ import {
   IconCalendar,
   IconClock,
   IconMapPin,
-  IconCoffee,
   IconLogin,
   IconLogout,
   IconUser,
@@ -39,7 +38,8 @@ import {
 } from '@/utils/attendanceUtils';
 import Link from 'next/link';
 
-const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) => {
+const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string }> }) => {
+  const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [userDetail, setUserDetail] = useState<UserAttendanceDetailResponse | null>(null);
   const [error, setError] = useState('');
@@ -49,6 +49,11 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
   const [endDate, setEndDate] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
+
+  // Unwrap params (Next.js 15+ async params)
+  useEffect(() => {
+    params.then((p) => setUserId(p.userId));
+  }, [params]);
 
   // Set default date range (last 30 days)
   useEffect(() => {
@@ -62,10 +67,11 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
 
   // Fetch user attendance detail
   const fetchUserDetail = async () => {
+    if (!userId) return;
     try {
       setLoading(true);
       setError('');
-      const response = await getUserAttendanceDetail(params.userId, {
+      const response = await getUserAttendanceDetail(userId, {
         startDate: startDate || undefined,
         endDate: endDate || undefined,
         page: currentPage,
@@ -80,10 +86,10 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
   };
 
   useEffect(() => {
-    if (startDate && endDate) {
+    if (startDate && endDate && userId) {
       fetchUserDetail();
     }
-  }, [currentPage, startDate, endDate]);
+  }, [currentPage, startDate, endDate, userId]);
 
   // Handle filter apply
   const handleApplyFilters = () => {
@@ -137,12 +143,14 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
           </h1>
           <p className="text-gray-600 dark:text-gray-400">View detailed attendance information</p>
         </div>
-        <Link href={`/apps/attendance/admin/location-history/${params.userId}`}>
-          <Button color="purple">
-            <IconMapPin className="mr-2" size={16} />
-            View Location History
-          </Button>
-        </Link>
+        {userId && (
+          <Link href={`/apps/attendance/admin/location-history/${userId}`}>
+            <Button color="purple">
+              <IconMapPin className="mr-2" size={16} />
+              View Location History
+            </Button>
+          </Link>
+        )}
       </div>
 
       {/* Error Alert */}
@@ -214,15 +222,6 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
                 <p className="text-sm text-purple-600 dark:text-purple-300">Avg Hours/Day</p>
                 <p className="text-3xl font-bold text-purple-900 dark:text-white">
                   {formatHours(userDetail.stats.avgHoursPerDay)}
-                </p>
-              </div>
-            </Card>
-
-            <Card className="bg-orange-50 dark:bg-orange-900/20">
-              <div className="text-center">
-                <p className="text-sm text-orange-600 dark:text-orange-300">Total Breaks</p>
-                <p className="text-3xl font-bold text-orange-900 dark:text-white">
-                  {formatDuration(userDetail.stats.totalBreakTime)}
                 </p>
               </div>
             </Card>
@@ -334,7 +333,6 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
                       <Table.HeadCell>Check-In</Table.HeadCell>
                       <Table.HeadCell>Check-Out</Table.HeadCell>
                       <Table.HeadCell>Total Hours</Table.HeadCell>
-                      <Table.HeadCell>Break Time</Table.HeadCell>
                       <Table.HeadCell>Status</Table.HeadCell>
                       <Table.HeadCell>Actions</Table.HeadCell>
                     </Table.Head>
@@ -388,12 +386,6 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
                               {formatHours(record.totalHours)}
                             </Table.Cell>
                             <Table.Cell>
-                              <div className="flex items-center space-x-1">
-                                <IconCoffee size={16} className="text-orange-600" />
-                                <span>{formatDuration(record.totalBreakTime)}</span>
-                              </div>
-                            </Table.Cell>
-                            <Table.Cell>
                               <Badge color={getStatusColor(record.status)}>
                                 {getStatusText(record.status)}
                               </Badge>
@@ -412,7 +404,7 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
                           {/* Expanded Row - Same as in my-history page */}
                           {expandedRow === record._id && (
                             <Table.Row>
-                              <Table.Cell colSpan={7} className="bg-gray-50 dark:bg-gray-900">
+                              <Table.Cell colSpan={6} className="bg-gray-50 dark:bg-gray-900">
                                 <div className="p-4 space-y-4">
                                   {/* Locations, Breaks, Work Locations - same structure as before */}
                                   {(record.checkInLocation || record.checkIn?.location) && (
@@ -430,17 +422,6 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
                                       <div className="text-sm text-gray-600">
                                         {(record.checkOutLocation || record.checkOut?.location)?.address}
                                       </div>
-                                    </div>
-                                  )}
-
-                                  {record.breaks && record.breaks.length > 0 && (
-                                    <div>
-                                      <h4 className="font-semibold mb-2">Breaks ({record.breaks.length})</h4>
-                                      {record.breaks.map((b, i) => (
-                                        <div key={i} className="text-sm">
-                                          {b.reason} - {formatDuration(b.duration || 0)}
-                                        </div>
-                                      ))}
                                     </div>
                                   )}
 

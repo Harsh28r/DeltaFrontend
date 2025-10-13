@@ -1968,10 +1968,10 @@ const CrmDashboard = () => {
                       <span className="text-sm text-gray-600 dark:text-gray-400">Lead Source:</span>
                       <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.leadSource.name}</p>
                     </div>
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Property Type:</span>
+                    <div>
+                      <span className="text-sm text-gray-600 dark:text-gray-400">Property Type:</span>
                     <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Property Type"] || selectedLead?.customData?.propertyType || 'N/A'}</p>
-                  </div>
+                    </div>
                   </div>
                 </div>
               </div>

@@ -92,6 +92,23 @@ export const API_ENDPOINTS = {
   CREATE_REMINDER: `${API_BASE_URL}/api/reminder`,
   UPDATE_REMINDER: (id: string) => `${API_BASE_URL}/api/reminder/${id}`,
   DELETE_REMINDER: (id: string) => `${API_BASE_URL}/api/reminder/${id}`,
+  
+  // Attendance
+  ATTENDANCE_CHECK_IN: `${API_BASE_URL}/api/attendance/check-in`,
+  ATTENDANCE_CHECK_OUT: `${API_BASE_URL}/api/attendance/check-out`,
+  ATTENDANCE_STATUS: `${API_BASE_URL}/api/attendance/status`,
+  ATTENDANCE_BREAK_START: `${API_BASE_URL}/api/attendance/break/start`,
+  ATTENDANCE_BREAK_END: `${API_BASE_URL}/api/attendance/break/end`,
+  ATTENDANCE_WORK_LOCATION: `${API_BASE_URL}/api/attendance/work-location`,
+  ATTENDANCE_MY_HISTORY: `${API_BASE_URL}/api/attendance/my-history`,
+  ATTENDANCE_ADMIN_LIVE: `${API_BASE_URL}/api/attendance/admin/live`,
+  ATTENDANCE_ADMIN_ALL: `${API_BASE_URL}/api/attendance/admin/all`,
+  ATTENDANCE_ADMIN_USER: (userId: string) => `${API_BASE_URL}/api/attendance/admin/user/${userId}`,
+  ATTENDANCE_ADMIN_STATS: `${API_BASE_URL}/api/attendance/admin/stats`,
+  ATTENDANCE_ADMIN_LOCATION_HISTORY: (userId: string) => `${API_BASE_URL}/api/attendance/admin/location-history/${userId}`,
+  ATTENDANCE_ADMIN_MANUAL_ENTRY: `${API_BASE_URL}/api/attendance/admin/manual-entry`,
+  ATTENDANCE_ADMIN_UPDATE: (attendanceId: string) => `${API_BASE_URL}/api/attendance/admin/${attendanceId}`,
+  ATTENDANCE_ADMIN_DELETE: (attendanceId: string) => `${API_BASE_URL}/api/attendance/admin/${attendanceId}`,
 };
 
 

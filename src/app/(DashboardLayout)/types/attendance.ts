@@ -49,7 +49,7 @@ export interface UserBasic {
 export interface Attendance {
   _id: string;
   id?: string;
-  user: UserBasic;
+  user: UserBasic | string; // Can be populated object or just ID
   date: string;
   checkIn?: CheckInOut;
   checkInTime?: string;
@@ -64,11 +64,12 @@ export interface Attendance {
   totalBreakTime: number;
   workLocations: WorkLocation[];
   isManualEntry?: boolean;
-  manualEntryBy?: UserBasic;
+  manualEntryBy?: UserBasic | string;
   manualEntryReason?: string;
   isOnBreak?: boolean;
   createdAt?: string;
   updatedAt?: string;
+  __v?: number;
 }
 
 export interface AttendanceStatus {
@@ -90,6 +91,7 @@ export interface CheckedInUser {
   user: UserBasic;
   checkInTime: string;
   checkInLocation: Location;
+  checkInSelfie?: string;
   hoursWorked: number;
   isOnBreak: boolean;
   workLocations: number;
@@ -98,7 +100,9 @@ export interface CheckedInUser {
 export interface CheckedOutUser {
   user: UserBasic;
   checkInTime: string;
+  checkInSelfie?: string;
   checkOutTime: string;
+  checkOutSelfie?: string;
   totalHours: number;
   checkOutLocation: Location;
 }
@@ -227,4 +231,5 @@ export interface LocationHistoryResponse {
   totalLocations: number;
   locationHistory: LocationHistoryItem[];
 }
+
 

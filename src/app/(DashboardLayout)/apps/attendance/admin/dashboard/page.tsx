@@ -9,18 +9,19 @@ import {
   Alert,
   TextInput,
   Table,
+  Label,
 } from 'flowbite-react';
 import {
   IconUsers,
   IconUserCheck,
   IconUserX,
-  IconCoffee,
   IconRefresh,
   IconClock,
   IconMapPin,
   IconSearch,
   IconLogin,
   IconLogout,
+  IconCalendar,
 } from '@tabler/icons-react';
 import { getLiveDashboard } from '@/app/api/attendance/attendanceService';
 import type { LiveDashboard } from '@/app/(DashboardLayout)/types/attendance';
@@ -28,8 +29,11 @@ import {
   formatHours,
   getStatusColor,
   getStatusText,
+  formatDateForAPI,
 } from '@/utils/attendanceUtils';
+import { API_BASE_URL } from '@/lib/config';
 import Link from 'next/link';
+import Image from 'next/image';
 
 const LiveDashboardPage = () => {
   const [loading, setLoading] = useState(true);
@@ -38,6 +42,7 @@ const LiveDashboardPage = () => {
   const [error, setError] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'checked-in' | 'checked-out' | 'absent'>('checked-in');
+  const [selectedDate, setSelectedDate] = useState(formatDateForAPI(new Date()));
 
   // Fetch live dashboard
   const fetchDashboard = async (isRefresh = false) => {
@@ -48,7 +53,32 @@ const LiveDashboardPage = () => {
         setLoading(true);
       }
       setError('');
-      const data = await getLiveDashboard();
+      const data = await getLiveDashboard(selectedDate);
+      
+      // Debug: Log selfie data
+      if (data.checkedInUsers.length > 0 || data.checkedOutUsers.length > 0) {
+        console.log('Dashboard data received:', {
+          checkedInCount: data.checkedInUsers.length,
+          checkedOutCount: data.checkedOutUsers.length,
+          apiBaseUrl: API_BASE_URL
+        });
+        
+        if (data.checkedInUsers[0]) {
+          console.log('Sample Check-In User:', {
+            name: data.checkedInUsers[0].user.name,
+            rawSelfie: data.checkedInUsers[0].checkInSelfie
+          });
+        }
+        
+        if (data.checkedOutUsers[0]) {
+          console.log('Sample Check-Out User:', {
+            name: data.checkedOutUsers[0].user.name,
+            rawCheckInSelfie: data.checkedOutUsers[0].checkInSelfie,
+            rawCheckOutSelfie: data.checkedOutUsers[0].checkOutSelfie
+          });
+        }
+      }
+      
       setDashboard(data);
     } catch (err: any) {
       setError(err.message || 'Failed to fetch live dashboard');
@@ -58,12 +88,28 @@ const LiveDashboardPage = () => {
     }
   };
 
-  // Auto-refresh every 30 seconds
+  // Auto-refresh every 30 seconds (only for today's data)
   useEffect(() => {
     fetchDashboard();
-    const interval = setInterval(() => fetchDashboard(true), 30000);
-    return () => clearInterval(interval);
-  }, []);
+    
+    // Only auto-refresh if viewing today's data
+    const isToday = selectedDate === formatDateForAPI(new Date());
+    if (isToday) {
+      const interval = setInterval(() => fetchDashboard(true), 30000);
+      return () => clearInterval(interval);
+    }
+  }, [selectedDate]);
+
+  // Quick date selectors
+  const setToday = () => {
+    setSelectedDate(formatDateForAPI(new Date()));
+  };
+
+  const setYesterday = () => {
+    const yesterday = new Date();
+    yesterday.setDate(yesterday.getDate() - 1);
+    setSelectedDate(formatDateForAPI(yesterday));
+  };
 
   // Filter users based on search query
   const filterUsers = (users: any[]) => {
@@ -76,6 +122,28 @@ const LiveDashboardPage = () => {
         item.name?.toLowerCase().includes(query) ||
         item.email?.toLowerCase().includes(query)
     );
+  };
+
+  // Helper function to convert absolute path to relative URL
+  const getImageUrl = (imagePath: string | undefined) => {
+    if (!imagePath) return null;
+    
+    // If it's already a relative path (starts with 'uploads/'), use it as is
+    if (imagePath.startsWith('uploads/')) {
+      return `${API_BASE_URL}/${imagePath}`;
+    }
+    
+    // Extract the relative path from absolute Windows path
+    // Example: "C:\\Users\\...\\uploads\\attendance\\selfies\\file.jpeg"
+    // Becomes: "uploads/attendance/selfies/file.jpeg"
+    const uploadsIndex = imagePath.indexOf('uploads');
+    if (uploadsIndex !== -1) {
+      const relativePath = imagePath.substring(uploadsIndex).replace(/\\/g, '/');
+      return `${API_BASE_URL}/${relativePath}`;
+    }
+    
+    // Fallback: use as is
+    return imagePath;
   };
 
   if (loading) {
@@ -93,7 +161,8 @@ const LiveDashboardPage = () => {
         <div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Live Attendance Dashboard</h1>
           <p className="text-gray-600 dark:text-gray-400">
-            Real-time monitoring of all users · {new Date().toLocaleTimeString('en-US')}
+            Real-time monitoring of all users
+            {selectedDate === formatDateForAPI(new Date()) && ` · ${new Date().toLocaleTimeString('en-US')}`}
           </p>
         </div>
         <Button
@@ -113,10 +182,82 @@ const LiveDashboardPage = () => {
         </Alert>
       )}
 
+      {/* Date Filter */}
+      <Card>
+        <div className="flex flex-col md:flex-row gap-4 items-end">
+          <div className="flex-1">
+            <Label htmlFor="dateFilter" className="mb-2">
+              Select Date
+            </Label>
+            <TextInput
+              id="dateFilter"
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              icon={() => <IconCalendar size={20} />}
+            />
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              color="light"
+              onClick={setToday}
+              disabled={selectedDate === formatDateForAPI(new Date())}
+            >
+              Today
+            </Button>
+            <Button
+              size="sm"
+              color="light"
+              onClick={setYesterday}
+            >
+              Yesterday
+            </Button>
+          </div>
+        </div>
+        {selectedDate && (
+          <div className={`mt-3 p-3 rounded-lg border ${
+            selectedDate === formatDateForAPI(new Date())
+              ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-700'
+              : 'bg-blue-50 dark:bg-blue-900/20 border-blue-200 dark:border-blue-700'
+          }`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <IconCalendar size={18} className={
+                  selectedDate === formatDateForAPI(new Date())
+                    ? 'text-green-600 dark:text-green-400'
+                    : 'text-blue-600 dark:text-blue-400'
+                } />
+                <span className="text-sm text-gray-700 dark:text-gray-300">
+                  {selectedDate === formatDateForAPI(new Date()) ? 'Live Data - ' : 'Historical Data - '}
+                  <span className={`font-bold ${
+                    selectedDate === formatDateForAPI(new Date())
+                      ? 'text-green-600 dark:text-green-400'
+                      : 'text-blue-600 dark:text-blue-400'
+                  }`}>
+                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', {
+                      weekday: 'long',
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric'
+                    })}
+                  </span>
+                </span>
+              </div>
+              {selectedDate === formatDateForAPI(new Date()) && (
+                <Badge color="success" size="sm">
+                  Auto-refreshing
+                </Badge>
+              )}
+            </div>
+          </div>
+        )}
+      </Card>
+
       {/* Summary Cards */}
       {dashboard && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* Total Users */}
             <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 border-blue-200 dark:border-blue-700">
               <div className="flex items-center justify-between">
@@ -173,26 +314,13 @@ const LiveDashboardPage = () => {
                 <IconUserX size={40} className="text-red-600 dark:text-red-300" />
               </div>
             </Card>
-
-            {/* On Break */}
-            <Card className="bg-gradient-to-br from-orange-50 to-orange-100 dark:from-orange-900 dark:to-orange-800 border-orange-200 dark:border-orange-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-orange-600 dark:text-orange-300">On Break</p>
-                  <p className="text-3xl font-bold text-orange-900 dark:text-white">
-                    {dashboard.summary.onBreak}
-                  </p>
-                </div>
-                <IconCoffee size={40} className="text-orange-600 dark:text-orange-300" />
-              </div>
-            </Card>
           </div>
 
           {/* Search Bar */}
           <Card>
             <TextInput
               placeholder="Search by name or email..."
-              icon={IconSearch}
+              icon={() => <IconSearch size={20} />}
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -246,6 +374,7 @@ const LiveDashboardPage = () => {
                   <Table hoverable>
                     <Table.Head>
                       <Table.HeadCell>User</Table.HeadCell>
+                      <Table.HeadCell>Selfie</Table.HeadCell>
                       <Table.HeadCell>Check-In Time</Table.HeadCell>
                       <Table.HeadCell>Location</Table.HeadCell>
                       <Table.HeadCell>Hours Worked</Table.HeadCell>
@@ -266,6 +395,28 @@ const LiveDashboardPage = () => {
                                 </Badge>
                               )}
                             </div>
+                          </Table.Cell>
+                          <Table.Cell>
+                            {(() => {
+                              const imageUrl = getImageUrl(item.checkInSelfie);
+                              return imageUrl ? (
+                                <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-green-500">
+                                  <img
+                                    src={imageUrl}
+                                    alt="Check-in selfie"
+                                    className="w-full h-full object-cover cursor-pointer"
+                                    onClick={() => window.open(imageUrl, '_blank')}
+                                    onError={(e) => {
+                                      console.error('Failed to load image:', imageUrl);
+                                      e.currentTarget.style.display = 'none';
+                                      e.currentTarget.parentElement!.innerHTML = '<span class="text-xs text-red-500">Failed</span>';
+                                    }}
+                                  />
+                                </div>
+                              ) : (
+                                <span className="text-gray-400 text-xs">No photo</span>
+                              );
+                            })()}
                           </Table.Cell>
                           <Table.Cell>
                             <div className="flex items-center space-x-2">
@@ -290,21 +441,26 @@ const LiveDashboardPage = () => {
                             {formatHours(item.hoursWorked)}
                           </Table.Cell>
                           <Table.Cell>
-                            {item.isOnBreak ? (
-                              <Badge color="warning">On Break</Badge>
-                            ) : (
-                              <Badge color="success">Working</Badge>
-                            )}
+                            <Badge color="success">Working</Badge>
                           </Table.Cell>
                           <Table.Cell>
                             <Badge color="purple">{item.workLocations}</Badge>
                           </Table.Cell>
                           <Table.Cell>
-                            <Link href={`/apps/attendance/admin/user-detail/${item.user._id}`}>
-                              <Button size="xs" color="light">
-                                View
-                              </Button>
-                            </Link>
+                            {(() => {
+                              const userId = item.user?._id || (item.user as any)?.id;
+                              return userId ? (
+                                <Link href={`/apps/attendance/admin/user-detail/${userId}`}>
+                                  <Button size="xs" color="light">
+                                    View
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Button size="xs" color="light" disabled>
+                                  No ID
+                                </Button>
+                              );
+                            })()}
                           </Table.Cell>
                         </Table.Row>
                       ))}
@@ -329,6 +485,7 @@ const LiveDashboardPage = () => {
                   <Table hoverable>
                     <Table.Head>
                       <Table.HeadCell>User</Table.HeadCell>
+                      <Table.HeadCell>Selfies</Table.HeadCell>
                       <Table.HeadCell>Check-In</Table.HeadCell>
                       <Table.HeadCell>Check-Out</Table.HeadCell>
                       <Table.HeadCell>Total Hours</Table.HeadCell>
@@ -347,6 +504,58 @@ const LiveDashboardPage = () => {
                                   {item.user.role}
                                 </Badge>
                               )}
+                            </div>
+                          </Table.Cell>
+                          <Table.Cell>
+                            <div className="flex gap-2">
+                              {/* Check-In Selfie */}
+                              {(() => {
+                                const checkInUrl = getImageUrl(item.checkInSelfie);
+                                return checkInUrl ? (
+                                  <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-green-500">
+                                    <img
+                                      src={checkInUrl}
+                                      alt="Check-in"
+                                      title="Check-in selfie"
+                                      className="w-full h-full object-cover cursor-pointer"
+                                      onClick={() => window.open(checkInUrl, '_blank')}
+                                      onError={(e) => {
+                                        console.error('Failed to load check-in image:', checkInUrl);
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.parentElement!.innerHTML = '<span class="text-xs text-red-500">❌</span>';
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                    <span className="text-xs text-gray-400">In</span>
+                                  </div>
+                                );
+                              })()}
+                              {/* Check-Out Selfie */}
+                              {(() => {
+                                const checkOutUrl = getImageUrl(item.checkOutSelfie);
+                                return checkOutUrl ? (
+                                  <div className="relative w-12 h-12 rounded-full overflow-hidden border-2 border-red-500">
+                                    <img
+                                      src={checkOutUrl}
+                                      alt="Check-out"
+                                      title="Check-out selfie"
+                                      className="w-full h-full object-cover cursor-pointer"
+                                      onClick={() => window.open(checkOutUrl, '_blank')}
+                                      onError={(e) => {
+                                        console.error('Failed to load check-out image:', checkOutUrl);
+                                        e.currentTarget.style.display = 'none';
+                                        e.currentTarget.parentElement!.innerHTML = '<span class="text-xs text-red-500">❌</span>';
+                                      }}
+                                    />
+                                  </div>
+                                ) : (
+                                  <div className="w-12 h-12 rounded-full bg-gray-100 dark:bg-gray-700 flex items-center justify-center">
+                                    <span className="text-xs text-gray-400">Out</span>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </Table.Cell>
                           <Table.Cell>
@@ -373,11 +582,20 @@ const LiveDashboardPage = () => {
                             </div>
                           </Table.Cell>
                           <Table.Cell>
-                            <Link href={`/apps/attendance/admin/user-detail/${item.user._id}`}>
-                              <Button size="xs" color="light">
-                                View
-                              </Button>
-                            </Link>
+                            {(() => {
+                              const userId = item.user?._id || (item.user as any)?.id;
+                              return userId ? (
+                                <Link href={`/apps/attendance/admin/user-detail/${userId}`}>
+                                  <Button size="xs" color="light">
+                                    View
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Button size="xs" color="light" disabled>
+                                  No ID
+                                </Button>
+                              );
+                            })()}
                           </Table.Cell>
                         </Table.Row>
                       ))}
@@ -409,30 +627,42 @@ const LiveDashboardPage = () => {
                       <Table.HeadCell>Actions</Table.HeadCell>
                     </Table.Head>
                     <Table.Body className="divide-y">
-                      {filterUsers(dashboard.absentUsers).map((user) => (
-                        <Table.Row key={user._id} className="bg-white dark:bg-gray-800">
-                          <Table.Cell className="font-medium">{user.name}</Table.Cell>
-                          <Table.Cell>{user.email}</Table.Cell>
-                          <Table.Cell>{user.mobile || '-'}</Table.Cell>
-                          <Table.Cell>
-                            {user.role ? (
-                              <Badge color="blue">{user.role}</Badge>
-                            ) : (
-                              '-'
-                            )}
-                          </Table.Cell>
-                          <Table.Cell>
-                            {user.level ? `Level ${user.level}` : '-'}
-                          </Table.Cell>
-                          <Table.Cell>
-                            <Link href={`/apps/attendance/admin/user-detail/${user._id}`}>
-                              <Button size="xs" color="light">
-                                View
-                              </Button>
-                            </Link>
-                          </Table.Cell>
-                        </Table.Row>
-                      ))}
+                      {filterUsers(dashboard.absentUsers).map((user, index) => {
+                        const userId = user._id || (user as any).id;
+                        if (!userId) {
+                          console.warn('Absent user without ID:', user);
+                        }
+                        return (
+                          <Table.Row key={userId || `user-${index}`} className="bg-white dark:bg-gray-800">
+                            <Table.Cell className="font-medium">{user.name}</Table.Cell>
+                            <Table.Cell>{user.email}</Table.Cell>
+                            <Table.Cell>{user.mobile || '-'}</Table.Cell>
+                            <Table.Cell>
+                              {user.role ? (
+                                <Badge color="blue">{user.role}</Badge>
+                              ) : (
+                                '-'
+                              )}
+                            </Table.Cell>
+                            <Table.Cell>
+                              {user.level ? `Level ${user.level}` : '-'}
+                            </Table.Cell>
+                            <Table.Cell>
+                              {userId ? (
+                                <Link href={`/apps/attendance/admin/user-detail/${userId}`}>
+                                  <Button size="xs" color="light">
+                                    View
+                                  </Button>
+                                </Link>
+                              ) : (
+                                <Button size="xs" color="light" disabled>
+                                  No ID
+                                </Button>
+                              )}
+                            </Table.Cell>
+                          </Table.Row>
+                        );
+                      })}
                     </Table.Body>
                   </Table>
                 </div>
@@ -446,4 +676,5 @@ const LiveDashboardPage = () => {
 };
 
 export default LiveDashboardPage;
+
 

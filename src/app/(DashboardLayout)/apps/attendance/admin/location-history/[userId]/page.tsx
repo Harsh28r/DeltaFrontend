@@ -24,11 +24,17 @@ import type { LocationHistoryResponse, LocationHistoryItem } from '@/app/(Dashbo
 import { formatDateForAPI, formatCoordinates } from '@/utils/attendanceUtils';
 import Link from 'next/link';
 
-const LocationHistoryPage = ({ params }: { params: { userId: string } }) => {
+const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }) => {
+  const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [locationHistory, setLocationHistory] = useState<LocationHistoryResponse | null>(null);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
+
+  // Unwrap params (Next.js 15+ async params)
+  useEffect(() => {
+    params.then((p) => setUserId(p.userId));
+  }, [params]);
 
   // Set default date to today
   useEffect(() => {
@@ -38,10 +44,11 @@ const LocationHistoryPage = ({ params }: { params: { userId: string } }) => {
 
   // Fetch location history
   const fetchLocationHistory = async () => {
+    if (!userId) return;
     try {
       setLoading(true);
       setError('');
-      const response = await getUserLocationHistory(params.userId, {
+      const response = await getUserLocationHistory(userId, {
         date: selectedDate || undefined,
       });
       setLocationHistory(response);
@@ -53,10 +60,10 @@ const LocationHistoryPage = ({ params }: { params: { userId: string } }) => {
   };
 
   useEffect(() => {
-    if (selectedDate) {
+    if (selectedDate && userId) {
       fetchLocationHistory();
     }
-  }, [selectedDate]);
+  }, [selectedDate, userId]);
 
   // Get icon for location type
   const getLocationIcon = (type: string) => {
@@ -112,11 +119,13 @@ const LocationHistoryPage = ({ params }: { params: { userId: string } }) => {
     <div className="space-y-6">
       {/* Header with Back Button */}
       <div>
-        <Link href={`/apps/attendance/admin/user-detail/${params.userId}`}>
-          <Button color="light" size="sm" className="mb-2">
-            ← Back to User Details
-          </Button>
-        </Link>
+        {userId && (
+          <Link href={`/apps/attendance/admin/user-detail/${userId}`}>
+            <Button color="light" size="sm" className="mb-2">
+              ← Back to User Details
+            </Button>
+          </Link>
+        )}
         <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Location History</h1>
         <p className="text-gray-600 dark:text-gray-400">Track user's location movements</p>
       </div>
