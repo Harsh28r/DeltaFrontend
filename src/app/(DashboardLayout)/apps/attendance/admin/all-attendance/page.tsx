@@ -11,6 +11,7 @@ import {
   Select,
   Spinner,
   Alert,
+  Modal,
 } from 'flowbite-react';
 import {
   IconCalendar,
@@ -21,6 +22,9 @@ import {
   IconLogout,
   IconFilter,
   IconDownload,
+  IconUserPlus,
+  IconNotes,
+  IconUserCheck,
 } from '@tabler/icons-react';
 import { getAllAttendance } from '@/app/api/attendance/attendanceService';
 import type { Attendance, Pagination } from '@/app/(DashboardLayout)/types/attendance';
@@ -49,6 +53,13 @@ const AllAttendancePage = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [expandedRow, setExpandedRow] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [showManualEntryModal, setShowManualEntryModal] = useState(false);
+  const [selectedManualEntry, setSelectedManualEntry] = useState<{
+    userName: string;
+    createdBy: string;
+    reason: string;
+    notes: string;
+  } | null>(null);
 
   // Fetch attendance records
   const fetchAttendance = async () => {
@@ -105,6 +116,24 @@ const AllAttendancePage = () => {
   // Toggle row expansion
   const toggleRowExpansion = (id: string) => {
     setExpandedRow(expandedRow === id ? null : id);
+  };
+
+  // Show manual entry details
+  const showManualEntryDetails = (record: Attendance) => {
+    const userName = typeof record.user === 'object' ? record.user.name : 'Unknown User';
+    const createdBy = typeof record.manualEntryBy === 'object' && record.manualEntryBy?.name
+      ? record.manualEntryBy.name
+      : typeof record.manualEntryBy === 'string'
+      ? record.manualEntryBy
+      : 'Unknown';
+    
+    setSelectedManualEntry({
+      userName,
+      createdBy,
+      reason: record.manualEntryReason || 'No reason provided',
+      notes: (record.checkIn?.notes || record.checkOut?.notes) || 'No notes',
+    });
+    setShowManualEntryModal(true);
   };
 
   // Filter attendance based on search query
@@ -325,7 +354,13 @@ const AllAttendancePage = () => {
                               </Badge>
                             )}
                             {record.isManualEntry && (
-                              <Badge color="warning" size="xs" className="mt-1 ml-1">
+                              <Badge 
+                                color="warning" 
+                                size="xs" 
+                                className="mt-1 ml-1 cursor-pointer hover:bg-yellow-300 transition-colors"
+                                title="Click to view manual entry details"
+                                onClick={() => showManualEntryDetails(record)}
+                              >
                                 Manual Entry
                               </Badge>
                             )}
@@ -558,6 +593,79 @@ const AllAttendancePage = () => {
           </>
         )}
       </Card>
+
+      {/* Manual Entry Details Modal */}
+      <Modal
+        show={showManualEntryModal}
+        onClose={() => setShowManualEntryModal(false)}
+        size="md"
+      >
+        <Modal.Header>
+          Manual Entry Details
+        </Modal.Header>
+        <Modal.Body>
+          {selectedManualEntry && (
+            <div className="space-y-4">
+              {/* User Name */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconUserCheck size={18} className="text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    User
+                  </span>
+                </div>
+                <p className="text-base font-semibold text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.userName}
+                </p>
+              </div>
+
+              {/* Created By */}
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconUserPlus size={18} className="text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Created By
+                  </span>
+                </div>
+                <p className="text-base font-semibold text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.createdBy}
+                </p>
+              </div>
+
+              {/* Reason */}
+              <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconNotes size={18} className="text-orange-600 dark:text-orange-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Reason
+                  </span>
+                </div>
+                <p className="text-base text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.reason}
+                </p>
+              </div>
+
+              {/* Notes */}
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconNotes size={18} className="text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Notes
+                  </span>
+                </div>
+                <p className="text-base text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.notes}
+                </p>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button color="gray" onClick={() => setShowManualEntryModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

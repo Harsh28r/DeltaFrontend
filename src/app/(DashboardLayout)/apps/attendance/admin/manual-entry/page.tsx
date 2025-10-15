@@ -10,19 +10,24 @@ import {
   Spinner,
   Alert,
   Select,
+  Badge,
 } from 'flowbite-react';
 import {
   IconCalendar,
   IconClock,
   IconUserPlus,
   IconDeviceFloppy,
+  IconInfoCircle,
+  IconNotes,
 } from '@tabler/icons-react';
-import { createManualEntry } from '@/app/api/attendance/attendanceService';
+import { createManualEntry, getAllAttendance } from '@/app/api/attendance/attendanceService';
+import type { Attendance } from '@/app/(DashboardLayout)/types/attendance';
 import { API_BASE_URL } from '@/lib/config';
 import Link from 'next/link';
 
 interface User {
-  _id: string;
+  id?: string;
+  _id?: string;
   name: string;
   email: string;
   role?: string;
@@ -34,6 +39,9 @@ const ManualEntryPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [manualEntries, setManualEntries] = useState<Attendance[]>([]);
+  const [entriesLoading, setEntriesLoading] = useState(true);
 
   // Form state
   const [formData, setFormData] = useState({
@@ -46,31 +54,69 @@ const ManualEntryPage = () => {
   });
 
   // Fetch all users
-  const fetchUsers = async () => {
+  const fetchUsers = async (): Promise<void> => {
     try {
       setUsersLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/users`, {
+      
+      // Try to get token from multiple possible storage locations
+      const token = localStorage.getItem('auth_token') || 
+                    sessionStorage.getItem('auth_token') || 
+                    localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/api/permissions/all-users`, {
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch users');
       }
       
       const data = await response.json();
-      setUsers(data.users || data);
+      console.log('Users API response:', data);
+      setUsers(data.users || []);
     } catch (err: any) {
       setError(err.message || 'Failed to load users');
+      console.error('Error fetching users:', err);
     } finally {
       setUsersLoading(false);
     }
   };
 
+
+
+
+
+  
+
+  // Fetch recent manual entries
+  const fetchManualEntries = async () => {
+    try {
+      setEntriesLoading(true);
+      const response = await getAllAttendance({
+        limit: 10,
+        page: 1,
+      });
+      // Filter to show only manual entries
+      const manualOnly = response.attendance.filter(record => record.isManualEntry);
+      setManualEntries(manualOnly);
+    } catch (err: any) {
+      console.error('Failed to fetch manual entries:', err);
+    } finally {
+      setEntriesLoading(false);
+    }
+  };
+
   useEffect(() => {
     fetchUsers();
+    fetchManualEntries();
     // Set default date to today
     const today = new Date().toISOString().split('T')[0];
     setFormData(prev => ({ ...prev, date: today }));
@@ -135,6 +181,9 @@ const ManualEntryPage = () => {
 
       setSuccess('Manual attendance entry created successfully!');
       
+      // Refresh manual entries list
+      fetchManualEntries();
+      
       // Reset form
       setFormData({
         userId: '',
@@ -163,7 +212,19 @@ const ManualEntryPage = () => {
     });
     setError('');
     setSuccess('');
+    setUserSearchQuery('');
   };
+
+  // Filter users based on search query
+  const filteredUsers = users.filter(user => {
+    if (!userSearchQuery.trim()) return true;
+    const query = userSearchQuery.toLowerCase();
+    return (
+      user.name.toLowerCase().includes(query) ||
+      user.email.toLowerCase().includes(query) ||
+      user.role?.toLowerCase().includes(query)
+    );
+  });
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
@@ -215,28 +276,61 @@ const ManualEntryPage = () => {
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* User Selection */}
           <div>
-            <Label htmlFor="userId">
-              Select User <span className="text-red-500">*</span>
-            </Label>
+            <div className="flex items-center justify-between mb-2">
+              <Label htmlFor="userId">
+                Select User <span className="text-red-500">*</span>
+              </Label>
+              {!usersLoading && users.length > 0 && (
+                <Badge color="info" size="sm">
+                  {users.length} {users.length === 1 ? 'user' : 'users'} available
+                </Badge>
+              )}
+            </div>
             {usersLoading ? (
               <div className="flex items-center justify-center py-4">
                 <Spinner size="sm" />
+                <span className="ml-2 text-sm text-gray-500">Loading users...</span>
               </div>
+            ) : users.length === 0 ? (
+              <Alert color="warning">
+                No users found. Please ensure users exist in the system.
+              </Alert>
             ) : (
-              <Select
-                id="userId"
-                name="userId"
-                value={formData.userId}
-                onChange={handleChange}
-                required
-              >
-                <option value="">-- Select User --</option>
-                {users.map(user => (
-                  <option key={user._id} value={user._id}>
-                    {user.name} ({user.email}) {user.role ? `- ${user.role}` : ''}
-                  </option>
-                ))}
-              </Select>
+              <>
+                {/* Search Users */}
+                <TextInput
+                  placeholder="Search users by name, email, or role..."
+                  value={userSearchQuery}
+                  onChange={(e) => setUserSearchQuery(e.target.value)}
+                  className="mb-2"
+                />
+                <Select
+                  id="userId"
+                  name="userId"
+                  value={formData.userId}
+                  onChange={handleChange}
+                  required
+                >
+                  <option value="">-- Select User ({filteredUsers.length} available) --</option>
+                  {filteredUsers.length === 0 ? (
+                    <option disabled>No users match your search</option>
+                  ) : (
+                    filteredUsers.map(user => {
+                      const userId = user.id || user._id;
+                      return (
+                        <option key={userId} value={userId}>
+                          {user.name} - {user.email} {user.role ? `(${user.role})` : ''}
+                        </option>
+                      );
+                    })
+                  )}
+                </Select>
+                {userSearchQuery && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Showing {filteredUsers.length} of {users.length} users
+                  </p>
+                )}
+              </>
             )}
           </div>
 
@@ -306,18 +400,20 @@ const ManualEntryPage = () => {
             />
           </div>
 
-          {/* Notes */}
+          {/* Comments/Notes */}
           <div>
-            <Label htmlFor="notes">
-              Additional Notes <span className="text-gray-500">(Optional)</span>
+            <Label htmlFor="notes" className="flex items-center gap-2">
+              <IconNotes size={18} />
+              Comments/Notes <span className="text-gray-500">(Optional)</span>
             </Label>
             <Textarea
               id="notes"
               name="notes"
               value={formData.notes}
               onChange={handleChange}
-              rows={3}
-              placeholder="Any additional information about this attendance record..."
+              rows={4}
+              placeholder="Add any comments or additional information about this attendance record..."
+              helperText="This comment will be visible in the attendance records"
             />
           </div>
 
@@ -366,6 +462,140 @@ const ManualEntryPage = () => {
             </p>
           </div>
         </div>
+      </Card>
+
+      {/* Recent Manual Entries */}
+      <Card>
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <IconInfoCircle size={24} className="text-blue-600" />
+            Recent Manual Entries
+          </h3>
+          <Badge color="info">{manualEntries.length} entries</Badge>
+        </div>
+
+        {entriesLoading ? (
+          <div className="flex justify-center py-8">
+            <Spinner size="lg" />
+          </div>
+        ) : manualEntries.length === 0 ? (
+          <div className="text-center py-8 text-gray-500">
+            No manual entries found
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {manualEntries.map((entry) => (
+              <div
+                key={entry._id}
+                className="border border-gray-200 dark:border-gray-700 rounded-lg p-4 hover:bg-gray-50 dark:hover:bg-gray-800 transition-colors"
+              >
+                <div className="flex items-start justify-between">
+                  <div className="flex-1">
+                    {/* User Info */}
+                    <div className="flex items-center gap-2 mb-2">
+                      <h4 className="font-semibold text-lg">
+                        {typeof entry.user === 'object' ? entry.user.name : 'Unknown User'}
+                      </h4>
+                      <Badge color="warning" size="sm">Manual Entry</Badge>
+                    </div>
+                    
+                    {/* Email */}
+                    {typeof entry.user === 'object' && (
+                      <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        {entry.user.email}
+                      </p>
+                    )}
+
+                    {/* Date & Time */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mb-3">
+                      <div className="text-sm">
+                        <span className="text-gray-500">Date:</span>{' '}
+                        <span className="font-medium">
+                          {new Date(entry.date).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric',
+                          })}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-gray-500">Check-In:</span>{' '}
+                        <span className="font-medium">
+                          {entry.checkInTime
+                            ? new Date(entry.checkInTime).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '-'}
+                        </span>
+                      </div>
+                      <div className="text-sm">
+                        <span className="text-gray-500">Check-Out:</span>{' '}
+                        <span className="font-medium">
+                          {entry.checkOutTime
+                            ? new Date(entry.checkOutTime).toLocaleTimeString('en-US', {
+                                hour: '2-digit',
+                                minute: '2-digit',
+                              })
+                            : '-'}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Created By */}
+                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg mb-3">
+                      <div className="flex items-center gap-2 text-sm">
+                        <IconUserPlus size={16} className="text-blue-600" />
+                        <span className="text-gray-700 dark:text-gray-300">
+                          Created by:{' '}
+                          <span className="font-semibold text-blue-600 dark:text-blue-400">
+                            {typeof entry.manualEntryBy === 'object' && entry.manualEntryBy?.name
+                              ? entry.manualEntryBy.name
+                              : typeof entry.manualEntryBy === 'string'
+                              ? entry.manualEntryBy
+                              : 'Unknown'}
+                          </span>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Reason */}
+                    {entry.manualEntryReason && (
+                      <div className="bg-yellow-50 dark:bg-yellow-900/20 p-3 rounded-lg mb-3">
+                        <div className="text-sm">
+                          <span className="font-semibold text-yellow-800 dark:text-yellow-300">Reason:</span>
+                          <p className="text-gray-700 dark:text-gray-300 mt-1">
+                            {entry.manualEntryReason}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Comments/Notes */}
+                    {(entry.checkIn?.notes || entry.checkOut?.notes) && (
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg">
+                        <div className="flex items-start gap-2 text-sm">
+                          <IconNotes size={16} className="text-green-600 mt-0.5" />
+                          <div className="flex-1">
+                            <span className="font-semibold text-green-800 dark:text-green-300">Comments:</span>
+                            <p className="text-gray-700 dark:text-gray-300 mt-1">
+                              {entry.checkIn?.notes || entry.checkOut?.notes}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Entry Date */}
+                  <div className="text-xs text-gray-400 ml-4">
+                    {new Date(entry.createdAt || entry.date).toLocaleDateString()}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </Card>
     </div>
   );

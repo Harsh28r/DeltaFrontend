@@ -10,6 +10,7 @@ import {
   TextInput,
   Table,
   Label,
+  Modal,
 } from 'flowbite-react';
 import {
   IconUsers,
@@ -22,6 +23,8 @@ import {
   IconLogin,
   IconLogout,
   IconCalendar,
+  IconUserPlus,
+  IconNotes,
 } from '@tabler/icons-react';
 import { getLiveDashboard } from '@/app/api/attendance/attendanceService';
 import type { LiveDashboard } from '@/app/(DashboardLayout)/types/attendance';
@@ -43,6 +46,13 @@ const LiveDashboardPage = () => {
   const [searchQuery, setSearchQuery] = useState('');
   const [activeTab, setActiveTab] = useState<'checked-in' | 'checked-out' | 'absent'>('checked-in');
   const [selectedDate, setSelectedDate] = useState(formatDateForAPI(new Date()));
+  const [showManualEntryModal, setShowManualEntryModal] = useState(false);
+  const [selectedManualEntry, setSelectedManualEntry] = useState<{
+    userName: string;
+    createdBy: string;
+    reason: string;
+    notes: string;
+  } | null>(null);
 
   // Fetch live dashboard
   const fetchDashboard = async (isRefresh = false) => {
@@ -122,6 +132,21 @@ const LiveDashboardPage = () => {
         item.name?.toLowerCase().includes(query) ||
         item.email?.toLowerCase().includes(query)
     );
+  };
+
+  // Show manual entry details
+  const showManualEntryDetails = (item: any) => {
+    setSelectedManualEntry({
+      userName: item.user?.name || 'Unknown User',
+      createdBy: typeof item.manualEntryBy === 'object' && item.manualEntryBy?.name
+        ? item.manualEntryBy.name
+        : typeof item.manualEntryBy === 'string'
+        ? item.manualEntryBy
+        : 'Unknown',
+      reason: item.manualEntryReason || 'No reason provided',
+      notes: item.notes || 'No notes',
+    });
+    setShowManualEntryModal(true);
   };
 
   // Helper function to convert absolute path to relative URL
@@ -257,22 +282,30 @@ const LiveDashboardPage = () => {
       {/* Summary Cards */}
       {dashboard && (
         <>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* Total Users */}
-            <Card className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 border-blue-200 dark:border-blue-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-blue-600 dark:text-blue-300">Total Users</p>
-                  <p className="text-3xl font-bold text-blue-900 dark:text-white">
-                    {dashboard.summary.totalUsers}
-                  </p>
+            <Link href="/apps/users">
+              <Card 
+                className="bg-gradient-to-br from-blue-50 to-blue-100 dark:from-blue-900 dark:to-blue-800 border-blue-200 dark:border-blue-700 cursor-pointer hover:shadow-lg transition-shadow"
+              >
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-blue-600 dark:text-blue-300">Total Users</p>
+                    <p className="text-3xl font-bold text-blue-900 dark:text-white">
+                      {dashboard.summary.totalUsers}
+                    </p>
+                    <p className="text-xs text-blue-600 dark:text-blue-300 mt-1">Click to view all users</p>
+                  </div>
+                  <IconUsers size={40} className="text-blue-600 dark:text-blue-300" />
                 </div>
-                <IconUsers size={40} className="text-blue-600 dark:text-blue-300" />
-              </div>
-            </Card>
+              </Card>
+            </Link>
 
             {/* Checked In */}
-            <Card className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 border-green-200 dark:border-green-700">
+            <Card 
+              className="bg-gradient-to-br from-green-50 to-green-100 dark:from-green-900 dark:to-green-800 border-green-200 dark:border-green-700 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => setActiveTab('checked-in')}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-green-600 dark:text-green-300">Checked In</p>
@@ -290,7 +323,10 @@ const LiveDashboardPage = () => {
             </Card>
 
             {/* Checked Out */}
-            <Card className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-gray-200 dark:border-gray-700">
+            <Card 
+              className="bg-gradient-to-br from-gray-50 to-gray-100 dark:from-gray-900 dark:to-gray-800 border-gray-200 dark:border-gray-700 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => setActiveTab('checked-out')}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-600 dark:text-gray-300">Checked Out</p>
@@ -303,7 +339,10 @@ const LiveDashboardPage = () => {
             </Card>
 
             {/* Absent */}
-            <Card className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900 dark:to-red-800 border-red-200 dark:border-red-700">
+            <Card 
+              className="bg-gradient-to-br from-red-50 to-red-100 dark:from-red-900 dark:to-red-800 border-red-200 dark:border-red-700 cursor-pointer hover:shadow-lg transition-shadow"
+              onClick={() => setActiveTab('absent')}
+            >
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-red-600 dark:text-red-300">Absent</p>
@@ -387,7 +426,20 @@ const LiveDashboardPage = () => {
                         <Table.Row key={item.user._id} className="bg-white dark:bg-gray-800">
                           <Table.Cell>
                             <div>
-                              <div className="font-medium">{item.user.name}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{item.user.name}</span>
+                                {item.isManualEntry && (
+                                  <Badge 
+                                    color="warning" 
+                                    size="xs" 
+                                    title="Click to view manual entry details"
+                                    className="cursor-pointer hover:bg-yellow-300 transition-colors"
+                                    onClick={() => showManualEntryDetails(item)}
+                                  >
+                                    Manual
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="text-sm text-gray-500">{item.user.email}</div>
                               {item.user.role && (
                                 <Badge color="blue" size="xs" className="mt-1">
@@ -497,7 +549,20 @@ const LiveDashboardPage = () => {
                         <Table.Row key={item.user._id} className="bg-white dark:bg-gray-800">
                           <Table.Cell>
                             <div>
-                              <div className="font-medium">{item.user.name}</div>
+                              <div className="flex items-center gap-2">
+                                <span className="font-medium">{item.user.name}</span>
+                                {item.isManualEntry && (
+                                  <Badge 
+                                    color="warning" 
+                                    size="xs" 
+                                    title="Click to view manual entry details"
+                                    className="cursor-pointer hover:bg-yellow-300 transition-colors"
+                                    onClick={() => showManualEntryDetails(item)}
+                                  >
+                                    Manual
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="text-sm text-gray-500">{item.user.email}</div>
                               {item.user.role && (
                                 <Badge color="blue" size="xs" className="mt-1">
@@ -671,6 +736,79 @@ const LiveDashboardPage = () => {
           )}
         </>
       )}
+
+      {/* Manual Entry Details Modal */}
+      <Modal
+        show={showManualEntryModal}
+        onClose={() => setShowManualEntryModal(false)}
+        size="md"
+      >
+        <Modal.Header>
+          Manual Entry Details
+        </Modal.Header>
+        <Modal.Body>
+          {selectedManualEntry && (
+            <div className="space-y-4">
+              {/* User Name */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconUserCheck size={18} className="text-blue-600 dark:text-blue-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    User
+                  </span>
+                </div>
+                <p className="text-base font-semibold text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.userName}
+                </p>
+              </div>
+
+              {/* Created By */}
+              <div className="p-4 bg-purple-50 dark:bg-purple-900/20 rounded-lg border border-purple-200 dark:border-purple-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconUserPlus size={18} className="text-purple-600 dark:text-purple-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Created By
+                  </span>
+                </div>
+                <p className="text-base font-semibold text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.createdBy}
+                </p>
+              </div>
+
+              {/* Reason */}
+              <div className="p-4 bg-orange-50 dark:bg-orange-900/20 rounded-lg border border-orange-200 dark:border-orange-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconNotes size={18} className="text-orange-600 dark:text-orange-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Reason
+                  </span>
+                </div>
+                <p className="text-base text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.reason}
+                </p>
+              </div>
+
+              {/* Notes */}
+              <div className="p-4 bg-green-50 dark:bg-green-900/20 rounded-lg border border-green-200 dark:border-green-700">
+                <div className="flex items-center gap-2 mb-1">
+                  <IconNotes size={18} className="text-green-600 dark:text-green-400" />
+                  <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                    Notes
+                  </span>
+                </div>
+                <p className="text-base text-gray-900 dark:text-white ml-6">
+                  {selectedManualEntry.notes}
+                </p>
+              </div>
+            </div>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button color="gray" onClick={() => setShowManualEntryModal(false)}>
+            Close
+          </Button>
+        </Modal.Footer>
+      </Modal>
     </div>
   );
 };

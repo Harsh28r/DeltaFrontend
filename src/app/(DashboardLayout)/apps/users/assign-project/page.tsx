@@ -117,6 +117,8 @@ const AssignProjectPage = () => {
     }
   };
 
+
+  
   const fetchProjects = async () => {
     try {
       const response = await fetch(API_ENDPOINTS.PROJECTS, {

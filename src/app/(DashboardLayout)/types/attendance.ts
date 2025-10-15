@@ -95,6 +95,10 @@ export interface CheckedInUser {
   hoursWorked: number;
   isOnBreak: boolean;
   workLocations: number;
+  isManualEntry?: boolean;
+  manualEntryBy?: UserBasic | string;
+  manualEntryReason?: string;
+  notes?: string;
 }
 
 export interface CheckedOutUser {
@@ -105,6 +109,10 @@ export interface CheckedOutUser {
   checkOutSelfie?: string;
   totalHours: number;
   checkOutLocation: Location;
+  isManualEntry?: boolean;
+  manualEntryBy?: UserBasic | string;
+  manualEntryReason?: string;
+  notes?: string;
 }
 
 export interface LiveDashboard {

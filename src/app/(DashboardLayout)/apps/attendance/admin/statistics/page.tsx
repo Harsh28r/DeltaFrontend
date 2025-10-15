@@ -54,28 +54,46 @@ const StatisticsPage = () => {
   }, []);
 
   // Fetch users
-  const fetchUsers = async () => {
+  const fetchUsers = async (): Promise<void> => {
     try {
       setUsersLoading(true);
-      const token = localStorage.getItem('token');
-      const response = await fetch(`${API_BASE_URL}/users`, {
+      
+      // Try to get token from multiple possible storage locations
+      const token = localStorage.getItem('auth_token') || 
+                    sessionStorage.getItem('auth_token') || 
+                    localStorage.getItem('token');
+      
+      if (!token) {
+        throw new Error('No authentication token found. Please login again.');
+      }
+      
+      const response = await fetch(`${API_BASE_URL}/api/permissions/all-users`, {
         headers: {
+          'Content-Type': 'application/json',
           Authorization: `Bearer ${token}`,
         },
       });
       
       if (!response.ok) {
-        throw new Error('Failed to fetch users');
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to fetch users');
       }
       
       const data = await response.json();
-      setUsers(data.users || data);
+      console.log('Users API response:', data);
+      setUsers(data.users || []);
     } catch (err: any) {
-      console.error('Failed to load users:', err);
+      setError(err.message || 'Failed to load users');
+      console.error('Error fetching users:', err);
     } finally {
       setUsersLoading(false);
     }
   };
+
+
+
+  //fech all users 
+  
 
   // Fetch statistics
   const fetchStats = async () => {

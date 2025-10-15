@@ -399,6 +399,7 @@ const CPSourcingPage = () => {
                 <Table.HeadCell>Latest Location</Table.HeadCell>
                 <Table.HeadCell>Map</Table.HeadCell>
                 <Table.HeadCell>Latest Selfie</Table.HeadCell>
+                <Table.HeadCell>Visits</Table.HeadCell>
                 <Table.HeadCell>Status</Table.HeadCell>
                 <Table.HeadCell>Last Visit</Table.HeadCell>
                 <Table.HeadCell>Actions</Table.HeadCell>
@@ -474,6 +475,16 @@ const CPSourcingPage = () => {
                         ) : (
                         <span className="text-xs text-gray-400">No selfie</span>
                       )}
+                    </Table.Cell>
+                    <Table.Cell>
+                      <div className="flex items-center gap-2">
+                        <Badge color="purple" size="sm">
+                          {sourcing.sourcingHistory?.length || 0}
+                        </Badge>
+                        <span className="text-xs text-gray-500">
+                          {sourcing.sourcingHistory?.length === 1 ? 'visit' : 'visits'}
+                        </span>
+                      </div>
                     </Table.Cell>
                     <Table.Cell>
                       <Badge color={sourcing.isActive ? "green" : "red"} size="sm">
