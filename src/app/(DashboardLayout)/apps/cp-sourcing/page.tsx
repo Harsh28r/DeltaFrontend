@@ -212,6 +212,11 @@ const CPSourcingPage = () => {
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return undefined;
 
+    // If it's already a full URL (starts with http/https), use it directly
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      return imagePath;
+    }
+
     // If path contains '/', it's an S3 key - route through backend API
     if (imagePath.includes('/')) {
       // S3 key format: "cp-sourcing/userId/filename.jpeg"        
