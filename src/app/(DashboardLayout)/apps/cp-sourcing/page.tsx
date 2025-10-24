@@ -213,36 +213,32 @@ const CPSourcingPage = () => {
     if (!imagePath) {
       return '';
     }
-    
-    // If it's a local file path, convert it to a proper URL
-    if (imagePath.includes('uploads\\') || imagePath.includes('uploads/')) {
-      // Convert backslashes to forward slashes for proper URL construction
-      const normalizedPath = imagePath.replace(/\\/g, '/');
-      
-      // For local files, we need to serve them through the backend
-      // The backend should serve static files from the uploads directory
-      const fullUrl = `${API_BASE_URL}/${normalizedPath}`;
-      
-      return fullUrl;
-    }
-    
-    // If it's already a full URL, return as is
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('file://')) {
+
+    // If it's already a full URL (starts with http/https), use it directly
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
     }
-    
-    // If it's a relative path, prepend the API base URL
-    if (imagePath.startsWith('/')) {
-      return `${API_BASE_URL}${imagePath}`;
+
+    // If path contains '/', it's an S3 key - route through backend API
+    if (imagePath.includes('/')) {
+      // Check if it's a CP sourcing image
+      if (imagePath.startsWith('cp-sourcing/')) {
+        // CP sourcing S3 key format: "cp-sourcing/userId/filename.jpeg"
+        // Backend endpoint: GET /api/cp-sourcing/selfie/:filename
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
+      } else {
+        // Other S3 keys - route through CP sourcing endpoint as fallback
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
+      }
     }
-    
-    // For selfie images, use the specific selfie API endpoint
+
+    // For selfie images with sourcingId and index, use the specific selfie API endpoint
     if (sourcingId && typeof index === 'number') {
       return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
     }
-    
-    // Default fallback - assume it's a relative path
-    return `${API_BASE_URL}/${imagePath}`;
+
+    // Legacy local file (just filename, no path)
+    return `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
   };
 
   // Component to handle image display with fallback
@@ -290,7 +286,7 @@ const CPSourcingPage = () => {
 
     // Check if this is an authenticated API endpoint
     React.useEffect(() => {
-      if (src && src.includes('/api/cp-sourcing/') && src.includes('/selfie/')) {
+      if (src && (src.includes('/api/cp-sourcing/') || src.includes('/api/attendance/'))) {
         loadAuthenticatedImage(src);
       } else {
         setImageSrc(src);
