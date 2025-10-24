@@ -169,7 +169,7 @@ interface ProjectSummary {
 }
 
 
-interface FollowUp {
+export interface FollowUp {
   id: string;
   title: string;
   description: string;
@@ -249,7 +249,7 @@ interface FollowUp {
   };
 }
 
-interface FollowUpsData {
+export interface FollowUpsData {
   followUps: {
     today: FollowUp[];
     tomorrow: FollowUp[];
@@ -263,7 +263,7 @@ interface FollowUpsData {
   timestamp?: string;
 }
 
-interface FollowUpsStats {
+export interface FollowUpsStats {
   stats: {
     total: number;
     pending: number;
@@ -274,7 +274,7 @@ interface FollowUpsStats {
   };
 }
 
-interface DashboardData {
+export interface DashboardData {
   stats: DashboardStats;
   charts: ChartData;
   leads: Lead[];
@@ -299,7 +299,7 @@ const CrmDashboard = () => {
   const [error, setError] = useState<string | null>(null);
   const [channelPartners, setChannelPartners] = useState<any[]>([]);
   const [cpSourcingOptions, setCpSourcingOptions] = useState<CPSourcingUser[]>([]);
-  
+
   // Follow-up management state
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<Lead | null>(null);
@@ -307,18 +307,18 @@ const CrmDashboard = () => {
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
   const [followUpAlert, setFollowUpAlert] = useState<{ type: 'success' | 'error', message: string } | null>(null);
-  
+
   // Reminder notification state
   const [showReminderNotification, setShowReminderNotification] = useState(false);
   const [reminderLeads, setReminderLeads] = useState<Lead[]>([]);
   const [reminderType, setReminderType] = useState<'today' | 'overdue' | 'upcoming'>('today');
-  
+
   // Filter states for each section
   const [todayFilter, setTodayFilter] = useState<string>('all');
   const [tomorrowFilter, setTomorrowFilter] = useState<string>('all');
   const [upcomingFilter, setUpcomingFilter] = useState<string>('all');
   const [pendingFilter, setPendingFilter] = useState<string>('all');
-  
+
   // Show more states for each section
   const [showMoreToday, setShowMoreToday] = useState(false);
   const [showMoreTomorrow, setShowMoreTomorrow] = useState(false);
@@ -332,7 +332,7 @@ const CrmDashboard = () => {
 
       try {
         setLoading(true);
-        
+
         // Fetch stats, leads, performance, project summary, channel partners, CP sourcing data, follow-ups, and follow-ups stats
         const [statsResponse, leadsResponse, performanceResponse, projectSummaryResponse, channelPartnersResponse, cpSourcingResponse, followUpsResponse, followUpsStatsResponse] = await Promise.all([
           fetch(`${API_BASE_URL}/api/dashboard/stats`, {
@@ -408,10 +408,22 @@ const CrmDashboard = () => {
           followUpsStatsResponse.json()
         ]);
 
+        // Debug logs for CRM Dashboard
+        console.log('🏢 CRM Dashboard - Stats Data:', statsData);
+        console.log('🏢 CRM Dashboard - Leads Data:', leadsData);
+        console.log('🏢 CRM Dashboard - Leads Array:', leadsData?.leads);
+        console.log('🏢 CRM Dashboard - Leads Count:', leadsData?.leads?.length);
+        console.log('📊 CRM Dashboard - Follow-ups Data:', followUpsData);
+        console.log('📈 CRM Dashboard - Follow-ups Stats:', followUpsStatsData);
+        console.log('📋 CRM Dashboard - Today Follow-ups:', followUpsData?.followUps?.today);
+        console.log('📋 CRM Dashboard - Tomorrow Follow-ups:', followUpsData?.followUps?.tomorrow);
+        console.log('📋 CRM Dashboard - Upcoming Follow-ups:', followUpsData?.followUps?.upcoming);
+        console.log('📋 CRM Dashboard - Pending Follow-ups:', followUpsData?.followUps?.pending);
+
         // Set channel partners and CP sourcing data
         setChannelPartners(channelPartnersData.channelPartners || channelPartnersData || []);
-        setCpSourcingOptions(Array.isArray(cpSourcingData.cpSourcing) ? cpSourcingData.cpSourcing : 
-                            Array.isArray(cpSourcingData) ? cpSourcingData : []);
+        setCpSourcingOptions(Array.isArray(cpSourcingData.cpSourcing) ? cpSourcingData.cpSourcing :
+          Array.isArray(cpSourcingData) ? cpSourcingData : []);
 
         // Combine the data
         const combinedData: DashboardData = {
@@ -425,10 +437,14 @@ const CrmDashboard = () => {
           followUpsStats: followUpsStatsData
         };
 
+        console.log('✅ CRM Dashboard - Combined Data:', combinedData);
+        console.log('✅ CRM Dashboard - Final Leads:', combinedData.leads);
+        console.log('✅ CRM Dashboard - Final Follow-ups:', combinedData.followUps);
+
         setDashboardData(combinedData);
         setError(null);
       } catch (err) {
-        console.error("Error fetching dashboard data:", err);
+        console.error("❌ CRM Dashboard - Error fetching dashboard data:", err);
         setError("Failed to load dashboard data");
       } finally {
         setLoading(false);
@@ -491,7 +507,7 @@ const CrmDashboard = () => {
 
   // Loading state
   if (loading) {
-  return (
+    return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
           <Icon icon="solar:loading-line-duotone" className="text-4xl animate-spin mx-auto mb-4" />
@@ -531,7 +547,7 @@ const CrmDashboard = () => {
       const channelPartner = channelPartners.find(cp => cp._id === channelPartnerId);
       if (channelPartner) {
         let sourceName = `Channel Partner: ${channelPartner.name}`;
-        
+
         // Add CP sourcing info if available
         const cpSourcingId = lead.customData?.["Channel Partner Sourcing"];
         if (cpSourcingId && Array.isArray(cpSourcingOptions)) {
@@ -555,12 +571,12 @@ const CrmDashboard = () => {
     } else if (lead.channelPartner) {
       // Direct channel partner reference
       let sourceName = `Channel Partner: ${lead.channelPartner.name}`;
-      
+
       // Add CP sourcing user info if available
       if (lead.cpSourcingId && typeof lead.cpSourcingId === 'object' && lead.cpSourcingId.userId) {
         sourceName += ` (Sourced by: ${lead.cpSourcingId.userId.name})`;
       }
-      
+
       return sourceName;
     } else if (lead.cpSourcingId && typeof lead.cpSourcingId === 'object' && lead.cpSourcingId.userId) {
       // Lead has CP sourcing with user info but no direct channel partner
@@ -575,12 +591,12 @@ const CrmDashboard = () => {
   // Helper function to get processed source data with proper channel partner names
   const getProcessedSourceData = () => {
     const sourceCounts: { [key: string]: number } = {};
-    
+
     leads.forEach(lead => {
       const sourceName = getChannelPartnerName(lead);
       sourceCounts[sourceName] = (sourceCounts[sourceName] || 0) + 1;
     });
-    
+
     return Object.entries(sourceCounts)
       .map(([name, count]) => ({ name, count }))
       .sort((a, b) => b.count - a.count)
@@ -641,7 +657,7 @@ const CrmDashboard = () => {
   // Filtered follow-ups functions
   const getFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
-    const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => 
+    const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
     );
     return showMoreToday ? filtered : filtered.slice(0, 2);
@@ -649,7 +665,7 @@ const CrmDashboard = () => {
 
   const getFilteredTomorrowsFollowUps = () => {
     const tomorrowsFollowUps = getTomorrowsFollowUps();
-    const filtered = tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => 
+    const filtered = tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
     );
     return showMoreTomorrow ? filtered : filtered.slice(0, 2);
@@ -657,7 +673,7 @@ const CrmDashboard = () => {
 
   const getFilteredUpcomingFollowUps = () => {
     const upcomingFollowUps = getUpcomingFollowUps();
-    const filtered = upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp => 
+    const filtered = upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === upcomingFilter
     );
     return showMoreUpcoming ? filtered : filtered.slice(0, 2);
@@ -665,7 +681,7 @@ const CrmDashboard = () => {
 
   const getFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
-    const filtered = pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
+    const filtered = pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === pendingFilter
     );
     return showMorePending ? filtered : filtered.slice(0, 2);
@@ -674,28 +690,28 @@ const CrmDashboard = () => {
   // Get total filtered counts (without limit)
   const getTotalFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
-    return todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => 
+    return todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
     );
   };
 
   const getTotalFilteredTomorrowsFollowUps = () => {
     const tomorrowsFollowUps = getTomorrowsFollowUps();
-    return tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => 
+    return tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
     );
   };
 
   const getTotalFilteredUpcomingFollowUps = () => {
     const upcomingFollowUps = getUpcomingFollowUps();
-    return upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp => 
+    return upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === upcomingFilter
     );
   };
 
   const getTotalFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
-    return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
+    return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === pendingFilter
     );
   };
@@ -703,7 +719,7 @@ const CrmDashboard = () => {
   // Get unique statuses for filter options
   const getUniqueStatuses = () => {
     if (!followUps?.followUps) return [];
-    
+
     // Combine all follow-ups from all categories since backend returns categorized data
     const allFollowUps = [
       ...(Array.isArray(followUps.followUps.today) ? followUps.followUps.today : []),
@@ -711,7 +727,7 @@ const CrmDashboard = () => {
       ...(Array.isArray(followUps.followUps.upcoming) ? followUps.followUps.upcoming : []),
       ...(Array.isArray(followUps.followUps.pending) ? followUps.followUps.pending : [])
     ];
-    
+
     const statuses = new Set(
       allFollowUps
         .filter(followUp => followUp.lead) // Filter out null leads
@@ -802,7 +818,7 @@ const CrmDashboard = () => {
 
     try {
       setIsSubmittingFollowUp(true);
-      
+
       const response = await fetch(`${API_BASE_URL}/api/leads/${selectedLead._id}`, {
         method: 'PUT',
         headers: {
@@ -820,17 +836,17 @@ const CrmDashboard = () => {
 
       if (response.ok) {
         setFollowUpAlert({ type: 'success', message: 'Follow-up date set successfully!' });
-        
+
         // Update the lead in the local state
         if (dashboardData) {
-          const updatedLeads = dashboardData.leads.map(lead => 
-            lead._id === selectedLead._id 
+          const updatedLeads = dashboardData.leads.map(lead =>
+            lead._id === selectedLead._id
               ? { ...lead, customData: { ...lead.customData, "Follow-up Date": followUpDate, "Follow-up Notes": followUpNotes } }
               : lead
           );
           setDashboardData({ ...dashboardData, leads: updatedLeads });
         }
-        
+
         setTimeout(() => {
           handleCloseFollowUpModal();
         }, 1500);
@@ -850,30 +866,30 @@ const CrmDashboard = () => {
     <div className="space-y-8">
       {/* Follow-up Reminder Notification */}
       {showReminderNotification && reminderLeads.length > 0 && (
-        <Alert 
+        <Alert
           color={reminderType === 'overdue' ? 'failure' : reminderType === 'today' ? 'warning' : 'info'}
           className="mb-6"
         >
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center">
-              <Icon 
+              <Icon
                 icon={
                   reminderType === 'overdue' ? 'solar:danger-circle-line-duotone' :
-                  reminderType === 'today' ? 'solar:clock-circle-line-duotone' :
-                  'solar:calendar-line-duotone'
-                } 
-                className="mr-3 text-lg" 
+                    reminderType === 'today' ? 'solar:clock-circle-line-duotone' :
+                      'solar:calendar-line-duotone'
+                }
+                className="mr-3 text-lg"
               />
               <div>
                 <h3 className="font-semibold">
                   {reminderType === 'overdue' ? '🚨 Overdue Follow-ups!' :
-                   reminderType === 'today' ? '⏰ Today\'s Follow-ups' :
-                   '📅 Upcoming Follow-ups'}
+                    reminderType === 'today' ? '⏰ Today\'s Follow-ups' :
+                      '📅 Upcoming Follow-ups'}
                 </h3>
                 <p className="text-sm">
                   {reminderType === 'overdue' ? `${reminderLeads.length} lead(s) have overdue follow-ups` :
-                   reminderType === 'today' ? `${reminderLeads.length} lead(s) need follow-up today` :
-                   `${reminderLeads.length} lead(s) have follow-ups tomorrow`}
+                    reminderType === 'today' ? `${reminderLeads.length} lead(s) need follow-up today` :
+                      `${reminderLeads.length} lead(s) have follow-ups tomorrow`}
                 </p>
               </div>
             </div>
@@ -889,12 +905,12 @@ const CrmDashboard = () => {
               </Button>
             </div>
           </div>
-          
+
           {/* Quick Lead List */}
           <div className="mt-3 space-y-2">
             {reminderLeads.slice(0, 3).map(lead => (
               <div key={lead._id} className="flex items-center justify-between bg-white dark:bg-gray-800 rounded-lg p-3 border border-gray-200 dark:border-gray-600">
-                <div 
+                <div
                   className="flex items-center gap-3 cursor-pointer flex-1"
                   onClick={() => handleLeadClick(lead._id)}
                 >
@@ -957,24 +973,24 @@ const CrmDashboard = () => {
             </div>
           </div>
           <div className="flex space-x-3">
-            <Button 
-              color="light" 
+            <Button
+              color="light"
               size="sm"
               onClick={handleShowReminders}
             >
               <Icon icon="solar:bell-line-duotone" className="mr-2" />
               Show Reminders
             </Button>
-            <Button 
-              color="light" 
+            <Button
+              color="light"
               size="sm"
               onClick={() => window.location.reload()}
             >
               <Icon icon="solar:refresh-line-duotone" className="mr-2" />
               Refresh Data
             </Button>
-            <Button 
-              color="light" 
+            <Button
+              color="light"
               size="sm"
             >
               <Icon icon="solar:download-line-duotone" className="mr-2" />
@@ -1147,12 +1163,12 @@ const CrmDashboard = () => {
                 acc[priority] = (acc[priority] || 0) + 1;
                 return acc;
               }, {} as Record<string, number>);
-              
+
               return Object.entries(priorityCounts).map(([priority, count], index) => ({
                 name: priority,
                 value: count,
-                color: getPriorityColor(priority) === 'failure' ? '#EF4444' : 
-                       getPriorityColor(priority) === 'warning' ? '#F59E0B' : '#3B82F6'
+                color: getPriorityColor(priority) === 'failure' ? '#EF4444' :
+                  getPriorityColor(priority) === 'warning' ? '#F59E0B' : '#3B82F6'
               }));
             })()}
             type="pie"
@@ -1260,9 +1276,9 @@ const CrmDashboard = () => {
             <div>
               <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Partner Leads</p>
               <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => 
-                  lead.channelPartner || 
-                  lead.customData?.["Channel Partner"] || 
+                {leads.filter(lead =>
+                  lead.channelPartner ||
+                  lead.customData?.["Channel Partner"] ||
                   lead.customData?.["Channel Partner Sourcing"]
                 ).length}
               </p>
@@ -1302,7 +1318,7 @@ const CrmDashboard = () => {
             <Badge color="success" size="lg">High Performance Team</Badge>
           </div>
         </div>
-        
+
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
           {/* Performance Analytics */}
           <div>
@@ -1330,7 +1346,7 @@ const CrmDashboard = () => {
               </p>
             </div>
           </div>
-          
+
           {/* Performance Scorecard */}
           {/* <div>
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Individual Scorecards</h4>
@@ -1495,7 +1511,7 @@ const CrmDashboard = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -1512,10 +1528,10 @@ const CrmDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredTodaysFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
@@ -1551,7 +1567,7 @@ const CrmDashboard = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredTodaysFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -1559,7 +1575,7 @@ const CrmDashboard = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Today's Follow-ups */}
             {getTotalFilteredTodaysFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -1599,7 +1615,7 @@ const CrmDashboard = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -1616,10 +1632,10 @@ const CrmDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredTomorrowsFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
@@ -1655,7 +1671,7 @@ const CrmDashboard = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredTomorrowsFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -1663,7 +1679,7 @@ const CrmDashboard = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Tomorrow's Follow-ups */}
             {getTotalFilteredTomorrowsFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -1703,7 +1719,7 @@ const CrmDashboard = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -1720,10 +1736,10 @@ const CrmDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredUpcomingFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
@@ -1759,7 +1775,7 @@ const CrmDashboard = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredUpcomingFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -1767,7 +1783,7 @@ const CrmDashboard = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Upcoming Follow-ups */}
             {getTotalFilteredUpcomingFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -1807,12 +1823,12 @@ const CrmDashboard = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
                   <tr>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name</th>
+                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name </th>
                     <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Assigned To</th>
                     <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Processed By</th>
                     <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Mobile</th>
@@ -1824,10 +1840,10 @@ const CrmDashboard = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredPendingFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id)}
+                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
                       <td className="px-2 py-2">
                         <div className="flex items-center gap-2">
@@ -1863,7 +1879,7 @@ const CrmDashboard = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredPendingFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -1871,7 +1887,7 @@ const CrmDashboard = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Pending Follow-ups */}
             {getTotalFilteredPendingFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -1917,11 +1933,11 @@ const CrmDashboard = () => {
                     <p className="text-gray-600 dark:text-gray-400 text-lg">{selectedLead?.project.name}</p>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge color="info" size="sm">{selectedLead?.currentStatus.name}</Badge>
-                      <Badge 
+                      <Badge
                         color={
                           (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Hot' ? 'failure' :
-                          (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Warm' ? 'warning' : 'success'
-                        } 
+                            (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Warm' ? 'warning' : 'success'
+                        }
                         size="sm"
                       >
                         {selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority || 'Low'} Priority
@@ -1970,7 +1986,7 @@ const CrmDashboard = () => {
                     </div>
                     <div>
                       <span className="text-sm text-gray-600 dark:text-gray-400">Property Type:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Property Type"] || selectedLead?.customData?.propertyType || 'N/A'}</p>
+                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Property Type"] || selectedLead?.customData?.propertyType || 'N/A'}</p>
                     </div>
                   </div>
                 </div>
@@ -2057,9 +2073,9 @@ const CrmDashboard = () => {
                   {/* Alert */}
                   {followUpAlert && (
                     <Alert color={followUpAlert.type} className="mb-4">
-                      <Icon 
-                        icon={followUpAlert?.type === 'success' ? 'solar:check-circle-line-duotone' : 'solar:danger-circle-line-duotone'} 
-                        className="mr-2" 
+                      <Icon
+                        icon={followUpAlert?.type === 'success' ? 'solar:check-circle-line-duotone' : 'solar:danger-circle-line-duotone'}
+                        className="mr-2"
                       />
                       {followUpAlert?.message}
                     </Alert>
@@ -2099,7 +2115,7 @@ const CrmDashboard = () => {
           </div>
         </Modal.Footer>
       </Modal>
-      </div>
+    </div>
   );
 };
 
