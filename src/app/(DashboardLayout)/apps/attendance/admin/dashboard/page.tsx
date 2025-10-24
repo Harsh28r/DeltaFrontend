@@ -149,26 +149,20 @@ const LiveDashboardPage = () => {
     setShowManualEntryModal(true);
   };
 
-  // Helper function to convert absolute path to relative URL
+  // Helper function to convert path to backend API URL
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return null;
-    
-    // If it's already a relative path (starts with 'uploads/'), use it as is
-    if (imagePath.startsWith('uploads/')) {
-      return `${API_BASE_URL}/${imagePath}`;
+
+    // If path contains '/', it's an S3 key - route through backend API
+    if (imagePath.includes('/')) {
+      // S3 key format: "attendance/selfies/userId/filename.jpeg"        
+      // Backend endpoint: GET /api/attendance/selfie/:filename
+      return `${API_BASE_URL}/api/attendance/selfie/${encodeURIComponent(imagePath)}`;
     }
-    
-    // Extract the relative path from absolute Windows path
-    // Example: "C:\\Users\\...\\uploads\\attendance\\selfies\\file.jpeg"
-    // Becomes: "uploads/attendance/selfies/file.jpeg"
-    const uploadsIndex = imagePath.indexOf('uploads');
-    if (uploadsIndex !== -1) {
-      const relativePath = imagePath.substring(uploadsIndex).replace(/\\/g, '/');
-      return `${API_BASE_URL}/${relativePath}`;
-    }
-    
-    // Fallback: use as is
-    return imagePath;
+
+    // Legacy local file (just filename, no path)
+    // Route through backend API as well
+    return `${API_BASE_URL}/api/attendance/selfie/${imagePath}`;
   };
 
   if (loading) {
