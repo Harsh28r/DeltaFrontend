@@ -242,49 +242,109 @@ const CPSourcingPage = () => {
     const [isS3Url, setIsS3Url] = useState(false);
 
     // Handle authenticated image loading
-    const loadAuthenticatedImage = async (url: string) => {
-      try {
-        setIsLoading(true);
-        console.log('Loading authenticated image:', url);
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Authorization': `Bearer ${token}`,
-          },
-          credentials: 'include',
-        });
+    // const loadAuthenticatedImage = async (url: string) => {
+    //   try {
+    //     setIsLoading(true);
+    //     console.log('Loading authenticated image:', url);
+    //     const response = await fetch(url, {
+    //       method: 'GET',
+    //       headers: {
+    //         'Authorization': `Bearer ${token}`,
+    //       },
+    //       credentials: 'include',
+    //     });
 
-        console.log('Image response status:', response.status);
-        if (response.ok) {
-          const blob = await response.blob();
-          const objectUrl = URL.createObjectURL(blob);
-          console.log('Image loaded successfully, blob URL created');
-          setImageSrc(objectUrl);
-        } else {
-          console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
-          setImageError(true);
-        }
-      } catch (error) {
-        console.warn(`Error loading authenticated image: ${url}`, error);
-        setImageError(true);
-      } finally {
-        setIsLoading(false);
-      }
-    };
+    //     console.log('Image response status:', response.status);
+    //     if (response.ok) {
+    //       const blob = await response.blob();
+    //       const objectUrl = URL.createObjectURL(blob);
+    //       console.log('Image loaded successfully, blob URL created');
+    //       setImageSrc(objectUrl);
+    //     } else {
+    //       console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
+    //       setImageError(true);
+    //     }
+    //   } catch (error) {
+    //     console.warn(`Error loading authenticated image: ${url}`, error);
+    //     setImageError(true);
+    //   } finally {
+    //     setIsLoading(false);
+    //   }
+    // };
 
-    // Check if this is an authenticated API endpoint
-    React.useEffect(() => {
-      if (src) {
-        const isS3 = src.includes('s3.amazonaws.com') || src.includes('s3express');
-        setIsS3Url(isS3);
+    // // Check if this is an authenticated API endpoint
+    // React.useEffect(() => {
+    //   if (src) {
+    //     const isS3 = src.includes('s3.amazonaws.com') || src.includes('s3express');
+    //     setIsS3Url(isS3);
         
-        if (src.includes('/api/cp-sourcing/') && !isS3) {
-          loadAuthenticatedImage(src);
-        } else {
-          setImageSrc(src);
-        }
+    //     if (src.includes('/api/cp-sourcing/') && !isS3) {
+    //       loadAuthenticatedImage(src);
+    //     } else {
+    //       setImageSrc(src);
+    //     }
+    //   }
+    // }, [src, token]);
+
+
+
+    
+  const loadAuthenticatedImage = async (url: string) => {
+    try {
+      setIsLoading(true);
+      console.log('Loading authenticated image:', url);
+
+      // For S3 URLs, don't add authorization headers (presigned URLs    
+   
+      const isS3Url = url.includes('s3.amazonaws.com') ||
+  url.includes('s3express-');
+
+      const fetchOptions: RequestInit = {
+        method: 'GET',
+      };
+
+      // Only add auth headers for backend API endpoints, NOT for S3     
+  
+      if (!isS3Url) {
+        fetchOptions.headers = {
+          'Authorization': `Bearer ${token}`,
+        };
+        fetchOptions.credentials = 'include';
       }
-    }, [src, token]);
+
+      const response = await fetch(url, fetchOptions);
+
+      console.log('Image response status:', response.status);
+      if (response.ok) {
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        console.log('Image loaded successfully, blob URL created');      
+        setImageSrc(objectUrl);
+      } else {
+        console.warn(`Failed to load authenticated image: ${url} -       
+  ${response.status}`);
+        setImageError(true);
+      }
+    } catch (error) {
+      console.warn(`Error loading authenticated image: ${url}`,
+  error);
+      setImageError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Check if this is an authenticated API endpoint
+  React.useEffect(() => {
+    if (src) {
+      // Always load through the function to handle both S3 and API      
+  
+      loadAuthenticatedImage(src);
+    } else {
+      setImageSrc(src);
+    }
+  }, [src, token]);
+
 
     if (isLoading) {
       return (
