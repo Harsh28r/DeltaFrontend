@@ -219,26 +219,13 @@ const CPSourcingPage = () => {
       return imagePath;
     }
 
-    // If path contains '/', it's an S3 key - route through backend API
-    if (imagePath.includes('/')) {
-      // Check if it's a CP sourcing image
-      if (imagePath.startsWith('cp-sourcing/')) {
-        // CP sourcing S3 key format: "cp-sourcing/userId/filename.jpeg"
-        // Backend endpoint: GET /api/cp-sourcing/selfie/:filename
-        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
-      } else {
-        // Other S3 keys - route through CP sourcing endpoint as fallback
-        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
-      }
-    }
-
     // For selfie images with sourcingId and index, use the specific selfie API endpoint
     if (sourcingId && typeof index === 'number') {
       return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
     }
 
-    // Legacy local file (just filename, no path)
-    return `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
+    // For any other paths, try to use them as direct URLs
+    return imagePath;
   };
 
   // Component to handle image display with fallback
@@ -252,6 +239,7 @@ const CPSourcingPage = () => {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [imageSrc, setImageSrc] = useState<string | undefined>(src);
     const [isLoading, setIsLoading] = useState(false);
+    const [isS3Url, setIsS3Url] = useState(false);
 
     // Handle authenticated image loading
     const loadAuthenticatedImage = async (url: string) => {
@@ -286,10 +274,15 @@ const CPSourcingPage = () => {
 
     // Check if this is an authenticated API endpoint
     React.useEffect(() => {
-      if (src && (src.includes('/api/cp-sourcing/'))) {
-        loadAuthenticatedImage(src);
-      } else {
-        setImageSrc(src);
+      if (src) {
+        const isS3 = src.includes('s3.amazonaws.com') || src.includes('s3express');
+        setIsS3Url(isS3);
+        
+        if (src.includes('/api/cp-sourcing/') && !isS3) {
+          loadAuthenticatedImage(src);
+        } else {
+          setImageSrc(src);
+        }
       }
     }, [src, token]);
 
@@ -298,6 +291,7 @@ const CPSourcingPage = () => {
         <div className={`${className} bg-gray-100 rounded-lg flex items-center justify-center`}>
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
         </div>
+        
       );
     }
 
@@ -315,7 +309,7 @@ const CPSourcingPage = () => {
         src={imageSrc}
         alt={alt}
         className={className}
-        crossOrigin="anonymous"
+        {...(isS3Url ? {} : { crossOrigin: "anonymous" })}
         onError={(e) => {
           console.warn(`Failed to load image: ${src}`);
           setImageError(true);
@@ -327,6 +321,7 @@ const CPSourcingPage = () => {
           objectFit: 'cover',
           borderRadius: '50%'
         }}
+        referrerPolicy="no-referrer"
       />
     );
   };
