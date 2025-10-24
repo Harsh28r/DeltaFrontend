@@ -209,24 +209,14 @@ const CPSourcingPage = () => {
     return null;
   };
 
-  const getImageUrl = (imagePath: string | undefined, sourcingId?: string, index?: number) => {
+  const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return undefined;
-
-    // If it's already a full URL (starts with http/https), use it directly
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
-    }
 
     // If path contains '/', it's an S3 key - route through backend API
     if (imagePath.includes('/')) {
       // S3 key format: "cp-sourcing/userId/filename.jpeg"        
       // Backend endpoint: GET /api/cp-sourcing/selfie/:filename
       return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
-    }
-
-    // For selfie images with sourcingId and index, use the specific selfie API endpoint
-    if (sourcingId && typeof index === 'number') {
-      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
     }
 
     // Legacy local file (just filename, no path)
@@ -469,7 +459,7 @@ const CPSourcingPage = () => {
                     <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-3">
                         <ImageDisplay
-                          src={latestData?.selfie ? getImageUrl(latestData.selfie, sourcing._id, sourcing.sourcingHistory.length - 1) : undefined}
+                          src={latestData?.selfie ? getImageUrl(latestData.selfie) : undefined}
                           alt={sourcing.channelPartnerId?.name || 'Channel Partner'}
                           className="w-8 h-8 rounded-full object-cover"
                           fallbackIcon="lucide:user"
@@ -522,7 +512,7 @@ const CPSourcingPage = () => {
                         {latestData?.selfie ? (
                           <div className="flex items-center gap-2">
                             <ImageDisplay
-                              src={getImageUrl(latestData.selfie, sourcing._id, sourcing.sourcingHistory.length - 1)}
+                              src={getImageUrl(latestData.selfie)}
                               alt="Latest Selfie"
                               className="w-8 h-8 rounded-full object-cover"
                               fallbackIcon="lucide:camera"
