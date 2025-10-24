@@ -210,13 +210,18 @@ const CPSourcingPage = () => {
   };
 
   const getImageUrl = (imagePath: string | undefined, sourcingId?: string, index?: number) => {
-    if (!imagePath) {
-      return '';
-    }
+    if (!imagePath) return undefined;
 
     // If it's already a full URL (starts with http/https), use it directly
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
       return imagePath;
+    }
+
+    // If path contains '/', it's an S3 key - route through backend API
+    if (imagePath.includes('/')) {
+      // S3 key format: "cp-sourcing/userId/filename.jpeg"        
+      // Backend endpoint: GET /api/cp-sourcing/selfie/:filename
+      return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
     }
 
     // For selfie images with sourcingId and index, use the specific selfie API endpoint
@@ -224,8 +229,9 @@ const CPSourcingPage = () => {
       return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
     }
 
-    // For any other paths, try to use them as direct URLs
-    return imagePath;
+    // Legacy local file (just filename, no path)
+    // Route through backend API as well
+    return `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
   };
 
   // Component to handle image display with fallback
