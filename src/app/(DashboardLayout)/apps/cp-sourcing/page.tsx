@@ -212,9 +212,18 @@ const CPSourcingPage = () => {
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return undefined;
 
-    // If it's already a full URL (starts with http/https), use it directly
+    // Always route through backend API for S3 Express buckets
+    // Extract S3 key from full URL if it's a complete S3 URL
     if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
-      return imagePath;
+      // Extract S3 key from full URL
+      try {
+        const url = new URL(imagePath);
+        const s3Key = url.pathname.substring(1); // Remove leading slash
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(s3Key)}`;
+      } catch (error) {
+        console.warn('Failed to parse S3 URL:', imagePath);
+        return undefined;
+      }
     }
 
     // If path contains '/', it's an S3 key - route through backend API
@@ -370,9 +379,10 @@ const CPSourcingPage = () => {
         src={imageSrc}
         alt={alt}
         className={className}
-        {...(isS3Url ? {} : { crossOrigin: "anonymous" })}
+          {...(isS3Url ? {} : { crossOrigin: "use-credentials" })}
         onError={(e) => {
           console.warn(`Failed to load image: ${src}`);
+          console.log('Image error details:', e);
           setImageError(true);
         }}
         onLoad={() => {
@@ -382,7 +392,7 @@ const CPSourcingPage = () => {
           objectFit: 'cover',
           borderRadius: '50%'
         }}
-        referrerPolicy="no-referrer"
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     );
   };
