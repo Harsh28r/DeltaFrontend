@@ -2,10 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 
 export async function GET(
   request: NextRequest,
-  { params }: { params: { path: string[] } }
+  { params }: { params: Promise<{ path: string[] }> }
 ) {
   try {
-    const imagePath = params.path.join('/');
+    const resolvedParams = await params;
+    const imagePath = resolvedParams.path.join('/');
     
     if (!imagePath) {
       return NextResponse.json(

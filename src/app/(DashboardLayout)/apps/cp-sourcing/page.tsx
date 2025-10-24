@@ -286,7 +286,7 @@ const CPSourcingPage = () => {
 
     // Check if this is an authenticated API endpoint
     React.useEffect(() => {
-      if (src && (src.includes('/api/cp-sourcing/') || src.includes('/api/attendance/'))) {
+      if (src && (src.includes('/api/cp-sourcing/'))) {
         loadAuthenticatedImage(src);
       } else {
         setImageSrc(src);
