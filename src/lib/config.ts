@@ -113,6 +113,12 @@ export const API_ENDPOINTS = {
   ATTENDANCE_ADMIN_MANUAL_ENTRY: `${API_BASE_URL}/api/attendance/admin/manual-entry`,
   ATTENDANCE_ADMIN_UPDATE: (attendanceId: string) => `${API_BASE_URL}/api/attendance/admin/${attendanceId}`,
   ATTENDANCE_ADMIN_DELETE: (attendanceId: string) => `${API_BASE_URL}/api/attendance/admin/${attendanceId}`,
+  
+  // Lead Reports
+  LEAD_REPORTS: `${API_BASE_URL}/api/lead-reports`,
+  LEAD_REPORTS_USER: (userId: string) => `${API_BASE_URL}/api/lead-reports/user/${userId}`,
+  LEAD_REPORTS_DISTRIBUTION: `${API_BASE_URL}/api/lead-reports/distribution`,
+  LEAD_REPORTS_SUMMARY: `${API_BASE_URL}/api/lead-reports/summary`,
 };
 
 

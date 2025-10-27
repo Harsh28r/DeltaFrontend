@@ -380,6 +380,33 @@ export const useSidebarData = () => {
               ],
             },
             {
+              name: "Reports",
+              id: uniqueId(),
+              icon: "material-symbols:bar-chart",
+              children:[
+                // {
+                //   name: "Report",
+                //   url: "/apps/report",
+                // },
+                {
+                  name: "Leads Report",
+                  url: "/apps/report/leads-report",
+                },
+                // {
+                //   name: "Acitivity Reports",
+                //   url: "/apps/reports/activities",
+                // },
+                // {
+                //   name: "User Reports",
+                //   url: "/apps/reports/users",
+                // },
+                // {
+                //   name: "Project Reports",
+                //   url: "/apps/reports/projects",
+                // },
+              ]
+            },
+            {
               name: "Channel Partners",
               id: uniqueId(),
               icon: "solar:handshake-line-duotone",
