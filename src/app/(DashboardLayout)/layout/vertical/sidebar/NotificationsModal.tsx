@@ -287,7 +287,7 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
                         <Icon icon="solar:clock-circle-line-duotone" className="text-xs" />
                         {formatDate(notification.createdAt)}
                       </span>
-                      {notification.data.leadId && (
+                      {notification.data.leadId && typeof notification.data.leadId === 'string' && notification.data.leadId.trim() && (
                         <span className="flex items-center gap-1">
                           <Icon icon="solar:user-id-line-duotone" className="text-xs" />
                           Lead ID: {notification.data.leadId.slice(-8)}

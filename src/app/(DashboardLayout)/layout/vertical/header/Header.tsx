@@ -13,7 +13,7 @@ import { Language } from "./Language";
 import FullLogo from "../../shared/logo/FullLogo";
 import MobileHeaderItems from "./MobileHeaderItems";
 import { Drawer } from "flowbite-react";
-import MobileSidebar from "../sidebar/MobileSidebar";
+// MobileSidebar removed
 import HorizontalMenu from "../../horizontal/header/HorizontalMenu";
 import { CustomizerContext } from "@/app/context/CustomizerContext";
 import WebSocketStatus from "@/app/components/WebSocketStatus";
@@ -47,8 +47,7 @@ const Header = ({ layoutType }: HeaderPropsType) => {
     isLayout,
     setActiveMode,
     activeMode,
-    isMobileSidebar,
-    setIsMobileSidebar,
+    // Mobile sidebar removed
   } = useContext(CustomizerContext);
 
   const [mobileMenu, setMobileMenu] = useState("");
@@ -67,9 +66,7 @@ const Header = ({ layoutType }: HeaderPropsType) => {
     );
   };
 
-  // mobile-sidebar
-
-  const handleClose = () => setIsMobileSidebar(false);
+  // Mobile sidebar removed
   return (
     <>
       <header
@@ -85,13 +82,7 @@ const Header = ({ layoutType }: HeaderPropsType) => {
             layoutType == "horizontal" ? "container mx-auto" : ""
           }  ${isLayout == "full" ? "!max-w-full" : ""}`}
         >
-          {/* Mobile Toggle Icon */}
-          <span
-            onClick={() => setIsMobileSidebar(true)}
-            className="h-10 w-10 flex text-black dark:text-white text-opacity-65 xl:hidden hover:text-primary hover:bg-lightprimary rounded-full justify-center items-center cursor-pointer"
-          >
-            <Icon icon="solar:hamburger-menu-line-duotone" height={21} />
-          </span>
+          {/* Mobile Toggle Icon Removed */}
           {/* Toggle Icon   */}
           <Navbar.Collapse className="xl:block ">
             <div className="flex gap-3 items-center relative">
@@ -193,12 +184,7 @@ const Header = ({ layoutType }: HeaderPropsType) => {
         ) : null}
       </header>
 
-      {/* Mobile Sidebar */}
-      <Drawer open={isMobileSidebar} onClose={handleClose} className="w-130">
-        <Drawer.Items>
-          <MobileSidebar />
-        </Drawer.Items>
-      </Drawer>
+      {/* Mobile Sidebar Removed */}
     </>
   );
 };

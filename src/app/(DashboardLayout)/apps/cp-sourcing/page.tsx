@@ -209,40 +209,33 @@ const CPSourcingPage = () => {
     return null;
   };
 
-  const getImageUrl = (imagePath: string | undefined, sourcingId?: string, index?: number) => {
-    if (!imagePath) {
-      return '';
+  const getImageUrl = (imagePath: string | undefined) => {
+    if (!imagePath) return undefined;
+
+    // Always route through backend API for S3 Express buckets
+    // Extract S3 key from full URL if it's a complete S3 URL
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // Extract S3 key from full URL
+      try {
+        const url = new URL(imagePath);
+        const s3Key = url.pathname.substring(1); // Remove leading slash
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(s3Key)}`;
+      } catch (error) {
+        console.warn('Failed to parse S3 URL:', imagePath);
+        return undefined;
+      }
     }
-    
-    // If it's a local file path, convert it to a proper URL
-    if (imagePath.includes('uploads\\') || imagePath.includes('uploads/')) {
-      // Convert backslashes to forward slashes for proper URL construction
-      const normalizedPath = imagePath.replace(/\\/g, '/');
-      
-      // For local files, we need to serve them through the backend
-      // The backend should serve static files from the uploads directory
-      const fullUrl = `${API_BASE_URL}/${normalizedPath}`;
-      
-      return fullUrl;
+
+    // If path contains '/', it's an S3 key - route through backend API
+    if (imagePath.includes('/')) {
+      // S3 key format: "cp-sourcing/userId/filename.jpeg"        
+      // Backend endpoint: GET /api/cp-sourcing/selfie/:filename
+      return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
     }
-    
-    // If it's already a full URL, return as is
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('file://')) {
-      return imagePath;
-    }
-    
-    // If it's a relative path, prepend the API base URL
-    if (imagePath.startsWith('/')) {
-      return `${API_BASE_URL}${imagePath}`;
-    }
-    
-    // For selfie images, use the specific selfie API endpoint
-    if (sourcingId && typeof index === 'number') {
-      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
-    }
-    
-    // Default fallback - assume it's a relative path
-    return `${API_BASE_URL}/${imagePath}`;
+
+    // Legacy local file (just filename, no path)
+    // Route through backend API as well
+    return `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
   };
 
   // Component to handle image display with fallback
@@ -256,12 +249,61 @@ const CPSourcingPage = () => {
     const [imageLoaded, setImageLoaded] = useState(false);
     const [imageSrc, setImageSrc] = useState<string | undefined>(src);
     const [isLoading, setIsLoading] = useState(false);
+    const [isS3Url, setIsS3Url] = useState(false);
 
     // Handle authenticated image loading
+    // const loadAuthenticatedImage = async (url: string) => {
+    //   try {
+    //     setIsLoading(true);
+    //     console.log('Loading authenticated image:', url);
+    //     const response = await fetch(url, {
+    //       method: 'GET',
+    //       headers: {
+    //         'Authorization': `Bearer ${token}`,
+    //       },
+    //       credentials: 'include',
+    //     });
+
+    //     console.log('Image response status:', response.status);
+    //     if (response.ok) {
+    //       const blob = await response.blob();
+    //       const objectUrl = URL.createObjectURL(blob);
+    //       console.log('Image loaded successfully, blob URL created');
+    //       setImageSrc(objectUrl);
+    //     } else {
+    //       console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
+    //       setImageError(true);
+    //     }
+    //   } catch (error) {
+    //     console.warn(`Error loading authenticated image: ${url}`, error);
+    //     setImageError(true);
+    //   } finally {
+    //     setIsLoading(false);
+    //   }
+    // };
+
+    // // Check if this is an authenticated API endpoint
+    // React.useEffect(() => {
+    //   if (src) {
+    //     const isS3 = src.includes('s3.amazonaws.com') || src.includes('s3express');
+    //     setIsS3Url(isS3);
+        
+    //     if (src.includes('/api/cp-sourcing/') && !isS3) {
+    //       loadAuthenticatedImage(src);
+    //     } else {
+    //       setImageSrc(src);
+    //     }
+    //   }
+    // }, [src, token]);
+
+
+
+    
     const loadAuthenticatedImage = async (url: string) => {
       try {
         setIsLoading(true);
         console.log('Loading authenticated image:', url);
+
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -270,38 +312,42 @@ const CPSourcingPage = () => {
           credentials: 'include',
         });
 
-        console.log('Image response status:', response.status);
-        if (response.ok) {
-          const blob = await response.blob();
-          const objectUrl = URL.createObjectURL(blob);
-          console.log('Image loaded successfully, blob URL created');
-          setImageSrc(objectUrl);
-        } else {
-          console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
-          setImageError(true);
-        }
-      } catch (error) {
-        console.warn(`Error loading authenticated image: ${url}`, error);
+      console.log('Image response status:', response.status);
+      if (response.ok) {
+        const blob = await response.blob();
+        const objectUrl = URL.createObjectURL(blob);
+        console.log('Image loaded successfully, blob URL created');      
+        setImageSrc(objectUrl);
+      } else {
+        console.warn(`Failed to load authenticated image: ${url} -       
+  ${response.status}`);
         setImageError(true);
-      } finally {
-        setIsLoading(false);
       }
-    };
+    } catch (error) {
+      console.warn(`Error loading authenticated image: ${url}`,
+  error);
+      setImageError(true);
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
     // Check if this is an authenticated API endpoint
     React.useEffect(() => {
-      if (src && src.includes('/api/cp-sourcing/') && src.includes('/selfie/')) {
+      if (src && src.includes('/api/cp-sourcing/')) {
         loadAuthenticatedImage(src);
       } else {
         setImageSrc(src);
       }
     }, [src, token]);
 
+
     if (isLoading) {
       return (
         <div className={`${className} bg-gray-100 rounded-lg flex items-center justify-center`}>
           <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-orange-500"></div>
         </div>
+        
       );
     }
 
@@ -319,9 +365,10 @@ const CPSourcingPage = () => {
         src={imageSrc}
         alt={alt}
         className={className}
-        crossOrigin="anonymous"
+        crossOrigin="use-credentials"
         onError={(e) => {
           console.warn(`Failed to load image: ${src}`);
+          console.log('Image error details:', e);
           setImageError(true);
         }}
         onLoad={() => {
@@ -331,6 +378,7 @@ const CPSourcingPage = () => {
           objectFit: 'cover',
           borderRadius: '50%'
         }}
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     );
   };
@@ -412,7 +460,7 @@ const CPSourcingPage = () => {
                     <Table.Cell className="whitespace-nowrap font-medium text-gray-900 dark:text-white">
                       <div className="flex items-center gap-3">
                         <ImageDisplay
-                          src={latestData?.selfie ? getImageUrl(latestData.selfie, sourcing._id, sourcing.sourcingHistory.length - 1) : undefined}
+                          src={latestData?.selfie ? getImageUrl(latestData.selfie) : undefined}
                           alt={sourcing.channelPartnerId?.name || 'Channel Partner'}
                           className="w-8 h-8 rounded-full object-cover"
                           fallbackIcon="lucide:user"
@@ -465,7 +513,7 @@ const CPSourcingPage = () => {
                         {latestData?.selfie ? (
                           <div className="flex items-center gap-2">
                             <ImageDisplay
-                              src={getImageUrl(latestData.selfie, sourcing._id, sourcing.sourcingHistory.length - 1)}
+                              src={getImageUrl(latestData.selfie)}
                               alt="Latest Selfie"
                               className="w-8 h-8 rounded-full object-cover"
                               fallbackIcon="lucide:camera"
