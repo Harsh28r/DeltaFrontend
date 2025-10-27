@@ -233,7 +233,7 @@ const LeadsPage = () => {
   const [transferToUser, setTransferToUser] = useState('');
   const [isTransferring, setIsTransferring] = useState(false);
   const [userProjects, setUserProjects] = useState<Project[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState('');
+  const [selectedProjectId, setSelectedProjectId] = useState('all');
   const [isLoadingCPSourcing, setIsLoadingCPSourcing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -2365,6 +2365,8 @@ const LeadsPage = () => {
     const matchesUser = filterUser === "all" ||
       (filterUser === "unassigned" && !lead.user?._id) ||
       (filterUser !== "unassigned" && lead.user?._id === filterUser);
+    const matchesProject = !selectedProjectId || selectedProjectId === 'all' || lead.project?._id === selectedProjectId;
+    
 
     // Date filtering
     let matchesDate = true;
@@ -2381,8 +2383,8 @@ const LeadsPage = () => {
         matchesDate = matchesDate && leadDate <= toDate;
       }
     }
-
-    return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesDate;
+    
+    return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesProject && matchesDate;
   });
 
   // Pagination derived values
@@ -2675,16 +2677,19 @@ const LeadsPage = () => {
           </div>
           <div>
             <Select
-              value="all"
-              disabled={true}
-              title="Project filter disabled - viewing all leads"
+              value={selectedProjectId || 'all'}
+              onChange={(e) => setSelectedProjectId(e.target.value)}
+              disabled={projects.length === 0}
             >
               <option value="all">All Projects</option>
+              {projects.map(project => (
+                <option key={project._id} value={project._id}>
+                  {project.name}
+                </option>
+              ))}
             </Select>
-            <p className="text-sm text-gray-500 mt-1">
-              Viewing leads from all projects
-            </p>
           </div>
+          
           <div>
             <Select
               value={filterSource}

@@ -27,6 +27,7 @@ interface LeadStatus {
   formFields: FormField[];
   is_final_status?: boolean;
   is_default_status?: boolean;
+  is_site_visit_done?: boolean;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -37,6 +38,7 @@ interface FormData {
   formFields: FormField[];
   is_final_status: boolean;
   is_default_status: boolean;
+  is_site_visit_done: boolean;
 }
 
 const LeadManagementPage = () => {
@@ -59,7 +61,8 @@ const LeadManagementPage = () => {
     statusName: "",
     formFields: defaultFormFields,
     is_final_status: false,
-    is_default_status: false
+    is_default_status: false,
+    is_site_visit_done: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error', message: string } | null>(null);
@@ -234,6 +237,18 @@ const LeadManagementPage = () => {
       }
     }
 
+    // Check if trying to create a site visit done status when one already exists
+    if (activeTab === "status" && formData.is_site_visit_done) {
+      const existingSiteVisitDone = leadStatuses.find(status => status.is_site_visit_done === true && status._id !== editingItem?.id);
+      if (existingSiteVisitDone) {
+        setAlertMessage({ 
+          type: 'error', 
+          message: `Cannot create site visit done status. A site visit done status already exists: "${existingSiteVisitDone.name}". Only one site visit done status is allowed.` 
+        });
+        return;
+      }
+    }
+
     try {
       setIsSubmitting(true);
       
@@ -310,7 +325,8 @@ const LeadManagementPage = () => {
                   options: field.options || []
                 })),
               is_final_status: formData.is_final_status,
-              is_default_status: formData.is_default_status
+              is_default_status: formData.is_default_status,
+              is_site_visit_done: formData.is_site_visit_done
             }),
           });
 
@@ -342,7 +358,8 @@ const LeadManagementPage = () => {
                   options: field.options || []
                 })),
               is_final_status: formData.is_final_status,
-              is_default_status: formData.is_default_status
+              is_default_status: formData.is_default_status,
+              is_site_visit_done: formData.is_site_visit_done
             }),
           });
 
@@ -409,7 +426,8 @@ const LeadManagementPage = () => {
       statusName: "",
       formFields: defaultFormFields,
       is_final_status: false,
-      is_default_status: false
+      is_default_status: false,
+      is_site_visit_done: false
     });
   };
 
@@ -424,7 +442,8 @@ const LeadManagementPage = () => {
         statusName: "",
         formFields: defaultFormFields,
         is_final_status: false,
-        is_default_status: false
+        is_default_status: false,
+        is_site_visit_done: false
       };
     });
     setIsModalOpen(true);
@@ -440,7 +459,8 @@ const LeadManagementPage = () => {
         statusName: "",
         formFields: defaultFormFields,
         is_final_status: false,
-        is_default_status: false
+        is_default_status: false,
+        is_site_visit_done: false
       });
     } else {
       const isFinalStatus = item.is_final_status || false;
@@ -459,7 +479,8 @@ const LeadManagementPage = () => {
         statusName: item.name,
         formFields: fields,
         is_final_status: isFinalStatus,
-        is_default_status: item.is_default_status || false
+        is_default_status: item.is_default_status || false,
+        is_site_visit_done: item.is_site_visit_done || false
       });
     }
     
@@ -802,7 +823,13 @@ const LeadManagementPage = () => {
                                     Default
                                   </Badge>
                                 )}
-                                {!status.is_final_status && !status.is_default_status && (
+                                {status.is_site_visit_done && (
+                                  <Badge color="green" size="sm">
+                                    <Icon icon="solar:location-line-duotone" className="mr-1" />
+                                    Site Visit Done
+                                  </Badge>
+                                )}
+                                {!status.is_final_status && !status.is_default_status && !status.is_site_visit_done && (
                                   <Badge color="gray" size="sm">
                                     <Icon icon="solar:clock-circle-line-duotone" className="mr-1" />
                                     Active
@@ -1006,7 +1033,7 @@ const LeadManagementPage = () => {
                     <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Status Type Configuration</h3>
                   </div>
                   
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                     <div className="space-y-3">
                       <div className="flex items-center space-x-3">
                         <input
@@ -1034,7 +1061,7 @@ const LeadManagementPage = () => {
                         />
                         <Label htmlFor="is_final_status" value="Final Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       </div>
-                      {leadStatuses.some(status => status.is_final_status === true) ? (
+                      {leadStatuses.some(status => status.is_final_status === true && status._id !== editingItem?.id) ? (
                         <div className="flex items-start space-x-3 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-700 rounded-lg">
                           <Icon icon="solar:danger-triangle-line-duotone" className="text-red-600 dark:text-red-400 text-lg mt-0.5" />
                           <div>
@@ -1062,11 +1089,11 @@ const LeadManagementPage = () => {
                           checked={formData.is_default_status}
                           onChange={(e) => setFormData({ ...formData, is_default_status: e.target.checked })}
                           className="w-5 h-5 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
-                          disabled={leadStatuses.some(status => status.is_default_status === true)}
+                          disabled={leadStatuses.some(status => status.is_default_status === true && status._id !== editingItem?.id)}
                         />
                         <Label htmlFor="is_default_status" value="Default Status" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                       </div>
-                      {leadStatuses.some(status => status.is_default_status === true) ? (
+                      {leadStatuses.some(status => status.is_default_status === true && status._id !== editingItem?.id) ? (
                         <div className="flex items-start space-x-3 p-3 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-700 rounded-lg">
                           <Icon icon="solar:danger-triangle-line-duotone" className="text-blue-600 dark:text-blue-400 text-lg mt-0.5" />
                           <div>
@@ -1082,6 +1109,38 @@ const LeadManagementPage = () => {
                         <p className="text-sm text-gray-500 dark:text-gray-400">
                           <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
                           Check if this should be the default status for new leads
+                        </p>
+                      )}
+                    </div>
+
+                    <div className="space-y-3">
+                      <div className="flex items-center space-x-3">
+                        <input
+                          type="checkbox"
+                          id="is_site_visit_done"
+                          checked={formData.is_site_visit_done}
+                          onChange={(e) => setFormData({ ...formData, is_site_visit_done: e.target.checked })}
+                          className="w-5 h-5 text-green-600 bg-gray-100 border-gray-300 rounded focus:ring-green-500 focus:ring-2"
+                          disabled={leadStatuses.some(status => status.is_site_visit_done === true && status._id !== editingItem?.id)}
+                        />
+                        <Label htmlFor="is_site_visit_done" value="Site Visit Done" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                      </div>
+                      {leadStatuses.some(status => status.is_site_visit_done === true && status._id !== editingItem?.id) ? (
+                        <div className="flex items-start space-x-3 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-700 rounded-lg">
+                          <Icon icon="solar:danger-triangle-line-duotone" className="text-green-600 dark:text-green-400 text-lg mt-0.5" />
+                          <div>
+                            <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                              Site Visit Done Already Exists
+                            </p>
+                            <p className="text-xs text-green-600 dark:text-green-400">
+                              Only one site visit done status is allowed. Current status: "{leadStatuses.find(s => s.is_site_visit_done)?.name}"
+                            </p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-gray-500 dark:text-gray-400">
+                          <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                          Check if a site visit has been completed for this status
                         </p>
                       )}
                     </div>
