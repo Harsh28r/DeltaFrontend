@@ -152,7 +152,7 @@ const LiveDashboardPage = () => {
   // Helper function to convert path to backend API URL
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return null;
-
+    
     // If path contains '/', it's an S3 key - route through backend API
     if (imagePath.includes('/')) {
       // S3 key format: "attendance/selfies/userId/filename.jpeg"        

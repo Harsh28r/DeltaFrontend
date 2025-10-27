@@ -8,7 +8,7 @@ const config = {
   isCollapse:"full-sidebar",
   isLanguage: "en",
   isCardShadow: true,
-  isMobileSidebar: false,
+  // isMobileSidebar removed
   isHorizontal: false,
   isBorderRadius: 12,
   sidebarWidth: 400,

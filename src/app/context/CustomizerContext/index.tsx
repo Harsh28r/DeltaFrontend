@@ -4,8 +4,6 @@ import config from "../config";
 
 // Define the shape of the context state
 interface CustomizerContextState {
-  isMobileSidebar: number;
-  setIsMobileSidebar: (id: boolean) => void;
   selectedIconId: number;
   setSelectedIconId: (id: number) => void;
   activeDir: string;
@@ -39,7 +37,6 @@ interface CustomizerContextProps {
 export const CustomizerContextProvider: React.FC<CustomizerContextProps> = ({
   children,
 }) => {
-  const [isMobileSidebar, setIsMobileSidebar] = useState<boolean>(false);
   const [selectedIconId, setSelectedIconId] = useState<number>(1);
   const [activeDir, setActiveDir] = useState<string>(config.activeDir);
   const [activeMode, setActiveMode] = useState<string>(config.activeMode);
@@ -68,8 +65,6 @@ export const CustomizerContextProvider: React.FC<CustomizerContextProps> = ({
   return (
     <CustomizerContext.Provider
       value={{
-        isMobileSidebar,
-        setIsMobileSidebar,
         selectedIconId,
         setSelectedIconId,
         activeDir,

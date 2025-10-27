@@ -212,6 +212,20 @@ const CPSourcingPage = () => {
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return undefined;
 
+    // Always route through backend API for S3 Express buckets
+    // Extract S3 key from full URL if it's a complete S3 URL
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      // Extract S3 key from full URL
+      try {
+        const url = new URL(imagePath);
+        const s3Key = url.pathname.substring(1); // Remove leading slash
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(s3Key)}`;
+      } catch (error) {
+        console.warn('Failed to parse S3 URL:', imagePath);
+        return undefined;
+      }
+    }
+
     // If path contains '/', it's an S3 key - route through backend API
     if (imagePath.includes('/')) {
       // S3 key format: "cp-sourcing/userId/filename.jpeg"        
@@ -285,30 +299,18 @@ const CPSourcingPage = () => {
 
 
     
-  const loadAuthenticatedImage = async (url: string) => {
-    try {
-      setIsLoading(true);
-      console.log('Loading authenticated image:', url);
+    const loadAuthenticatedImage = async (url: string) => {
+      try {
+        setIsLoading(true);
+        console.log('Loading authenticated image:', url);
 
-      // For S3 URLs, don't add authorization headers (presigned URLs    
-   
-      const isS3Url = url.includes('s3.amazonaws.com') ||
-  url.includes('s3express-');
-
-      const fetchOptions: RequestInit = {
-        method: 'GET',
-      };
-
-      // Only add auth headers for backend API endpoints, NOT for S3     
-  
-      if (!isS3Url) {
-        fetchOptions.headers = {
-          'Authorization': `Bearer ${token}`,
-        };
-        fetchOptions.credentials = 'include';
-      }
-
-      const response = await fetch(url, fetchOptions);
+        const response = await fetch(url, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+          credentials: 'include',
+        });
 
       console.log('Image response status:', response.status);
       if (response.ok) {
@@ -330,16 +332,14 @@ const CPSourcingPage = () => {
     }
   };
 
-  // Check if this is an authenticated API endpoint
-  React.useEffect(() => {
-    if (src) {
-      // Always load through the function to handle both S3 and API      
-  
-      loadAuthenticatedImage(src);
-    } else {
-      setImageSrc(src);
-    }
-  }, [src, token]);
+    // Check if this is an authenticated API endpoint
+    React.useEffect(() => {
+      if (src && src.includes('/api/cp-sourcing/')) {
+        loadAuthenticatedImage(src);
+      } else {
+        setImageSrc(src);
+      }
+    }, [src, token]);
 
 
     if (isLoading) {
@@ -365,9 +365,10 @@ const CPSourcingPage = () => {
         src={imageSrc}
         alt={alt}
         className={className}
-        {...(isS3Url ? {} : { crossOrigin: "anonymous" })}
+        crossOrigin="use-credentials"
         onError={(e) => {
           console.warn(`Failed to load image: ${src}`);
+          console.log('Image error details:', e);
           setImageError(true);
         }}
         onLoad={() => {
@@ -377,7 +378,7 @@ const CPSourcingPage = () => {
           objectFit: 'cover',
           borderRadius: '50%'
         }}
-        referrerPolicy="no-referrer"
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     );
   };

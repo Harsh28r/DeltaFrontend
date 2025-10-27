@@ -14,10 +14,7 @@ interface NavItemsProps {
 const NavItems: React.FC<NavItemsProps> = ({ item }) => {
   const pathname = usePathname();
   const { t } = useTranslation();
-  const { setIsMobileSidebar } = useContext(CustomizerContext);
-  const handleMobileSidebar = () => {
-    setIsMobileSidebar(false);
-  };
+  // Mobile sidebar removed
   return (
     <>
       <Sidebar.Item
@@ -29,10 +26,7 @@ const NavItems: React.FC<NavItemsProps> = ({ item }) => {
             : "text-link bg-transparent group/link "
         } `}
       >
-        <span
-          onClick={handleMobileSidebar}
-          className="flex gap-3 align-center items-center"
-        >
+        <span className="flex gap-3 align-center items-center">
           {item.icon ? (
             <Icon icon={item.icon} className={`${item.color}`} height={18} />
           ) : (
