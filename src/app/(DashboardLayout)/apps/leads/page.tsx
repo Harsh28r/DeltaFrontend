@@ -9,6 +9,9 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { PERMISSIONS } from "@/app/types/permissions";
 import { usePermissions } from "@/app/context/PermissionContext";
 import DateTimePicker from "@/components/DateTimePicker";
+import dynamic from "next/dynamic";
+import LeadAnalyticsChart from "./fresh/LeadAnalyticsChart";
+
 
 const formatDateToDDMMYYYY = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0');
@@ -23,6 +26,8 @@ const formatDateToYYYYMMDD = (date: Date): string => {
   const day = String(date.getDate()).padStart(2, '0');
   return `${year}-${month}-${day}`;
 };
+
+const Chart = dynamic(() => import("react-apexcharts"), { ssr: false });
 
 interface LeadSource {
   _id: string;
@@ -149,10 +154,10 @@ const LeadsPage = () => {
   const { hasPermission } = usePermissions();
   const searchParams = useSearchParams();
   const router = useRouter();
-  
+
   // Super admin bypass - no permission checks needed
   const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'superadmin@deltayards.com';
-  
+
   // Map permissions via usePermissions; superadmin bypass
   const finalPermissions = {
     canCreateLeads: isSuperAdmin ? true : hasPermission(PERMISSIONS.LEADS_CREATE),
@@ -162,6 +167,7 @@ const LeadsPage = () => {
     permissionsLoading: false
   };
   const [leads, setLeads] = useState<Lead[]>([]);
+  const [totalLeads, setTotalLeads] = useState<Lead[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [leadStatuses, setLeadStatuses] = useState<LeadStatus[]>([]);
   const [projects, setProjects] = useState<Project[]>([]);
@@ -169,7 +175,7 @@ const LeadsPage = () => {
   const [channelPartners, setChannelPartners] = useState<ChannelPartner[]>([]);
   const [cpSourcingOptions, setCPSourcingOptions] = useState<CPSourcingUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   const [isLoadingLeads, setIsLoadingLeads] = useState(false);
   const [showExportMenu, setShowExportMenu] = useState(false);
 
@@ -214,9 +220,9 @@ const LeadsPage = () => {
     channelPartner: "", // Channel partner selection
     cpSourcingId: "" // Channel partner sourcing option
   });
-  
+
   // Dynamic form fields based on selected status
-  const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
+  const [dynamicFields, setDynamicFields] = useState<{ [key: string]: any }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -233,7 +239,8 @@ const LeadsPage = () => {
   const [pageSize, setPageSize] = useState(10);
   const [serverTotalItems, setServerTotalItems] = useState<number | null>(null);
   const [serverTotalPages, setServerTotalPages] = useState<number | null>(null);
-  
+
+
   // Bulk upload state
   const [bulkUploadModalOpen, setBulkUploadModalOpen] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -244,6 +251,7 @@ const LeadsPage = () => {
     failed: number;
     errors: Array<{ row: number; error: string }>;
   } | null>(null);
+  const [activeChart, setActiveChart] = useState<'source' | 'user'>('source');
 
   useEffect(() => {
     if (token) {
@@ -251,6 +259,8 @@ const LeadsPage = () => {
       // Fetch leads after a short delay
       setTimeout(() => {
         fetchLeads();
+        fetchLeaddata()
+
       }, 2000);
       // Subscribe to all leads for real-time updates
       subscribeToAllLeads();
@@ -375,14 +385,14 @@ const LeadsPage = () => {
   // Update dynamic fields when status changes (disabled for locked default status)
   const handleStatusChange = (statusId: string) => {
     // Don't allow status changes when dropdown is disabled
-    
+
     setFormData(prev => ({ ...prev, status: statusId }));
-    
+
     // Reset dynamic fields
-    const newDynamicFields: {[key: string]: any} = {};
+    const newDynamicFields: { [key: string]: any } = {};
     const requiredFields = getRequiredFieldsForStatus(statusId);
     const newlySelectedStatus = leadStatuses.find(s => s._id === statusId);
-    
+
     // Initialize dynamic fields based on status requirements
     requiredFields.forEach(field => {
       if (field.type === 'date') {
@@ -400,14 +410,14 @@ const LeadsPage = () => {
         newDynamicFields[field.name] = formData[field.name as keyof typeof formData] || "";
       }
     });
-    
+
     setDynamicFields(newDynamicFields);
   };
 
   // Function to fetch CP sourcing users for a specific channel partner and project
   const fetchCPSourcingOptions = async (channelPartnerId: string, projectId: string) => {
     console.log('Fetching CP sourcing options:', { channelPartnerId, projectId });
-    
+
     if (!channelPartnerId || !projectId) {
       console.log('Missing channelPartnerId or projectId, clearing options');
       setCPSourcingOptions([]);
@@ -422,13 +432,13 @@ const LeadsPage = () => {
           headers: { Authorization: `Bearer ${token}` },
         }
       );
-      
+
       console.log('CP sourcing API response:', { status: response.status, ok: response.ok });
-      
+
       if (response.ok) {
         const data = await response.json();
         console.log('CP sourcing API data:', data);
-        
+
         // Normalize to unique user list with stable ids (prefer user._id)
         const rawList = Array.isArray(data) ? data : (Array.isArray((data as any)?.users) ? (data as any).users : []);
         const uniqueUsers = new Map<string, CPSourcingUser>();
@@ -441,10 +451,10 @@ const LeadsPage = () => {
           const channelPartnerId = item?.channelPartnerId || user?.channelPartnerId;
           const projectId = item?.projectId || user?.projectId;
           if (!id) return;
-          uniqueUsers.set(id, { 
-            _id: id, 
-            userId, 
-            name, 
+          uniqueUsers.set(id, {
+            _id: id,
+            userId,
+            name,
             email,
             channelPartnerId,
             projectId
@@ -452,7 +462,7 @@ const LeadsPage = () => {
         });
         const normalized = Array.from(uniqueUsers.values());
         console.log('Normalized CP sourcing users:', normalized);
-        
+
         // Merge into existing options so table lookups keep working
         setCPSourcingOptions(prev => {
           const map = new Map<string, CPSourcingUser>();
@@ -497,27 +507,27 @@ const LeadsPage = () => {
 
   const handleSourceChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const newSource = e.target.value;
-    
+
     console.log('🔍 Source changed:', {
       newSource,
       selectedSourceName: leadSources.find(s => s._id === newSource)?.name || 'Unknown',
       allLeadSources: leadSources.map(s => ({ id: s._id, name: s.name }))
     });
-    
+
     // Check if the selected source is a channel partner (either by ID or manual value)
-    const isChannelPartner = newSource === 'channel-partner' || 
+    const isChannelPartner = newSource === 'channel-partner' ||
       leadSources.some(source => source._id === newSource && source.name.toLowerCase() === 'channel partner');
-    
+
     console.log('🔍 Is Channel Partner:', isChannelPartner);
-    
+
     // Single functional update to prevent stale overwrites
-    setFormData(prev => ({ 
-      ...prev, 
+    setFormData(prev => ({
+      ...prev,
       source: newSource,
       channelPartner: isChannelPartner ? prev.channelPartner : '',
       cpSourcingId: isChannelPartner ? prev.cpSourcingId : ''
     }));
-    
+
     // Reset dynamic fields when source changes
     setDynamicFields({});
   };
@@ -526,19 +536,19 @@ const LeadsPage = () => {
   const handleChannelPartnerChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const channelPartnerId = e.target.value;
     const projectId = formData.projectId;
-    
+
     console.log('Channel partner changed:', {
       channelPartnerId,
       projectId,
       previousChannelPartner: formData.channelPartner
     });
-    
-    setFormData(prev => ({ 
-      ...prev, 
+
+    setFormData(prev => ({
+      ...prev,
       channelPartner: channelPartnerId,
       cpSourcingId: '' // Reset CP sourcing when channel partner changes
     }));
-    
+
     // Fetch CP sourcing options for the selected channel partner and project
     if (channelPartnerId && projectId) {
       fetchCPSourcingOptions(channelPartnerId, projectId);
@@ -551,13 +561,13 @@ const LeadsPage = () => {
   const handleProjectChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const projectId = e.target.value;
     const channelPartnerId = formData.channelPartner;
-    
-    setFormData(prev => ({ 
-      ...prev, 
+
+    setFormData(prev => ({
+      ...prev,
       projectId: projectId,
       cpSourcingId: '' // Reset CP sourcing when project changes
     }));
-    
+
     // If a channel partner is already selected, fetch CP sourcing options for the new project
     if (channelPartnerId && projectId) {
       fetchCPSourcingOptions(channelPartnerId, projectId);
@@ -566,10 +576,31 @@ const LeadsPage = () => {
     }
   };
 
+  const fetchLeaddata = async () => {
+    setIsLoading(true);
+    try {
+      const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setTotalLeads(transformLeadData(data.leads || []));
+
+      } else {
+        setAlertMessage({ type: 'error', message: `Failed to fetch fresh leads: ${response.statusText}` });
+      }
+    } catch (error) {
+      console.error("Error fetching fresh leads:", error);
+      setAlertMessage({ type: 'error', message: 'Network error while fetching fresh leads.' });
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   const fetchLeads = async () => {
     if (isLoadingLeads) return;
-    
+
     try {
       setIsLoadingLeads(true);
       // Build URL with pagination params (backend-supported)
@@ -581,7 +612,7 @@ const LeadsPage = () => {
       const leadsResponse = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
       });
-      
+
       if (leadsResponse.ok) {
         const leadsData = await leadsResponse.json();
         console.log('Leads Data:', leadsData);
@@ -604,7 +635,7 @@ const LeadsPage = () => {
         const transformedLeads = transformLeadData(leadsArray);
         setLeads(transformedLeads);
         setLastRefresh(new Date());
-        
+
         // Only clear selected leads if we're not in bulk transfer mode
         // This prevents clearing selection when refreshing for bulk transfer
         if (!bulkTransferModal) {
@@ -617,9 +648,9 @@ const LeadsPage = () => {
     } catch (error) {
       console.error("Error fetching leads:", error);
       setLeads([]);
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'Network error: Failed to fetch leads. Please check your connection.' 
+      setAlertMessage({
+        type: 'error',
+        message: 'Network error: Failed to fetch leads. Please check your connection.'
       });
     } finally {
       setIsLoadingLeads(false);
@@ -634,43 +665,43 @@ const LeadsPage = () => {
       // First check if leadSource exists and is NOT Channel Partner
       if (lead.leadSource?._id) {
         const leadSourceName = lead.leadSource?.name || '';
-        
+
         // If the lead source is "Channel Partner", then show channel partner details
         if (leadSourceName.toLowerCase() === 'channel partner') {
           // Show detailed channel partner info
-      if (lead.channelPartner) {
-        const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
-        const cpName = cpObj?.name;
-        if (cpName) {
-          sourceName = `Channel Partner: ${cpName}`;
-        } else {
-          // fallback to custom data id mapping
-          const cpIdFromCustom = lead.customData?.["Channel Partner"];
-          const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
-          if (cp) sourceName = `Channel Partner: ${cp.name}`;
-          else sourceName = 'Channel Partner';
-        }
+          if (lead.channelPartner) {
+            const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
+            const cpName = cpObj?.name;
+            if (cpName) {
+              sourceName = `Channel Partner: ${cpName}`;
+            } else {
+              // fallback to custom data id mapping
+              const cpIdFromCustom = lead.customData?.["Channel Partner"];
+              const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+              if (cp) sourceName = `Channel Partner: ${cp.name}`;
+              else sourceName = 'Channel Partner';
+            }
 
-        // Append sourcing info if available
-        const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
-        if (cpSourcingRef) {
-          let cpSourcing: any = null;
-          if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
-            cpSourcing = cpSourcingRef;
-            // Check if it has userId.name (new format)
-            if (cpSourcing.userId && cpSourcing.userId.name) {
-              sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
-            } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
-              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+            // Append sourcing info if available
+            const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+            if (cpSourcingRef) {
+              let cpSourcing: any = null;
+              if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
+                cpSourcing = cpSourcingRef;
+                // Check if it has userId.name (new format)
+                if (cpSourcing.userId && cpSourcing.userId.name) {
+                  sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
+                } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
+                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+                }
+              } else {
+                cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
+                if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
+                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+                }
+              }
             }
           } else {
-            cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
-            if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
-              sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
-            }
-          }
-        }
-      } else {
             // No channel partner details, just show the source name
             sourceName = leadSourceName;
           }
@@ -711,31 +742,34 @@ const LeadsPage = () => {
     });
   };
 
+  // new lead by source
+
+
   const handleLeadsError = (response: Response) => {
     if (response.status === 429) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: `Rate Limited (429): Too many requests. Please wait a moment and try again.` 
+      setAlertMessage({
+        type: 'error',
+        message: `Rate Limited (429): Too many requests. Please wait a moment and try again.`
       });
     } else if (response.status === 500) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: `Backend Error (500): The leads API is experiencing issues. Please try again later or contact support.` 
+      setAlertMessage({
+        type: 'error',
+        message: `Backend Error (500): The leads API is experiencing issues. Please try again later or contact support.`
       });
     } else if (response.status === 404) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: `API Endpoint Not Found (404): The leads API endpoint may not be implemented yet on the backend.` 
+      setAlertMessage({
+        type: 'error',
+        message: `API Endpoint Not Found (404): The leads API endpoint may not be implemented yet on the backend.`
       });
     } else if (response.status === 401) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: `Unauthorized (401): Please check your authentication token.` 
+      setAlertMessage({
+        type: 'error',
+        message: `Unauthorized (401): Please check your authentication token.`
       });
     } else {
-      setAlertMessage({ 
-        type: 'error', 
-        message: `Failed to fetch leads: ${response.status} ${response.statusText}` 
+      setAlertMessage({
+        type: 'error',
+        message: `Failed to fetch leads: ${response.status} ${response.statusText}`
       });
     }
   };
@@ -743,7 +777,7 @@ const LeadsPage = () => {
   const fetchData = async () => {
     try {
       setIsLoading(true);
-      
+
       // Fetch projects
       const projectsResponse = await fetch(API_ENDPOINTS.PROJECTS, {
         headers: { Authorization: `Bearer ${token}` },
@@ -752,22 +786,22 @@ const LeadsPage = () => {
         const projectsData = await projectsResponse.json();
         const projectsList = projectsData.projects || projectsData || [];
         setProjects(projectsList);
-        
+
         if (projectsList.length === 0) {
-          setAlertMessage({ 
-            type: 'error', 
-            message: 'No projects found. Please create a project first before managing leads.' 
+          setAlertMessage({
+            type: 'error',
+            message: 'No projects found. Please create a project first before managing leads.'
           });
         }
         //frwdw
       } else {
         console.error("Failed to fetch projects:", projectsResponse.statusText);
-        setAlertMessage({ 
-          type: 'error', 
-          message: `Failed to fetch projects: ${projectsResponse.status} ${projectsResponse.statusText}` 
+        setAlertMessage({
+          type: 'error',
+          message: `Failed to fetch projects: ${projectsResponse.status} ${projectsResponse.statusText}`
         });
       }
-      
+
       // Fetch lead sources
       const sourcesResponse = await fetch(API_ENDPOINTS.LEAD_SOURCES, {
         headers: { Authorization: `Bearer ${token}` },
@@ -785,22 +819,22 @@ const LeadsPage = () => {
         const statusesData = await statusesResponse.json();
         const statuses = statusesData.leadStatuses || statusesData || [];
         setLeadStatuses(statuses);
-        
+
         // Set default status (check for default field, then "New", then first status)
         if (statuses.length > 0 && !formData.status) {
-          console.log('Available statuses:', statuses.map((s: LeadStatus) => ({ 
-            name: s.name, 
-            id: s._id, 
+          console.log('Available statuses:', statuses.map((s: LeadStatus) => ({
+            name: s.name,
+            id: s._id,
             is_default_status: (s as any).is_default_status,
-            isDefault: (s as any).is_default_status === true 
+            isDefault: (s as any).is_default_status === true
           })));
-          
-          const defaultStatus = statuses.find((status: LeadStatus) => 
+
+          const defaultStatus = statuses.find((status: LeadStatus) =>
             (status as any).is_default_status === true
-          ) || statuses.find((status: LeadStatus) => 
+          ) || statuses.find((status: LeadStatus) =>
             status.name.toLowerCase() === 'new'
           ) || statuses[0]; // Fallback to first status if no default found
-          
+
           console.log('Selected default status:', {
             name: defaultStatus?.name,
             id: defaultStatus?._id,
@@ -808,12 +842,12 @@ const LeadsPage = () => {
             isFromNewName: defaultStatus?.name?.toLowerCase() === 'new',
             isFirstStatus: statuses[0] === defaultStatus
           });
-          
+
           setFormData(prev => ({ ...prev, status: defaultStatus._id }));
-          
+
           // Also populate dynamic fields for the default status
           if (defaultStatus.formFields && defaultStatus.formFields.length > 0) {
-            const newDynamicFields: {[key: string]: any} = {};
+            const newDynamicFields: { [key: string]: any } = {};
             defaultStatus.formFields.forEach((field: FormField) => {
               if (field.type === 'date') {
                 const today = new Date();
@@ -854,10 +888,10 @@ const LeadsPage = () => {
         if (usersResponse.ok) {
           const projectsData = await usersResponse.json();
           const projects = projectsData.projects || projectsData || [];
-          
+
           // Extract all unique users from projects (owner, members, managers)
           const allUsers = new Map();
-          
+
           projects.forEach((project: any) => {
             // Add owner
             if (project.owner) {
@@ -871,7 +905,7 @@ const LeadsPage = () => {
                 companyName: project.owner.companyName
               });
             }
-            
+
             // Add members
             if (project.members && Array.isArray(project.members)) {
               project.members.forEach((member: any) => {
@@ -886,7 +920,7 @@ const LeadsPage = () => {
                 });
               });
             }
-            
+
             // Add managers
             if (project.managers && Array.isArray(project.managers)) {
               project.managers.forEach((manager: any) => {
@@ -902,7 +936,7 @@ const LeadsPage = () => {
               });
             }
           });
-          
+
           // Convert Map to Array
           const usersList = Array.from(allUsers.values());
           setUsers(usersList);
@@ -911,7 +945,7 @@ const LeadsPage = () => {
           console.error("Failed to fetch users:", usersResponse.statusText);
         }
       }
-      
+
     } catch (error) {
       console.error("Error fetching data:", error);
       setAlertMessage({ type: 'error', message: 'Failed to fetch data' });
@@ -922,56 +956,56 @@ const LeadsPage = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     // Validate required fields
     if (!formData.name.trim()) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'Please enter a lead name' 
+      setAlertMessage({
+        type: 'error',
+        message: 'Please enter a lead name'
       });
       return;
     }
-    
+
     if (!formData.source) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'Please select a lead source' 
+      setAlertMessage({
+        type: 'error',
+        message: 'Please select a lead source'
       });
       return;
     }
-    
+
     // If channel partner is selected as source, validate channel partner selection
-    const isChannelPartner = formData.source === 'channel-partner' || 
+    const isChannelPartner = formData.source === 'channel-partner' ||
       leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
-    
+
     if (!editingLead && isChannelPartner && !formData.channelPartner) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'Please select a channel partner' 
+      setAlertMessage({
+        type: 'error',
+        message: 'Please select a channel partner'
       });
       return;
     }
-    
+
     if (!formData.status) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'Default lead status not found. Please refresh the page.' 
+      setAlertMessage({
+        type: 'error',
+        message: 'Default lead status not found. Please refresh the page.'
       });
       return;
     }
-    
+
     if (!formData.projectId) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'Please select a project from the dropdown to create this lead.' 
+      setAlertMessage({
+        type: 'error',
+        message: 'Please select a project from the dropdown to create this lead.'
       });
       return;
     }
 
     if (!formData.userId) {
-      setAlertMessage({ 
-        type: 'error', 
-        message: 'User ID not available. Please refresh the page and try again.' 
+      setAlertMessage({
+        type: 'error',
+        message: 'User ID not available. Please refresh the page and try again.'
       });
       return;
     }
@@ -992,9 +1026,9 @@ const LeadsPage = () => {
         if (field.required) {
           const fieldValue = dynamicFields[field.name] || formData[field.name as keyof typeof formData];
           if (!fieldValue || !fieldValue.toString().trim()) {
-            setAlertMessage({ 
-              type: 'error', 
-              message: `Please fill in the required field: ${field.name}` 
+            setAlertMessage({
+              type: 'error',
+              message: `Please fill in the required field: ${field.name}`
             });
             return;
           }
@@ -1004,16 +1038,16 @@ const LeadsPage = () => {
 
     try {
       setIsSubmitting(true);
-      
+
       if (editingLead) {
         // Check if status has changed - if so, use status update API
         const statusChanged = editingLead.currentStatus?._id !== formData.status;
-        
+
         if (statusChanged) {
           // Use status update API with the format you specified
           const statusUpdateBody = {
             newStatusId: formData.status, // new status id
-            newData: { 
+            newData: {
               "First Name": editingLead.customData?.["First Name"] || editingLead.customData?.name || editingLead.name || 'N/A',
               "Email": editingLead.customData?.["Email"] || editingLead.customData?.email || editingLead.email || 'N/A',
               "Phone": editingLead.customData?.["Phone"] || editingLead.customData?.phone || editingLead.customData?.contact || editingLead.phone || 'N/A',
@@ -1028,14 +1062,14 @@ const LeadsPage = () => {
               ...dynamicFields // Include dynamic fields
             } // form data
           };
-          
+
           console.log('Status update request:', {
             url: `${API_BASE_URL}/api/leads/${editingLead._id}/status/`,
             method: 'PUT',
             body: statusUpdateBody
           });
           console.log('Dynamic fields being sent:', dynamicFields);
-          
+
           const response = await fetch(`${API_BASE_URL}/api/leads/${editingLead._id}/status/`, {
             method: 'PUT',
             headers: {
@@ -1062,63 +1096,63 @@ const LeadsPage = () => {
         } else {
           // Regular lead update (no status change)
           // Check if the selected source is a channel partner
-          const isChannelPartnerSource = formData.source === 'channel-partner' || 
+          const isChannelPartnerSource = formData.source === 'channel-partner' ||
             leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
-          
-        const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
-          method: 'PUT',
-          headers: {
-            'Content-Type': 'application/json',
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            // Always send the selected lead source id (do not replace with CP id)
-            leadSource: formData.source,
-            currentStatus: formData.status,
-            // Only send CP details if the source is channel partner
-            ...(isChannelPartnerSource && formData.channelPartner ? { channelPartner: formData.channelPartner } : {}),
-            ...(isChannelPartnerSource && formData.cpSourcingId ? { cpSourcingId: formData.cpSourcingId } : {}),
-            customData: {
-              "First Name": formData.name.split(' ')[0] || formData.name,
-              "Email": formData.email,
-              "Phone": formData.phone,
-              "Notes": formData.notes,
-              "Lead Priority": formData.leadPriority,
-              "Property Type": formData.propertyType,
-              "Configuration": formData.configuration,
-              "Funding Mode": formData.fundingMode,
-              "Gender": formData.gender,
-              "Budget": formData.budget,
-              // Only add channel partner to customData if the source is channel partner
-              ...(isChannelPartnerSource && formData.channelPartner ? { "Channel Partner": formData.channelPartner } : {}),
-              ...(isChannelPartnerSource && formData.cpSourcingId ? { "Channel Partner Sourcing": formData.cpSourcingId } : {}),
-              ...dynamicFields // Include dynamic fields
-            },
-              userId: formData.userId
-          }),
-        });
 
-        if (response.ok) {
-          setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
+          const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
+            method: 'PUT',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({
+              // Always send the selected lead source id (do not replace with CP id)
+              leadSource: formData.source,
+              currentStatus: formData.status,
+              // Only send CP details if the source is channel partner
+              ...(isChannelPartnerSource && formData.channelPartner ? { channelPartner: formData.channelPartner } : {}),
+              ...(isChannelPartnerSource && formData.cpSourcingId ? { cpSourcingId: formData.cpSourcingId } : {}),
+              customData: {
+                "First Name": formData.name.split(' ')[0] || formData.name,
+                "Email": formData.email,
+                "Phone": formData.phone,
+                "Notes": formData.notes,
+                "Lead Priority": formData.leadPriority,
+                "Property Type": formData.propertyType,
+                "Configuration": formData.configuration,
+                "Funding Mode": formData.fundingMode,
+                "Gender": formData.gender,
+                "Budget": formData.budget,
+                // Only add channel partner to customData if the source is channel partner
+                ...(isChannelPartnerSource && formData.channelPartner ? { "Channel Partner": formData.channelPartner } : {}),
+                ...(isChannelPartnerSource && formData.cpSourcingId ? { "Channel Partner Sourcing": formData.cpSourcingId } : {}),
+                ...dynamicFields // Include dynamic fields
+              },
+              userId: formData.userId
+            }),
+          });
+
+          if (response.ok) {
+            setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
             handleCloseModal();
             fetchLeads();
-        } else {
-          let errorMessage = 'Failed to update lead';
-          try {
-            const errorData = await response.json();
-            errorMessage = errorData.message || errorMessage;
-          } catch (parseError) {
-            errorMessage = `Update failed: ${response.status} ${response.statusText}`;
-          }
-          setAlertMessage({ type: 'error', message: errorMessage });
+          } else {
+            let errorMessage = 'Failed to update lead';
+            try {
+              const errorData = await response.json();
+              errorMessage = errorData.message || errorMessage;
+            } catch (parseError) {
+              errorMessage = `Update failed: ${response.status} ${response.statusText}`;
+            }
+            setAlertMessage({ type: 'error', message: errorMessage });
           }
         }
       } else {
         // Create new lead
         // Check if the selected source is a channel partner
-        const isChannelPartnerSource = formData.source === 'channel-partner' || 
+        const isChannelPartnerSource = formData.source === 'channel-partner' ||
           leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
-        
+
         const requestBody = {
           // Always send the selected lead source id (do not replace with CP id)
           leadSource: formData.source,
@@ -1145,7 +1179,7 @@ const LeadsPage = () => {
           },
           userId: formData.userId
         };
-        
+
         console.log('Creating new lead with data:', {
           selectedSource: formData.source,
           isChannelPartnerSource,
@@ -1154,7 +1188,7 @@ const LeadsPage = () => {
           leadSourceFromList: leadSources.find(s => s._id === formData.source),
           fullRequestBody: requestBody
         });
-        
+
         const response = await fetch(API_ENDPOINTS.CREATE_LEAD(formData.projectId), {
           method: 'POST',
           headers: {
@@ -1182,10 +1216,10 @@ const LeadsPage = () => {
           } catch (textError) {
             errorMessage = `Creation failed: ${response.status} ${response.statusText}`;
           }
-          
-          setAlertMessage({ 
-            type: 'error', 
-            message: `Lead creation failed (${response.status}): ${errorMessage}` 
+
+          setAlertMessage({
+            type: 'error',
+            message: `Lead creation failed (${response.status}): ${errorMessage}`
           });
         }
       }
@@ -1206,13 +1240,13 @@ const LeadsPage = () => {
     }
     try {
       setIsUpdatingStatus(true);
-      
+
       // Find the lead to get its current data
       const currentLead = leads.find(lead => lead._id === leadId);
-      
+
       const requestBody = {
         newStatusId, // new status id
-        newData: { 
+        newData: {
           "First Name": currentLead?.customData?.["First Name"] || currentLead?.customData?.name || '',
           "Email": currentLead?.customData?.["Email"] || currentLead?.customData?.email || '',
           "Phone": currentLead?.customData?.["Phone"] || currentLead?.customData?.phone || currentLead?.customData?.contact || '',
@@ -1233,13 +1267,13 @@ const LeadsPage = () => {
           }, {} as any)
         } // form data
       };
-      
+
       console.log('Status update request:', {
         url: `${API_BASE_URL}/api/leads/${leadId}/status/`,
         method: 'PUT',
         body: requestBody
       });
-      
+
       const response = await fetch(`${API_BASE_URL}/api/leads/${leadId}/status/`, {
         method: 'PUT',
         headers: {
@@ -1280,8 +1314,8 @@ const LeadsPage = () => {
 
   // Bulk transfer functions
   const handleSelectLead = (leadId: string) => {
-    setSelectedLeads(prev => 
-      prev.includes(leadId) 
+    setSelectedLeads(prev =>
+      prev.includes(leadId)
         ? prev.filter(id => id !== leadId)
         : [...prev, leadId]
     );
@@ -1297,10 +1331,10 @@ const LeadsPage = () => {
 
   const fetchRecipientProjects = async (recipientUserId: string) => {
     if (!token || !recipientUserId) return;
-    
+
     try {
       console.log('Fetching projects for recipient user:', recipientUserId);
-      
+
       // First try the superadmin endpoint to get user with projects
       const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
         headers: {
@@ -1311,18 +1345,18 @@ const LeadsPage = () => {
       if (response.ok) {
         const data = await response.json();
         console.log('Superadmin users with projects response:', data);
-        
+
         // Find the specific user and extract their projects
         const users = data.users || data || [];
         const recipientUser = users.find((u: any) => u._id === recipientUserId);
-        
+
         if (recipientUser && recipientUser.projects && Array.isArray(recipientUser.projects)) {
           console.log('Found recipient user projects:', recipientUser.projects);
           setUserProjects(recipientUser.projects);
           return;
         }
       }
-      
+
       // Fallback: try to get projects from the user's assigned projects
       const userProjectsResponse = await fetch(`${API_BASE_URL}/api/projects`, {
         headers: {
@@ -1333,18 +1367,18 @@ const LeadsPage = () => {
       if (userProjectsResponse.ok) {
         const projectsData = await userProjectsResponse.json();
         const allProjects = projectsData.projects || projectsData || [];
-        
+
         // Filter projects where the user is owner, member, or manager
         const userAssignedProjects = allProjects.filter((project: any) => {
           const isOwner = project.owner && project.owner._id === recipientUserId;
           const isMember = project.members && project.members.some((member: any) => member._id === recipientUserId);
           const isManager = project.managers && project.managers.some((manager: any) => manager._id === recipientUserId);
-          
+
           return isOwner || isMember || isManager;
         });
-        
+
         console.log('Filtered user assigned projects:', userAssignedProjects);
-        
+
         if (userAssignedProjects.length > 0) {
           setUserProjects(userAssignedProjects);
         } else {
@@ -1369,20 +1403,20 @@ const LeadsPage = () => {
       setAlertMessage({ type: 'error', message: 'Please select leads to transfer first.' });
       return;
     }
-    
+
     setBulkTransferModal(true);
     setSelectedProjectId('');
     setTransferToUser('');
     setUserProjects([]); // Clear previous projects
-    
+
     // Store current selection before refresh
     const currentSelection = [...selectedLeads];
     console.log('Opening bulk transfer with selected leads:', currentSelection);
-    
+
     // Refresh leads to ensure we have the latest data
     console.log('Refreshing leads before bulk transfer...');
     await fetchLeads();
-    
+
     // Restore selection after refresh
     setSelectedLeads(currentSelection);
     console.log('Restored selection after refresh:', currentSelection);
@@ -1418,16 +1452,16 @@ const LeadsPage = () => {
     const selectedLeadsData = leads.filter(lead => selectedLeads.includes(lead._id));
     const validLeadIds = selectedLeadsData.map(lead => lead._id);
     const invalidLeadIds = selectedLeads.filter(id => !leads.some(lead => lead._id === id));
-    
+
     // Check if any leads are already assigned to the target user AND project
-    const alreadyAssignedLeads = selectedLeadsData.filter(lead => 
+    const alreadyAssignedLeads = selectedLeadsData.filter(lead =>
       lead.user?._id === transferToUser && lead.project?._id === selectedProjectId
     );
     const alreadyAssignedLeadIds = alreadyAssignedLeads.map(lead => lead._id);
-    const transferableLeadIds = selectedLeadsData.filter(lead => 
+    const transferableLeadIds = selectedLeadsData.filter(lead =>
       !(lead.user?._id === transferToUser && lead.project?._id === selectedProjectId)
     ).map(lead => lead._id);
-    
+
     console.log('Selected leads validation:', {
       selectedLeads,
       validLeadIds,
@@ -1445,16 +1479,16 @@ const LeadsPage = () => {
       if (selectedLeads.length === 0) {
         setAlertMessage({ type: 'error', message: 'Please select leads to transfer first.' });
       } else if (invalidLeadIds.length === selectedLeads.length) {
-        setAlertMessage({ 
-          type: 'error', 
-          message: 'Selected leads are no longer available. Please refresh the page and select leads again.' 
+        setAlertMessage({
+          type: 'error',
+          message: 'Selected leads are no longer available. Please refresh the page and select leads again.'
         });
         // Clear the invalid selection
         setSelectedLeads([]);
       } else {
-        setAlertMessage({ 
-          type: 'error', 
-          message: 'No valid leads found for transfer. Please check your selection and try again.' 
+        setAlertMessage({
+          type: 'error',
+          message: 'No valid leads found for transfer. Please check your selection and try again.'
         });
       }
       return;
@@ -1462,18 +1496,18 @@ const LeadsPage = () => {
 
     // Check if all selected leads are already assigned to the target user AND project
     if (alreadyAssignedLeadIds.length === selectedLeads.length) {
-      setAlertMessage({ 
-        type: 'info', 
-        message: `All selected leads are already assigned to the target user and project. No transfer needed.` 
+      setAlertMessage({
+        type: 'info',
+        message: `All selected leads are already assigned to the target user and project. No transfer needed.`
       });
       return;
     }
 
     // If some leads are already assigned, show info message and continue with transferable ones
     if (alreadyAssignedLeadIds.length > 0) {
-      setAlertMessage({ 
-        type: 'info', 
-        message: `Skipping ${alreadyAssignedLeadIds.length} lead(s) that are already assigned to the target user and project. Transferring ${transferableLeadIds.length} lead(s).` 
+      setAlertMessage({
+        type: 'info',
+        message: `Skipping ${alreadyAssignedLeadIds.length} lead(s) that are already assigned to the target user and project. Transferring ${transferableLeadIds.length} lead(s).`
       });
     }
 
@@ -1482,19 +1516,19 @@ const LeadsPage = () => {
     if (invalidLeadIds.length > 0) {
       console.log('Removing invalid lead IDs from selection:', invalidLeadIds);
       setSelectedLeads(validLeadIds);
-      setAlertMessage({ 
-        type: 'info', 
-        message: `Removed ${invalidLeadIds.length} invalid lead(s) from selection. Proceeding with ${validLeadIds.length} valid lead(s).` 
+      setAlertMessage({
+        type: 'info',
+        message: `Removed ${invalidLeadIds.length} invalid lead(s) from selection. Proceeding with ${validLeadIds.length} valid lead(s).`
       });
     }
 
     // Use only transferable leads (exclude already assigned ones)
     const finalLeadIds = transferableLeadIds.length > 0 ? transferableLeadIds : validLeadIds;
-    
+
     if (finalLeadIds.length === 0) {
-      setAlertMessage({ 
-        type: 'info', 
-        message: 'No leads available for transfer after filtering.' 
+      setAlertMessage({
+        type: 'info',
+        message: 'No leads available for transfer after filtering.'
       });
       return;
     }
@@ -1504,7 +1538,7 @@ const LeadsPage = () => {
       // Get the old project information from the first lead being transferred
       const firstLead = leads.find(lead => finalLeadIds.includes(lead._id));
       const oldProjectId = firstLead?.project?._id;
-      
+
       const requestBody = {
         fromUser: user?.id,
         toUser: transferToUser,
@@ -1550,25 +1584,25 @@ const LeadsPage = () => {
 
       const result = await response.json();
       console.log('Bulk transfer successful:', result);
-      
-      setAlertMessage({ 
-        type: 'success', 
-        message: `Successfully transferred ${validLeadIds.length} lead(s)` 
+
+      setAlertMessage({
+        type: 'success',
+        message: `Successfully transferred ${validLeadIds.length} lead(s)`
       });
-      
+
       // Reset selection and close modal
       setSelectedLeads([]);
       setBulkTransferModal(false);
       setTransferToUser('');
-      
+
       // Refresh leads
       await fetchLeads();
-      
+
     } catch (error) {
       console.error('Bulk transfer failed:', error);
-      setAlertMessage({ 
-        type: 'error', 
-        message: `Bulk transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      setAlertMessage({
+        type: 'error',
+        message: `Bulk transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     } finally {
       setIsTransferring(false);
@@ -1578,7 +1612,7 @@ const LeadsPage = () => {
   // Fallback function for individual lead transfers using bulk transfer API
   const transferLeadsIndividually = async (leadIds: string[], toUser: string, projectId: string) => {
     console.log('Starting individual lead transfers using bulk transfer API...', { leadIds, toUser, projectId });
-    
+
     try {
       // Debug: Show selected leads data
       const selectedLeadsData = leads.filter(lead => leadIds.includes(lead._id));
@@ -1590,13 +1624,13 @@ const LeadsPage = () => {
       })));
 
       // Check if any leads are already assigned to the target user AND project
-      const alreadyAssignedLeads = selectedLeadsData.filter(lead => 
+      const alreadyAssignedLeads = selectedLeadsData.filter(lead =>
         lead.user?._id === toUser && lead.project?._id === projectId
       );
-      const transferableLeads = selectedLeadsData.filter(lead => 
+      const transferableLeads = selectedLeadsData.filter(lead =>
         !(lead.user?._id === toUser && lead.project?._id === projectId)
       );
-      
+
       console.log('Lead assignment check:', {
         total: selectedLeadsData.length,
         alreadyAssigned: alreadyAssignedLeads.length,
@@ -1606,18 +1640,18 @@ const LeadsPage = () => {
 
       // If all leads are already assigned, show message and return
       if (alreadyAssignedLeads.length === selectedLeadsData.length) {
-        setAlertMessage({ 
-          type: 'info', 
-          message: `All selected leads are already assigned to the target user and project. No transfer needed.` 
+        setAlertMessage({
+          type: 'info',
+          message: `All selected leads are already assigned to the target user and project. No transfer needed.`
         });
         return;
       }
 
       // If some leads are already assigned, show info message
       if (alreadyAssignedLeads.length > 0) {
-        setAlertMessage({ 
-          type: 'info', 
-          message: `Skipping ${alreadyAssignedLeads.length} lead(s) that are already assigned to the target user and project. Transferring ${transferableLeads.length} lead(s).` 
+        setAlertMessage({
+          type: 'info',
+          message: `Skipping ${alreadyAssignedLeads.length} lead(s) that are already assigned to the target user and project. Transferring ${transferableLeads.length} lead(s).`
         });
       }
 
@@ -1643,7 +1677,7 @@ const LeadsPage = () => {
           // Get the old project information from the first lead being transferred
           const firstLead = leads.find(lead => ownerLeadIds.includes(lead._id));
           const oldProjectId = firstLead?.project?._id;
-          
+
           const requestBody = {
             fromUser: ownerId,
             toUser: toUser,
@@ -1682,16 +1716,16 @@ const LeadsPage = () => {
 
       // Show results
       if (totalTransferred > 0) {
-        setAlertMessage({ 
-          type: 'success', 
-          message: `Successfully transferred ${totalTransferred} lead(s)` 
+        setAlertMessage({
+          type: 'success',
+          message: `Successfully transferred ${totalTransferred} lead(s)`
         });
       }
 
       if (totalErrors > 0) {
-        setAlertMessage({ 
-          type: 'error', 
-          message: `Failed to transfer ${totalErrors} lead(s). Errors: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}` 
+        setAlertMessage({
+          type: 'error',
+          message: `Failed to transfer ${totalErrors} lead(s). Errors: ${errors.slice(0, 3).join(', ')}${errors.length > 3 ? '...' : ''}`
         });
       }
 
@@ -1699,15 +1733,15 @@ const LeadsPage = () => {
       setSelectedLeads([]);
       setBulkTransferModal(false);
       setTransferToUser('');
-      
+
       // Refresh leads
       await fetchLeads();
-      
+
     } catch (error) {
       console.error('Individual transfer failed:', error);
-      setAlertMessage({ 
-        type: 'error', 
-        message: `Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}` 
+      setAlertMessage({
+        type: 'error',
+        message: `Transfer failed: ${error instanceof Error ? error.message : 'Unknown error'}`
       });
     }
   };
@@ -1722,12 +1756,12 @@ const LeadsPage = () => {
         'application/vnd.ms-excel',
         'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
       ];
-      
+
       if (!validTypes.includes(file.type) && !file.name.endsWith('.csv') && !file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
         setAlertMessage({ type: 'error', message: 'Please select a valid CSV or Excel file' });
         return;
       }
-      
+
       setSelectedFile(file);
       setUploadResults(null);
     }
@@ -1763,7 +1797,7 @@ const LeadsPage = () => {
       }
 
       const result = await response.json();
-      
+
       setUploadResults({
         success: result.success || result.successCount || 0,
         failed: result.failed || result.failedCount || 0,
@@ -1777,12 +1811,12 @@ const LeadsPage = () => {
 
       // Reset file selection after successful upload
       setSelectedFile(null);
-      
-      setAlertMessage({ 
-        type: 'success', 
-        message: `Successfully uploaded ${result.success || result.successCount || 0} lead(s)` 
+
+      setAlertMessage({
+        type: 'success',
+        message: `Successfully uploaded ${result.success || result.successCount || 0} lead(s)`
       });
-      
+
     } catch (err: any) {
       console.error('Error uploading file:', err);
       setAlertMessage({ type: 'error', message: err.message || 'Failed to upload file' });
@@ -1936,10 +1970,10 @@ const LeadsPage = () => {
                 <td>${lead.user?.email || 'N/A'}</td>
                 <td>${lead.customData?.["Lead Priority"] || lead.customData?.leadPriority || 'N/A'}</td>
                 <td>${new Date(lead.createdAt).toLocaleDateString('en-US', {
-                  day: '2-digit',
-                  month: 'short',
-                  year: 'numeric'
-                })}</td>
+      day: '2-digit',
+      month: 'short',
+      year: 'numeric'
+    })}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -1954,7 +1988,7 @@ const LeadsPage = () => {
     // Create blob and download
     const blob = new Blob([htmlContent], { type: 'text/html' });
     const url = URL.createObjectURL(blob);
-    
+
     // Open in new window for printing as PDF
     const printWindow = window.open(url, '_blank');
     if (printWindow) {
@@ -1964,7 +1998,7 @@ const LeadsPage = () => {
         }, 250);
       };
     }
-    
+
     URL.revokeObjectURL(url);
     setAlertMessage({ type: 'success', message: `PDF export ready for ${filteredLeads.length} leads` });
   };
@@ -2044,20 +2078,20 @@ const LeadsPage = () => {
         'Female'
       ]
     ];
-    
+
     const csvContent = [
       headers.join(','),
       ...sampleData.map(row => row.map(cell => `"${cell}"`).join(','))
     ].join('\n');
-    
+
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const link = document.createElement('a');
     const url = URL.createObjectURL(blob);
-    
+
     link.setAttribute('href', url);
     link.setAttribute('download', 'leads_bulk_upload_template.csv');
     link.style.visibility = 'hidden';
-    
+
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -2120,13 +2154,13 @@ const LeadsPage = () => {
       channelPartner: lead.customData?.["Channel Partner"] || '',
       cpSourcingId: lead.customData?.["Channel Partner Sourcing"] || ''
     });
-    
+
     // Populate dynamic fields from lead's customData
-    const newDynamicFields: {[key: string]: any} = {};
+    const newDynamicFields: { [key: string]: any } = {};
     if (lead.currentStatus?._id) {
       const requiredFields = getRequiredFieldsForStatus(lead.currentStatus._id);
       const currentLeadStatus = leadStatuses.find(s => s._id === lead.currentStatus?._id);
-      
+
       requiredFields.forEach(field => {
         if (field.type === 'date') {
           if (currentLeadStatus?.is_final_status) {
@@ -2146,23 +2180,23 @@ const LeadsPage = () => {
       });
     }
     setDynamicFields(newDynamicFields);
-    
+
     setIsModalOpen(true);
   };
 
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingLead(null);
-    
+
     // Find default status (check for default field, then "New", then first status)
-    const defaultStatus = leadStatuses.find((status: LeadStatus) => 
+    const defaultStatus = leadStatuses.find((status: LeadStatus) =>
       (status as any).is_default_status === true
-    ) || leadStatuses.find((status: LeadStatus) => 
+    ) || leadStatuses.find((status: LeadStatus) =>
       status.name.toLowerCase() === 'new'
     ) || leadStatuses[0];
-    
+
     // Initialize dynamic fields for default status
-    const newDynamicFields: {[key: string]: any} = {};
+    const newDynamicFields: { [key: string]: any } = {};
     if (defaultStatus && defaultStatus.formFields && defaultStatus.formFields.length > 0) {
       const selectedDefaultStatus = leadStatuses.find(s => s._id === defaultStatus._id);
       defaultStatus.formFields.forEach((field: FormField) => {
@@ -2182,7 +2216,7 @@ const LeadsPage = () => {
         }
       });
     }
-    
+
     setFormData({
       name: "",
       email: "",
@@ -2207,21 +2241,21 @@ const LeadsPage = () => {
 
   const handleAddNew = () => {
     setEditingLead(null);
-    
+
     // Find default status (check for default field, then "New", then first status)
-    console.log('handleAddNew - Available statuses:', leadStatuses.map((s: LeadStatus) => ({ 
-      name: s.name, 
-      id: s._id, 
+    console.log('handleAddNew - Available statuses:', leadStatuses.map((s: LeadStatus) => ({
+      name: s.name,
+      id: s._id,
       is_default_status: (s as any).is_default_status,
-      isDefault: (s as any).is_default_status === true 
+      isDefault: (s as any).is_default_status === true
     })));
-    
-    const defaultStatus = leadStatuses.find((status: LeadStatus) => 
+
+    const defaultStatus = leadStatuses.find((status: LeadStatus) =>
       (status as any).is_default_status === true
-    ) || leadStatuses.find((status: LeadStatus) => 
+    ) || leadStatuses.find((status: LeadStatus) =>
       status.name.toLowerCase() === 'new'
     ) || leadStatuses[0];
-    
+
     console.log('handleAddNew - Selected default status:', {
       name: defaultStatus?.name,
       id: defaultStatus?._id,
@@ -2229,9 +2263,9 @@ const LeadsPage = () => {
       isFromNewName: defaultStatus?.name?.toLowerCase() === 'new',
       isFirstStatus: leadStatuses[0] === defaultStatus
     });
-    
+
     // Initialize dynamic fields for default status
-    const newDynamicFields: {[key: string]: any} = {};
+    const newDynamicFields: { [key: string]: any } = {};
     if (defaultStatus && defaultStatus.formFields && defaultStatus.formFields.length > 0) {
       defaultStatus.formFields.forEach((field: FormField) => {
         if (field.type === 'checkbox') {
@@ -2243,7 +2277,7 @@ const LeadsPage = () => {
         }
       });
     }
-    
+
     setFormData({
       name: "",
       email: "",
@@ -2270,7 +2304,7 @@ const LeadsPage = () => {
   const handleDatePresetChange = (preset: string) => {
     setDatePreset(preset);
     const today = new Date();
-    
+
     switch (preset) {
       case "today":
         const todayStr = today.toISOString().split('T')[0];
@@ -2323,16 +2357,17 @@ const LeadsPage = () => {
   };
 
   const filteredLeads = leads.filter(lead => {
-    const matchesSearch = 
+    const matchesSearch =
       (lead.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
     const matchesSource = filterSource === "all" || lead.leadSource?._id === filterSource;
     const matchesStatus = filterStatus === "all" || lead.currentStatus?._id === filterStatus;
-    const matchesUser = filterUser === "all" || 
+    const matchesUser = filterUser === "all" ||
       (filterUser === "unassigned" && !lead.user?._id) ||
       (filterUser !== "unassigned" && lead.user?._id === filterUser);
     const matchesProject = !selectedProjectId || selectedProjectId === 'all' || lead.project?._id === selectedProjectId;
     
+
     // Date filtering
     let matchesDate = true;
     if (filterDateFrom || filterDateTo) {
@@ -2359,8 +2394,8 @@ const LeadsPage = () => {
   const displayedPage = Math.min(currentPage, totalPages);
   const startIndex = (displayedPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedLeads = serverTotalItems != null || serverTotalPages != null 
-    ? filteredLeads 
+  const paginatedLeads = serverTotalItems != null || serverTotalPages != null
+    ? filteredLeads
     : filteredLeads.slice(startIndex, endIndex);
   const currentPageLeadIds = paginatedLeads.map(l => l._id);
   const allCurrentSelected = currentPageLeadIds.length > 0 && currentPageLeadIds.every(id => selectedLeads.includes(id));
@@ -2416,7 +2451,7 @@ const LeadsPage = () => {
 
   return (
     <div className="space-y-6">
-      
+
       {/* Header */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
         <div className="flex-1">
@@ -2434,8 +2469,8 @@ const LeadsPage = () => {
           </p>
         </div>
         <div className="flex gap-2 w-full lg:w-auto lg:ml-auto">
-          <Button 
-            onClick={fetchLeads} 
+          <Button
+            onClick={fetchLeads}
             color="gray"
             disabled={isLoadingLeads}
             title="Refresh leads list"
@@ -2444,8 +2479,8 @@ const LeadsPage = () => {
             <Icon icon="solar:refresh-line-duotone" className={`mr-2 ${isLoadingLeads ? 'animate-spin' : ''}`} />
             Refresh
           </Button>
-          <Button 
-            onClick={handleOpenBulkTransferModal} 
+          <Button
+            onClick={handleOpenBulkTransferModal}
             color="orange"
             disabled={isTransferring || selectedLeads.length === 0}
             title={selectedLeads.length === 0 ? "Please select leads first" : "Transfer selected leads"}
@@ -2456,7 +2491,7 @@ const LeadsPage = () => {
           </Button>
           {/* Export Button with Dropdown */}
           <div className="relative export-menu-container">
-            <Button 
+            <Button
               onClick={() => setShowExportMenu(!showExportMenu)}
               color="success"
               disabled={filteredLeads.length === 0}
@@ -2467,7 +2502,7 @@ const LeadsPage = () => {
               Export ({filteredLeads.length})
               <Icon icon={showExportMenu ? "solar:alt-arrow-up-line-duotone" : "solar:alt-arrow-down-line-duotone"} className="ml-2" />
             </Button>
-            
+
             {/* Dropdown Menu */}
             {showExportMenu && filteredLeads.length > 0 && (
               <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
@@ -2504,7 +2539,7 @@ const LeadsPage = () => {
           </div>
           {finalPermissions.canCreateLeads && (
             <>
-              <Button 
+              <Button
                 onClick={() => setBulkUploadModalOpen(true)}
                 color="indigo"
                 disabled={projects.length === 0}
@@ -2514,15 +2549,15 @@ const LeadsPage = () => {
                 <Icon icon="solar:upload-line-duotone" className="mr-2" />
                 Bulk Upload
               </Button>
-              <Button 
-                onClick={handleAddNew} 
+              <Button
+                onClick={handleAddNew}
                 color="primary"
                 disabled={projects.length === 0 || finalPermissions.permissionsLoading}
                 title={
-                  projects.length === 0 
-                    ? "No projects available. Please create a project first." 
-                    : finalPermissions.permissionsLoading 
-                      ? "Loading permissions..." 
+                  projects.length === 0
+                    ? "No projects available. Please create a project first."
+                    : finalPermissions.permissionsLoading
+                      ? "Loading permissions..."
                       : ""
                 }
                 className="w-full lg:w-auto"
@@ -2574,19 +2609,6 @@ const LeadsPage = () => {
         </Card>
         <Card className="p-6">
           <div className="text-center">
-            <div className="text-3xl lg:text-4xl font-bold text-orange-600 dark:text-orange-400 mb-2">
-              {leads.filter(lead => {
-                const currentStatus = lead.currentStatus;
-                if (!currentStatus || !currentStatus._id) return false;
-                const status = leadStatuses.find(s => s._id === currentStatus._id);
-                return status && status.name === 'New';
-              }).length}
-            </div>
-            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">New Leads</div>
-          </div>
-        </Card>
-        <Card className="p-6">
-          <div className="text-center">
             <div className="text-3xl lg:text-4xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
               {projects.length}
             </div>
@@ -2595,6 +2617,13 @@ const LeadsPage = () => {
         </Card>
       </div>
 
+      {/* Chart.js Example Card */}
+
+      {/* Chart Section */}
+      {/* graphs */}
+      <LeadAnalyticsChart leads={totalLeads} />
+
+
       {/* No Projects Warning */}
       {projects.length === 0 && !isLoading && (
         <Alert color="warning">
@@ -2602,13 +2631,13 @@ const LeadsPage = () => {
             <div className="flex items-center">
               <Icon icon="solar:info-circle-line-duotone" className="mr-2" />
               <span>
-                <strong>No Projects Available:</strong> You need to create at least one project before you can manage leads. 
+                <strong>No Projects Available:</strong> You need to create at least one project before you can manage leads.
                 Please create a project first, then return to this page.
               </span>
             </div>
-            <Button 
-              size="sm" 
-              color="gray" 
+            <Button
+              size="sm"
+              color="gray"
               onClick={() => fetchData()}
               className="ml-4"
             >
@@ -2826,7 +2855,7 @@ const LeadsPage = () => {
                           <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-4xl mb-2" />
                           <p>No leads found</p>
                           <p className="text-sm">
-                            {leads.length === 0 
+                            {leads.length === 0
                               ? "No leads available in the system"
                               : "No leads match your current filters"
                             }
@@ -2836,13 +2865,12 @@ const LeadsPage = () => {
                     </Table.Row>
                   ) : (
                     paginatedLeads.map((lead) => (
-                      <Table.Row 
-                        key={lead._id} 
-                        className={`bg-white dark:border-gray-700 dark:bg-gray-800 ${
-                          selectedLeads.includes(lead._id) 
-                            ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700' 
-                            : ''
-                        }`}
+                      <Table.Row
+                        key={lead._id}
+                        className={`bg-white dark:border-gray-700 dark:bg-gray-800 ${selectedLeads.includes(lead._id)
+                          ? 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-700'
+                          : ''
+                          }`}
                       >
                         <Table.Cell>
                           <input
@@ -2875,12 +2903,12 @@ const LeadsPage = () => {
                               <div className="text-xs text-gray-500 dark:text-gray-400">
                                 <span className="font-medium">CP User:</span> {(() => {
                                   const cpRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
-                                  
+
                                   // Check if it's an object with userId.name (new format)
                                   if (typeof cpRef === 'object' && cpRef && cpRef.userId && cpRef.userId.name) {
                                     return cpRef.userId.name;
                                   }
-                                  
+
                                   // Try multiple shapes: object with user, object with _id, plain userId, plain _id
                                   const refId = typeof cpRef === 'object' && cpRef
                                     ? (cpRef.user?._id || cpRef._id)
@@ -2984,31 +3012,31 @@ const LeadsPage = () => {
               </Table>
             </div>
           )}
-        
-        {/* Pagination Footer */}
-        <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 pb-4">
-          <div className="text-sm text-gray-600 dark:text-gray-400">
-            Showing {serverTotalItems != null ? (paginatedLeads.length > 0 ? startIndex + 1 : 0) : Math.min(startIndex + 1, clientTotalItems)}-
-            {serverTotalItems != null ? Math.min(endIndex, totalItems) : Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
-          </div>
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 text-sm">
-              <span className="text-gray-600 dark:text-gray-400">Rows per page:</span>
-              <Select value={String(pageSize)} onChange={(e) => setPageSize(parseInt(e.target.value, 10))}>
-                <option value="10">10</option>
-                <option value="20">20</option>
-                <option value="50">50</option>
-                <option value="100">100</option>
-              </Select>
+
+          {/* Pagination Footer */}
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 pb-4">
+            <div className="text-sm text-gray-600 dark:text-gray-400">
+              Showing {serverTotalItems != null ? (paginatedLeads.length > 0 ? startIndex + 1 : 0) : Math.min(startIndex + 1, clientTotalItems)}-
+              {serverTotalItems != null ? Math.min(endIndex, totalItems) : Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
             </div>
-            <Pagination
-              currentPage={displayedPage}
-              totalPages={totalPages}
-              onPageChange={(page) => setCurrentPage(page)}
-              showIcons
-            />
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 text-sm">
+                <span className="text-gray-600 dark:text-gray-400">Rows per page:</span>
+                <Select value={String(pageSize)} onChange={(e) => setPageSize(parseInt(e.target.value, 10))}>
+                  <option value="10">10</option>
+                  <option value="20">20</option>
+                  <option value="50">50</option>
+                  <option value="100">100</option>
+                </Select>
+              </div>
+              <Pagination
+                currentPage={displayedPage}
+                totalPages={totalPages}
+                onPageChange={(page) => setCurrentPage(page)}
+                showIcons
+              />
+            </div>
           </div>
-        </div>
         </Card>
       ) : (
         <Card>
@@ -3047,87 +3075,87 @@ const LeadsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="name" value="Full Name *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                <TextInput
-                  id="name"
-                  type="text"
-                  placeholder="Enter full name..."
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                  required
+                    <TextInput
+                      id="name"
+                      type="text"
+                      placeholder="Enter full name..."
+                      value={formData.name}
+                      onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                      required
                       className="w-full"
                       disabled={!!editingLead}
-                />
-              </div>
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="email" value="Email Address" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                <TextInput
-                  id="email"
-                  type="email"
+                    <TextInput
+                      id="email"
+                      type="email"
                       placeholder="Enter email address..."
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                      value={formData.email}
+                      onChange={(e) => setFormData({ ...formData, email: e.target.value })}
                       className="w-full"
                       disabled={!!editingLead}
-                />
-              </div>
+                    />
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="phone" value="Phone Number" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                <TextInput
-                  id="phone"
-                  type="tel"
-                  placeholder="Enter phone number..."
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                    <TextInput
+                      id="phone"
+                      type="tel"
+                      placeholder="Enter phone number..."
+                      value={formData.phone}
+                      onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
                       className="w-full"
                       disabled={!!editingLead}
-                />
+                    />
                   </div>
                 </div>
               </div>
 
-               {/* Project Selection Section */}
-               <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                  <div className="flex items-center mb-6">
-                    <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
-                      <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
-                    </div>
-                    <div>
-                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
-                      <p className="text-sm text-gray-500 dark:text-gray-400">
-                        Select the project for this lead
-                      </p>
+              {/* Project Selection Section */}
+              <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                <div className="flex items-center mb-6">
+                  <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
+                    <Icon icon="solar:folder-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
                   </div>
+                  <div>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Project Selection</h3>
+                    <p className="text-sm text-gray-500 dark:text-gray-400">
+                      Select the project for this lead
+                    </p>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="projectId" value="Project *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-              <Select
-                id="projectId"
-                value={formData.projectId}
-                onChange={handleProjectChange}
-                required
-                    className="w-full"
-                    disabled={!!editingLead}
-              >
-                <option value="">Select a project</option>
-                {projects.map(project => (
-                  <option key={project._id} value={project._id}>
-                    {project.name}
-                  </option>
-                ))}
-              </Select>
-                {formData.projectId && (
-                  <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
-                    <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
-                    {(() => {
-                      const selectedProject = projects.find(p => p._id === formData.projectId);
-                      return selectedProject ? `Project: ${selectedProject.name}` : 'Project selected';
-                    })()}
-                  </p>
-                )}
-              </div>
-            </div>
+                    <Select
+                      id="projectId"
+                      value={formData.projectId}
+                      onChange={handleProjectChange}
+                      required
+                      className="w-full"
+                      disabled={!!editingLead}
+                    >
+                      <option value="">Select a project</option>
+                      {projects.map(project => (
+                        <option key={project._id} value={project._id}>
+                          {project.name}
+                        </option>
+                      ))}
+                    </Select>
+                    {formData.projectId && (
+                      <p className="text-xs text-green-600 dark:text-green-400 flex items-center gap-1">
+                        <Icon icon="solar:check-circle-line-duotone" className="w-3 h-3" />
+                        {(() => {
+                          const selectedProject = projects.find(p => p._id === formData.projectId);
+                          return selectedProject ? `Project: ${selectedProject.name}` : 'Project selected';
+                        })()}
+                      </p>
+                    )}
+                  </div>
                 </div>
+              </div>
 
 
 
@@ -3138,7 +3166,7 @@ const LeadsPage = () => {
                     <Icon icon="solar:chart-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
                   </div>
                   <div>
-                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Lead Details</h3>
+                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Lead Details</h3>
                     <p className="text-sm text-gray-500 dark:text-gray-400">
                       Status is automatically set to default and locked
                     </p>
@@ -3147,77 +3175,77 @@ const LeadsPage = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div className="space-y-2">
                     <Label htmlFor="source" value="Lead Source *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                <Select
-                  id="source"
-                  value={formData.source}
+                    <Select
+                      id="source"
+                      value={formData.source}
                       onChange={handleSourceChange}
-                  required
+                      required
                       className="w-full"
                       disabled={!!editingLead}
-                >
-                  console.log(leadSources)
+                    >
+                      console.log(leadSources)
                       <option value="">Select lead source</option>
-                  {leadSources.map(source => (
-                    <option key={source._id} value={source._id}>
-                      
-                      {source.name}
-                    </option>
+                      {leadSources.map(source => (
+                        <option key={source._id} value={source._id}>
 
-                  ))}
+                          {source.name}
+                        </option>
+
+                      ))}
                       {!leadSources.some(source => source.name.toLowerCase() === 'channel partner') && (
                         <option value="channel-partner">Channel Partner</option>
                       )}
-                </Select>
-                    {(formData.source === 'channel-partner' || 
+                    </Select>
+                    {(formData.source === 'channel-partner' ||
                       leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && (
-                      <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                        <Icon icon="solar:info-circle-line-duotone" className="w-3 h-3" />
-                        Channel partner selected as lead source
-                      </p>
-                    )}
-              </div>
+                        <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                          <Icon icon="solar:info-circle-line-duotone" className="w-3 h-3" />
+                          Channel partner selected as lead source
+                        </p>
+                      )}
+                  </div>
                   <div className="space-y-2">
                     <Label htmlFor="status" value="Lead Status *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                <Select
-                  id="status"
-                  value={formData.status}
+                    <Select
+                      id="status"
+                      value={formData.status}
                       onChange={(e) => handleStatusChange(e.target.value)}
-                  required
+                      required
                       className="w-full"
                       disabled={!editingLead}
-                >
+                    >
                       <option value="">Select lead status</option>
-                  {leadStatuses.map(status => (
-                    <option key={status._id} value={status._id}>
-                      {status.name}
-                    </option>
-                  ))}
-                </Select>
-                <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                  <Icon icon="solar:lock-line-duotone" className="w-3 h-3" />
-                  Status is automatically set to default and locked
-                </p>
-              </div>
-            </div>
+                      {leadStatuses.map(status => (
+                        <option key={status._id} value={status._id}>
+                          {status.name}
+                        </option>
+                      ))}
+                    </Select>
+                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
+                      <Icon icon="solar:lock-line-duotone" className="w-3 h-3" />
+                      Status is automatically set to default and locked
+                    </p>
+                  </div>
+                </div>
 
-             
 
-                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */} 
-                {((formData.source === 'channel-partner' || 
+
+                {/* Channel Partner Fields - Only show when Channel Partner is selected as source */}
+                {((formData.source === 'channel-partner' ||
                   leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner')) && !editingLead) && (
-                  <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
-                    <div className="flex items-center mb-6">
-                      <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
-                        <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
+                    <div className="bg-white dark:bg-gray-800 rounded-xl border border-gray-200 dark:border-gray-700 p-6">
+                      <div className="flex items-center mb-6">
+                        <div className="bg-orange-100 dark:bg-orange-900/20 p-2 rounded-lg mr-3">
+                          <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-orange-600 dark:text-orange-400 text-xl" />
+                        </div>
+                        <div>
+                          <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Channel Partner Selection</h3>
+                          <p className="text-sm text-gray-500 dark:text-gray-400">
+                            Select channel partner and CP sourcing user
+                          </p>
+                        </div>
                       </div>
-                      <div>
-                        <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Channel Partner Selection</h3>
-                        <p className="text-sm text-gray-500 dark:text-gray-400">
-                          Select channel partner and CP sourcing user
-                        </p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div className="space-y-2">
                           <Label htmlFor="channelPartner" value="Select Channel Partner *" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
                           <Select
@@ -3234,53 +3262,53 @@ const LeadsPage = () => {
                               </option>
                             ))}
                           </Select>
-                </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="channelPartnerSourcing" value="CP Sourcing User" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                        <Select
-                          id="cpSourcingId"
-                          value={formData.cpSourcingId}
-                          onChange={(e) => {
-                            console.log('CP Sourcing changed:', {
-                              cpSourcingId: e.target.value,
-                              previousCpSourcingId: formData.cpSourcingId
-                            });
-                            setFormData({ ...formData, cpSourcingId: e.target.value });
-                          }}
-                          className="w-full"
-                          disabled={isLoadingCPSourcing || !formData.channelPartner || !formData.projectId}
-                        >
-                          <option value="">
-                            {!formData.channelPartner || !formData.projectId 
-                              ? "Select channel partner and project first"
-                              : isLoadingCPSourcing 
-                                ? "Loading users..."
-                                : "Select CP sourcing user"
-                            }
-                          </option>
-                          {cpSourcingOptions.map(user => (
-                            <option key={user._id} value={user._id}>
-                              {user.name} ({user.email})
+                        </div>
+                        <div className="space-y-2">
+                          <Label htmlFor="channelPartnerSourcing" value="CP Sourcing User" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                          <Select
+                            id="cpSourcingId"
+                            value={formData.cpSourcingId}
+                            onChange={(e) => {
+                              console.log('CP Sourcing changed:', {
+                                cpSourcingId: e.target.value,
+                                previousCpSourcingId: formData.cpSourcingId
+                              });
+                              setFormData({ ...formData, cpSourcingId: e.target.value });
+                            }}
+                            className="w-full"
+                            disabled={isLoadingCPSourcing || !formData.channelPartner || !formData.projectId}
+                          >
+                            <option value="">
+                              {!formData.channelPartner || !formData.projectId
+                                ? "Select channel partner and project first"
+                                : isLoadingCPSourcing
+                                  ? "Loading users..."
+                                  : "Select CP sourcing user"
+                              }
                             </option>
-                          ))}
-                        </Select>
-                        {isLoadingCPSourcing && (
-                          <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
-                            <Icon icon="solar:refresh-line-duotone" className="w-3 h-3 animate-spin" />
-                            Loading users...
-                          </p>
-                        )}
-                        {!isLoadingCPSourcing && cpSourcingOptions.length === 0 && formData.channelPartner && formData.projectId && (
-                          <p className="text-xs text-gray-500 dark:text-gray-400">
-                            No users found for this channel partner and project combination
-                          </p>
-                        )}
+                            {cpSourcingOptions.map(user => (
+                              <option key={user._id} value={user._id}>
+                                {user.name} ({user.email})
+                              </option>
+                            ))}
+                          </Select>
+                          {isLoadingCPSourcing && (
+                            <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                              <Icon icon="solar:refresh-line-duotone" className="w-3 h-3 animate-spin" />
+                              Loading users...
+                            </p>
+                          )}
+                          {!isLoadingCPSourcing && cpSourcingOptions.length === 0 && formData.channelPartner && formData.projectId && (
+                            <p className="text-xs text-gray-500 dark:text-gray-400">
+                              No users found for this channel partner and project combination
+                            </p>
+                          )}
+                        </div>
                       </div>
-                </div>
-                  </div>
-                )}
+                    </div>
+                  )}
 
-             
+
               </div>
 
               {/* Dynamic Fields based on selected status */}
@@ -3303,171 +3331,171 @@ const LeadsPage = () => {
                     {getRequiredFieldsForStatus(formData.status)
                       .filter(field => field.name && field.name.trim() !== '') // Filter out empty field names
                       .map((field) => (
-                      <div key={field.name} className="space-y-2">
-                        <Label 
-                          htmlFor={field.name} 
-                          value={`${field.name} ${field.required ? '*' : ''}`} 
-                          className="text-sm font-medium text-gray-700 dark:text-gray-300"
-                        />
-                        {field.type === 'text' ? (
-                          <TextInput
-                            id={field.name}
-                            type="text"
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
+                        <div key={field.name} className="space-y-2">
+                          <Label
+                            htmlFor={field.name}
+                            value={`${field.name} ${field.required ? '*' : ''}`}
+                            className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                          />
+                          {field.type === 'text' ? (
+                            <TextInput
+                              id={field.name}
+                              type="text"
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
                             // disabled={!!editingLead}
-                          />
-                        ) : field.type === 'email' ? (
-                          <TextInput
-                            id={field.name}
-                            type="email"
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
-                            disabled={!!editingLead}
-                          />
-                        ) : field.type === 'tel' || field.type === 'phone' ? (
-                          <TextInput
-                            id={field.name}
-                            type="tel"
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
-                            disabled={!!editingLead}
-                          />
-                        ) : field.type === 'number' ? (
-                          <TextInput
-                            id={field.name}
-                            type="number"
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
-                            disabled={!!editingLead}
-                          />
-                        ) : field.type === 'date' ? (
-                          <TextInput
-                            id={field.name}
-                            type="date"
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
-                            disabled={(() => {
-                              const currentStatus = leadStatuses.find(s => s._id === formData.status);
-                              return currentStatus?.is_final_status === true;
-                            })()}
-                          />
-                        ) : field.type === 'datetime' ? (
-                          <DateTimePicker
-                            id={field.name}
-                            type="datetime"
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
-                            placeholder={`Select ${field.name.toLowerCase()}...`}
-                            className="w-full"
-                            required={field.required}
-                          />
-                        ) : field.type === 'time' ? (
-                          <DateTimePicker
-                            id={field.name}
-                            type="time"
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
-                            placeholder={`Select ${field.name.toLowerCase()}...`}
-                            className="w-full"
-                            required={field.required}
-                          />
-                        ) : field.type === 'textarea' ? (
-                          <Textarea
-                            id={field.name}
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            rows={3}
-                            required={field.required}
-                            className="w-full"
-                            disabled={!!editingLead}
-                          />
-                        ) : field.type === 'select' && field.options && field.options.length > 0 ? (
-                          <Select
-                            id={field.name}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
-                            disabled={!!editingLead}
-                          >
-                            <option value="">Select {field.name}</option>
-                            {field.options.map((option: string, index: number) => (
-                              <option key={index} value={option}>
-                                {option}
-                              </option>
-                            ))}
-                          </Select>
-                        ) : field.type === 'checkbox' && field.options && field.options.length > 0 ? (
-                          <div className="space-y-2">
-                            {field.options.map((option: string, index: number) => {
-                              const currentValues = dynamicFields[field.name] || [];
-                              const isChecked = Array.isArray(currentValues) 
-                                ? currentValues.includes(option)
-                                : currentValues === option;
-                              
-                              return (
-                                <div key={index} className="flex items-center">
-                                  <input
-                                    type="checkbox"
-                                    id={`${field.name}_${index}`}
-                                    checked={isChecked}
-                                    onChange={(e) => {
-                                      const currentValues = dynamicFields[field.name] || [];
-                                      let newValues;
-                                      
-                                      if (Array.isArray(currentValues)) {
-                                        if (e.target.checked) {
-                                          newValues = [...currentValues, option];
+                            />
+                          ) : field.type === 'email' ? (
+                            <TextInput
+                              id={field.name}
+                              type="email"
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
+                              disabled={!!editingLead}
+                            />
+                          ) : field.type === 'tel' || field.type === 'phone' ? (
+                            <TextInput
+                              id={field.name}
+                              type="tel"
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
+                              disabled={!!editingLead}
+                            />
+                          ) : field.type === 'number' ? (
+                            <TextInput
+                              id={field.name}
+                              type="number"
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
+                              disabled={!!editingLead}
+                            />
+                          ) : field.type === 'date' ? (
+                            <TextInput
+                              id={field.name}
+                              type="date"
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
+                              disabled={(() => {
+                                const currentStatus = leadStatuses.find(s => s._id === formData.status);
+                                return currentStatus?.is_final_status === true;
+                              })()}
+                            />
+                          ) : field.type === 'datetime' ? (
+                            <DateTimePicker
+                              id={field.name}
+                              type="datetime"
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
+                              placeholder={`Select ${field.name.toLowerCase()}...`}
+                              className="w-full"
+                              required={field.required}
+                            />
+                          ) : field.type === 'time' ? (
+                            <DateTimePicker
+                              id={field.name}
+                              type="time"
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
+                              placeholder={`Select ${field.name.toLowerCase()}...`}
+                              className="w-full"
+                              required={field.required}
+                            />
+                          ) : field.type === 'textarea' ? (
+                            <Textarea
+                              id={field.name}
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              rows={3}
+                              required={field.required}
+                              className="w-full"
+                              disabled={!!editingLead}
+                            />
+                          ) : field.type === 'select' && field.options && field.options.length > 0 ? (
+                            <Select
+                              id={field.name}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
+                              disabled={!!editingLead}
+                            >
+                              <option value="">Select {field.name}</option>
+                              {field.options.map((option: string, index: number) => (
+                                <option key={index} value={option}>
+                                  {option}
+                                </option>
+                              ))}
+                            </Select>
+                          ) : field.type === 'checkbox' && field.options && field.options.length > 0 ? (
+                            <div className="space-y-2">
+                              {field.options.map((option: string, index: number) => {
+                                const currentValues = dynamicFields[field.name] || [];
+                                const isChecked = Array.isArray(currentValues)
+                                  ? currentValues.includes(option)
+                                  : currentValues === option;
+
+                                return (
+                                  <div key={index} className="flex items-center">
+                                    <input
+                                      type="checkbox"
+                                      id={`${field.name}_${index}`}
+                                      checked={isChecked}
+                                      onChange={(e) => {
+                                        const currentValues = dynamicFields[field.name] || [];
+                                        let newValues;
+
+                                        if (Array.isArray(currentValues)) {
+                                          if (e.target.checked) {
+                                            newValues = [...currentValues, option];
+                                          } else {
+                                            newValues = currentValues.filter((v: string) => v !== option);
+                                          }
                                         } else {
-                                          newValues = currentValues.filter((v: string) => v !== option);
+                                          newValues = e.target.checked ? [option] : [];
                                         }
-                                      } else {
-                                        newValues = e.target.checked ? [option] : [];
-                                      }
-                                      
-                                      setDynamicFields(prev => ({ ...prev, [field.name]: newValues }));
-                                    }}
-                                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                                    disabled={!!editingLead}
-                                  />
-                                  <label htmlFor={`${field.name}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
-                                    {option}
-                                  </label>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        ) : (
-                          <TextInput
-                            id={field.name}
-                            type="text"
-                            placeholder={`Enter ${field.name.toLowerCase()}...`}
-                            value={dynamicFields[field.name] || ''}
-                            onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
-                            required={field.required}
-                            className="w-full"
+
+                                        setDynamicFields(prev => ({ ...prev, [field.name]: newValues }));
+                                      }}
+                                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                      disabled={!!editingLead}
+                                    />
+                                    <label htmlFor={`${field.name}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                      {option}
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          ) : (
+                            <TextInput
+                              id={field.name}
+                              type="text"
+                              placeholder={`Enter ${field.name.toLowerCase()}...`}
+                              value={dynamicFields[field.name] || ''}
+                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              required={field.required}
+                              className="w-full"
                             // disabled={!!editingLead}
-                          />
-                        )}
-                      </div>
-                    ))}
+                            />
+                          )}
+                        </div>
+                      ))}
                   </div>
                 </div>
               )}
@@ -3496,7 +3524,7 @@ const LeadsPage = () => {
                         <option value="Hot">Hot</option>
                         <option value="Cold">Cold</option>
                         <option value="Warm">Warm</option>
-                        
+
                       </Select>
                     </div>
                     <div className="space-y-2">
@@ -3511,10 +3539,10 @@ const LeadsPage = () => {
                       >
                         <option value="">Select Property Type</option>
                         <option value="residential">Residential</option>
-                        
-                       
+
+
                         <option value="Commercial">Commercial</option>
-                       
+
                       </Select>
                     </div>
                   </div>
@@ -3538,9 +3566,9 @@ const LeadsPage = () => {
                         <option value="2+2 BHK">2+2 BHK</option>
                         <option value="commercial office">Commercial Office</option>
                         <option value="unknown">Unknown</option>
-                      
+
                         <option value="Duplex">Duplex</option>
-                       
+
                       </Select>
                     </div>
                     <div className="space-y-2">
@@ -3558,8 +3586,8 @@ const LeadsPage = () => {
                         <option value="sale out property">Sale Out Property</option>
                         <option value="loan">Loan</option>
                         <option value="self loan">Self Loan</option>
-                        
-                        
+
+
                       </Select>
                     </div>
                   </div>
@@ -3578,7 +3606,7 @@ const LeadsPage = () => {
                         <option value="">Select Gender</option>
                         <option value="Male">Male</option>
                         <option value="Female">Female</option>
-                        
+
                       </Select>
                     </div>
                     <div className="space-y-2">
@@ -3612,25 +3640,25 @@ const LeadsPage = () => {
                       <Icon icon="solar:notes-line-duotone" className="text-gray-600 dark:text-gray-400 text-xl" />
                     </div>
                     <div>
-                    <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
+                      <h3 className="text-xl font-semibold text-gray-900 dark:text-white">Additional Notes</h3>
                       <p className="text-sm text-gray-500 dark:text-gray-400">
                         Add any additional information about this lead
                       </p>
                     </div>
                   </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
-                  <Textarea
-                    id="notes"
-                        placeholder="Enter any additional notes about this lead..."
-                    value={formData.notes}
-                    onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                          rows={4}
-                          className="w-full"
-                        />
-                    </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="notes" value="Notes" className="text-sm font-medium text-gray-700 dark:text-gray-300" />
+                    <Textarea
+                      id="notes"
+                      placeholder="Enter any additional notes about this lead..."
+                      value={formData.notes}
+                      onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+                      rows={4}
+                      className="w-full"
+                    />
                   </div>
-                )}
+                </div>
+              )}
             </div>
           </Modal.Body>
           <Modal.Footer className="flex flex-col sm:flex-row gap-2">
@@ -3668,13 +3696,13 @@ const LeadsPage = () => {
                   </p>
                   {transferToUser && selectedProjectId && (() => {
                     const selectedLeadsData = leads.filter(lead => selectedLeads.includes(lead._id));
-                    const alreadyAssignedCount = selectedLeadsData.filter(lead => 
+                    const alreadyAssignedCount = selectedLeadsData.filter(lead =>
                       lead.user?._id === transferToUser && lead.project?._id === selectedProjectId
                     ).length;
-                    const transferableCount = selectedLeadsData.filter(lead => 
+                    const transferableCount = selectedLeadsData.filter(lead =>
                       !(lead.user?._id === transferToUser && lead.project?._id === selectedProjectId)
                     ).length;
-                    
+
                     if (alreadyAssignedCount > 0) {
                       return (
                         <div className="mt-2 p-2 bg-orange-50 dark:bg-orange-900/20 rounded border border-orange-200 dark:border-orange-700">
@@ -3695,7 +3723,7 @@ const LeadsPage = () => {
                 </div>
               )}
             </div>
-            
+
             <div>
               <Label htmlFor="transferToUser" value="Transfer to User" />
               <Select
@@ -3723,10 +3751,10 @@ const LeadsPage = () => {
                 disabled={!transferToUser || userProjects.length === 0}
               >
                 <option value="">
-                  {!transferToUser 
-                    ? "Select a user first..." 
-                    : userProjects.length === 0 
-                      ? "Loading projects..." 
+                  {!transferToUser
+                    ? "Select a user first..."
+                    : userProjects.length === 0
+                      ? "Loading projects..."
                       : "Select a project..."
                   }
                 </option>
@@ -3737,9 +3765,9 @@ const LeadsPage = () => {
                 ))}
               </Select>
               <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                {!transferToUser 
+                {!transferToUser
                   ? "Please select a user first to see their assigned projects"
-                  : userProjects.length === 0 
+                  : userProjects.length === 0
                     ? "No projects found for this user"
                     : `Showing ${userProjects.length} project(s) accessible to the selected user`
                 }

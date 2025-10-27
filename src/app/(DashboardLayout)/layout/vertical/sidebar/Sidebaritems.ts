@@ -329,7 +329,18 @@ export const useSidebarData = () => {
               name: "Follow-ups",
               id: uniqueId(),
               icon: "solar:calendar-line-duotone",
-              url: "/apps/follow-ups",
+              children:[
+                {
+                  id: uniqueId(),
+                  name: "Follow-ups",
+                  url: "/apps/follow-ups",
+                },
+                {
+                  id: uniqueId(),
+                  name: "Reminders",
+                  url: "/apps/follow-ups/reminders",
+                },
+              ]
             },
             {
               name: "Attendance",
