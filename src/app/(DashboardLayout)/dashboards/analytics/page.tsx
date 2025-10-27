@@ -72,7 +72,7 @@ interface TopPerformer {
   conversionRate: number;
   averageRevenuePerBooking: number;
 }
-
+   
 interface TopPerformersData {
   success: boolean;
   data: TopPerformer[];
@@ -88,6 +88,10 @@ interface TopSite {
   projectName: string;
   location: string;
   conversionRate: number;
+  bookingsWithVisit?: number;
+  bookingsWithoutVisit?: number;
+  leadsWithSiteVisit?: number;
+  leadsWithoutSiteVisit?: number;
 }
 
 interface TopSitesData {
@@ -231,7 +235,7 @@ const CPSitePerformance = () => {
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold flex items-center">
           <IconChartPie className="mr-2 text-purple-600" size={24} />
-          CP Site Performance
+           Site Performance
         </h3>
         <div className="flex gap-2">
           <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
@@ -407,8 +411,10 @@ const TopPerformingSites = () => {
     try {
       setLoading(true);
       setError('');
-      const response = await fetch(
-        `${API_BASE_URL}/api/analytics/top-performing-sites?month=${selectedMonth}&year=${selectedYear}&limit=10`,
+      
+      // Try site-visit-performance first, fallback to top-performing-sites
+      let response = await fetch(
+        `${API_BASE_URL}/api/analytics/site-visit-performance?month=${selectedMonth}&year=${selectedYear}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
@@ -416,11 +422,49 @@ const TopPerformingSites = () => {
         }
       );
       
-      if (!response.ok) throw new Error('Failed to fetch data');
+      // If site-visit-performance doesn't exist, use top-performing-sites
+      if (!response.ok) {
+        response = await fetch(
+          `${API_BASE_URL}/api/analytics/top-performing-sites?month=${selectedMonth}&year=${selectedYear}&limit=10`,
+          {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
+            },
+          }
+        );
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('API Error:', response.status, errorText);
+        throw new Error(`Failed to fetch data: ${response.status}`);
+      }
+      
       const result = await response.json();
-      setData(result);
+      console.log('Analytics Data:', result);
+      
+      // Transform the data to match TopSitesData structure
+      setData({
+        success: result.success,
+        data: result.data.map((site: any) => ({
+          _id: site._id,
+          projectId: site.projectId || site._id,
+          projectName: site.projectName,
+          location: site.location,
+          totalLeads: site.totalLeads,
+          bookedLeads: site.bookedLeads,
+          revenue: site.revenue || 0,
+          conversionRate: site.conversionRate || 0,
+          bookingsWithVisit: site.bookingsWithVisit || 0,
+          bookingsWithoutVisit: site.bookingsWithoutVisit || 0,
+          leadsWithSiteVisit: site.leadsWithSiteVisit || 0,
+          leadsWithoutSiteVisit: site.leadsWithoutSiteVisit || 0
+        })),
+        count: result.count || result.data?.length || 0
+      });
     } catch (err: any) {
-      setError(err.message);
+      console.error('Fetch Error:', err);
+      setError(err.message || 'Failed to fetch data');
     } finally {
       setLoading(false);
     }
@@ -442,21 +486,40 @@ const TopPerformingSites = () => {
     return { value: year.toString(), label: year.toString() };
   });
 
-  const getMaxBookedLeads = () => {
+  const getMaxBookingValue = () => {
     if (!data || !data.data || data.data.length === 0) return 1;
-    return Math.max(...data.data.map(site => site.bookedLeads || 0), 1);
+    const maxSiteVisits = Math.max(...data.data.map(site => site.leadsWithSiteVisit || 0), 0);
+    const maxBookings = Math.max(...data.data.map(site => site.bookedLeads || 0), 0);
+    return Math.max(maxSiteVisits, maxBookings, 1);
+  };
+
+  const getTotalBookings = () => {
+    if (!data || !data.data || data.data.length === 0) return { siteVisits: 0, bookings: 0, conversionRate: 0 };
+    const totals = data.data.reduce((acc, site) => ({
+      siteVisits: acc.siteVisits + (site.leadsWithSiteVisit || 0),
+      bookings: acc.bookings + (site.bookedLeads || 0),
+      withoutVisit: acc.withoutVisit + (site.leadsWithoutSiteVisit || 0)
+    }), { siteVisits: 0, bookings: 0, withoutVisit: 0 });
+    
+    const conversionRate = totals.siteVisits > 0 
+      ? ((totals.bookings / totals.siteVisits) * 100).toFixed(2) 
+      : '0.00';
+    
+    return { ...totals, conversionRate };
   };
 
   if (loading) return <Spinner size="lg" />;
   if (error) return <Alert color="failure">{error}</Alert>;
   if (!data) return null;
 
+  const bookingTotals = getTotalBookings();
+
   return (
     <Card>
       <div className="flex justify-between items-center mb-4">
         <h3 className="text-lg font-semibold flex items-center">
           <IconTarget className="mr-2 text-green-600" size={24} />
-          Top Performing Sites
+          Site Visit Impact Analysis
         </h3>
         <div className="flex gap-2">
           <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
@@ -472,22 +535,41 @@ const TopPerformingSites = () => {
         </div>
       </div>
 
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+        <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-green-600">{bookingTotals.siteVisits}</div>
+          <div className="text-sm text-green-600">Site Visits Done</div>
+        </div>
+        <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-blue-600">{bookingTotals.bookings}</div>
+          <div className="text-sm text-blue-600">Total Bookings</div>
+        </div>
+        <div className="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg">
+          <div className="text-2xl font-bold text-purple-600">{bookingTotals.conversionRate}%</div>
+          <div className="text-sm text-purple-600">Conversion Rate (Booked/Site Visits)</div>
+        </div>
+      </div>
+
       {/* Vertical Bar Chart with X-Y Coordinates */}
       <div className="mb-6">
         <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
           {/* Chart Title */}
-          <div className="text-center mb-8">
-            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Booked Leads by Project</h4>
-          </div>
+          {/* <div className="text-center mb-8">
+            <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Site Visits Done vs Bookings by Project</h4>
+            <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
+              Conversion Rate = Bookings ÷ Site Visits Done × 100
+            </p>
+          </div> */}
           
           {/* Chart Container with Axes */}
           <div className="relative">
             {/* Y-Axis Labels */}
             <div className="absolute left-0 top-2 h-80 flex flex-col justify-between text-xs text-gray-500 dark:text-gray-400">
               {(() => {
-                const maxBookedLeads = getMaxBookedLeads();
+                const maxValue = getMaxBookingValue();
                 const steps = 5;
-                const stepValue = Math.ceil(maxBookedLeads / steps);
+                const stepValue = Math.ceil(maxValue / steps);
                 return Array.from({ length: steps + 1 }, (_, i) => {
                   const value = stepValue * (steps - i); // Reverse the order so 0 is at bottom
                   return (
@@ -505,9 +587,9 @@ const TopPerformingSites = () => {
               {/* Grid Lines */}
               <div className="absolute inset-0 ml-8 mr-4">
                 {(() => {
-                  const maxBookedLeads = getMaxBookedLeads();
+                  const maxValue = getMaxBookingValue();
                   const steps = 5;
-                  const stepValue = Math.ceil(maxBookedLeads / steps);
+                  const stepValue = Math.ceil(maxValue / steps);
                   return Array.from({ length: steps + 1 }, (_, i) => {
                     const percentage = (i / steps) * 100;
                     return (
@@ -523,48 +605,58 @@ const TopPerformingSites = () => {
               
               {/* Bars */}
               <div className="flex items-end justify-center h-80 space-x-6 relative z-10">
-                {data.data.map((site, index) => {
-                  const maxBookedLeads = getMaxBookedLeads();
+                {data.data.map((site) => {
+                  const maxValue = getMaxBookingValue();
                   const steps = 5;
-                  const stepValue = Math.ceil(maxBookedLeads / steps);
-                  const maxValue = stepValue * steps;
+                  const stepValue = Math.ceil(maxValue / steps);
+                  const maxYValue = stepValue * steps;
                   
-                  // Calculate the exact position based on Y-axis scale
-                  // If Y-axis shows 0, 1, 2, 3, 4, 5 and we have 1 booked lead, bar should touch the "1" line
-                  const exactPercentage = ((site.bookedLeads || 0) / maxValue) * 100;
+                  const siteVisitPercentage = ((site.leadsWithSiteVisit || 0) / maxYValue) * 100;
+                  const bookingPercentage = ((site.bookedLeads || 0) / maxYValue) * 100;
                   
-  return (
+                  return (
                     <div key={site._id} className="flex flex-col items-center w-24">
-                      {/* Bar Container */}
-                      <div className="w-16 h-64 flex flex-col justify-end relative">
-                        {/* Booked Leads Bar */}
+                      {/* Grouped Bars */}
+                      <div className="w-full h-64 flex flex-col justify-end relative space-y-1">
+                        {/* Site Visits Done (Green) */}
                         <div 
-                          className="w-full bg-gradient-to-t from-green-500 to-green-400 transition-all duration-500 relative shadow-md hover:shadow-lg"
-                          style={{ height: `${Math.max(exactPercentage, 1)}%` }}
+                          className="w-full bg-gradient-to-t from-green-600 to-green-400 transition-all duration-500 relative shadow-md hover:shadow-lg"
+                          style={{ height: `${Math.max(siteVisitPercentage, 1)}%` }}
+                          title={`Site Visits: ${site.leadsWithSiteVisit}`}
                         >
-                          <div className="absolute -top-8 left-1/2 transform -translate-x-1/2 text-sm font-bold text-green-700 dark:text-green-300 bg-white dark:bg-gray-800 px-2 py-1 rounded shadow whitespace-nowrap">
+                          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-bold text-green-700 dark:text-green-300">
+                            {site.leadsWithSiteVisit || 0}
+                          </div>
+                        </div>
+                        
+                        {/* Bookings (Blue) */}
+                        <div 
+                          className="w-full bg-gradient-to-t from-blue-600 to-blue-400 transition-all duration-500 relative shadow-md hover:shadow-lg"
+                          style={{ height: `${Math.max(bookingPercentage, 1)}%` }}
+                          title={`Bookings: ${site.bookedLeads}`}
+                        >
+                          <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 text-xs font-bold text-blue-700 dark:text-blue-300">
                             {site.bookedLeads}
                           </div>
                         </div>
                       </div>
                       
-                      {/* Project Name and Stats */}
-                      <div className="mt-3 text-center">
-                        <div className="text-sm font-semibold text-gray-900 dark:text-white truncate max-w-20" title={site.projectName}>
+                      {/* Project Name */}
+                      <div className="mt-3 text-center w-full">
+                        <div className="text-xs font-semibold text-gray-900 dark:text-white truncate" title={site.projectName}>
                           {site.projectName}
                         </div>
-                        <div className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                          {site.totalLeads} total
-                        </div>
-                        <div className="text-xs text-blue-600 dark:text-blue-400 mt-1 font-medium">
-                          {site.conversionRate.toFixed(1)}%
-                        </div>
+                        {(site.leadsWithSiteVisit || 0) > 0 && (
+                          <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                            {((site.bookedLeads / (site.leadsWithSiteVisit || 1)) * 100).toFixed(1)}% conversion
+                          </div>
+                        )}
                       </div>
-        </div>
+                    </div>
                   );
                 })}
-        </div>
-        </div>
+              </div>
+            </div>
             
             {/* X-Axis Label */}
             <div className="text-center mt-4">
@@ -573,51 +665,51 @@ const TopPerformingSites = () => {
         </div>
           
           {/* Chart Legend */}
-          <div className="flex justify-center mt-6">
+          <div className="flex justify-center mt-6 space-x-4">
             <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border">
-              <div className="w-4 h-4 bg-gradient-to-t from-green-500 to-green-400 rounded"></div>
-              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Booked Leads</span>
+              <div className="w-4 h-4 bg-gradient-to-t from-green-600 to-green-400 rounded"></div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Site Visits Done</span>
+            </div>
+            <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border">
+              <div className="w-4 h-4 bg-gradient-to-t from-blue-600 to-blue-400 rounded"></div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bookings</span>
+            </div>
+          </div>
         </div>
-        </div>
-        </div>
-        </div>
+      </div>
 
       {/* Table */}
       <div className="overflow-x-auto">
         <Table hoverable>
           <Table.Head>
-            <Table.HeadCell>Rank</Table.HeadCell>
             <Table.HeadCell>Project</Table.HeadCell>
             <Table.HeadCell>Location</Table.HeadCell>
             <Table.HeadCell>Total Leads</Table.HeadCell>
-            <Table.HeadCell>Booked</Table.HeadCell>
-            <Table.HeadCell>Conversion Rate</Table.HeadCell>
+            <Table.HeadCell>Site Visits Done</Table.HeadCell>
+            <Table.HeadCell>Bookings</Table.HeadCell>
+            <Table.HeadCell>Conv. Rate (Booked/Visits)</Table.HeadCell>
           </Table.Head>
           <Table.Body>
-            {data.data.map((site, index) => (
-              <Table.Row key={site._id}>
-                <Table.Cell>
-                  <div className="flex items-center justify-center">
-                    {index === 0 && <span className="text-3xl">🥇</span>}
-                    {index === 1 && <span className="text-3xl">🥈</span>}
-                    {index === 2 && <span className="text-3xl">🥉</span>}
-                    {index > 2 && (
-                      <div className="flex items-center justify-center w-8 h-8 bg-gradient-to-br from-blue-500 to-blue-700 rounded-full shadow-md">
-                        <span className="text-white font-bold text-sm">{index + 1}</span>
-                      </div>
-                    )}
-                  </div>
-                </Table.Cell>
-                <Table.Cell className="font-medium">{site.projectName}</Table.Cell>
-                <Table.Cell>{site.location}</Table.Cell>
-                <Table.Cell><Badge color="blue">{site.totalLeads}</Badge></Table.Cell>
-                <Table.Cell><Badge color="success">{site.bookedLeads}</Badge></Table.Cell>
-                <Table.Cell><Badge color="warning">{site.conversionRate.toFixed(1)}%</Badge></Table.Cell>
-              </Table.Row>
-            ))}
+            {data.data.map((site) => {
+              // Calculate conversion rate: Bookings / Site Visits Done
+              const siteVisitConversionRate = (site.leadsWithSiteVisit || 0) > 0 
+                ? ((site.bookedLeads / (site.leadsWithSiteVisit || 1)) * 100).toFixed(1)
+                : '0.0';
+              
+              return (
+                <Table.Row key={site._id}>
+                  <Table.Cell className="font-medium">{site.projectName}</Table.Cell>
+                  <Table.Cell>{site.location}</Table.Cell>
+                  <Table.Cell><Badge color="blue">{site.totalLeads}</Badge></Table.Cell>
+                  <Table.Cell><Badge color="success">{site.leadsWithSiteVisit || 0}</Badge></Table.Cell>
+                  <Table.Cell><Badge color="info">{site.bookedLeads}</Badge></Table.Cell>
+                  <Table.Cell><Badge color="purple">{siteVisitConversionRate}%</Badge></Table.Cell>
+                </Table.Row>
+              );
+            })}
           </Table.Body>
         </Table>
-        </div>
+      </div>
     </Card>
   );
 };
@@ -727,40 +819,22 @@ const TopSourcingPerformers = () => {
         <Table hoverable>
           <Table.Head>
             <Table.HeadCell>Rank</Table.HeadCell>
-            <Table.HeadCell>CP Name</Table.HeadCell>
-            <Table.HeadCell>Firm Name</Table.HeadCell>
-            <Table.HeadCell>Phone</Table.HeadCell>
+            <Table.HeadCell>Sourcing User</Table.HeadCell>
+            <Table.HeadCell>Email</Table.HeadCell>
+            <Table.HeadCell>Projects Sourced To</Table.HeadCell>
             <Table.HeadCell>Total Visits</Table.HeadCell>
           </Table.Head>
           <Table.Body>
-            {(() => {
-              // Flatten all CPs from all performers and sort by visits
-              const allCPs = data.data.flatMap(performer => 
-                performer.topCPs.map(cp => ({
-                  ...cp,
-                  performerName: performer.userName
-                }))
-              );
+            {data.data.map((performer, index) => {
+              // Get unique projects from recent visits
+              const projects = [...new Set(performer.recentVisits.map(v => v.projectName))];
               
-              // Sort by visits (descending) and remove duplicates by CP ID
-              const uniqueCPs = allCPs.reduce((acc, cp) => {
-                const existing = acc.find(item => item.cpId === cp.cpId);
-                if (!existing || cp.visits > existing.visits) {
-                  if (existing) {
-                    const index = acc.findIndex(item => item.cpId === cp.cpId);
-                    acc[index] = cp;
-                  } else {
-                    acc.push(cp);
-                  }
-                }
-                return acc;
-              }, [] as (TopCP & { performerName: string })[]);
-              
-              // Sort by visits descending
-              uniqueCPs.sort((a, b) => b.visits - a.visits);
-              
-              return uniqueCPs.map((cp, index) => (
-                <Table.Row key={`${cp.cpId}-${index}`}>
+              return (
+                <Table.Row 
+                  key={performer.userId}
+                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                  onClick={() => handleUserClick(performer.userId)}
+                >
                   <Table.Cell>
                     <div className="flex items-center justify-center">
                       {index === 0 && <span className="text-3xl">🥇</span>}
@@ -773,13 +847,21 @@ const TopSourcingPerformers = () => {
                       )}
                     </div>
                   </Table.Cell>
-                  <Table.Cell className="font-medium">{cp.cpName}</Table.Cell>
-                  <Table.Cell>{cp.firmName}</Table.Cell>
-                  <Table.Cell>{cp.cpPhone}</Table.Cell>
-                  <Table.Cell><Badge color="blue">{cp.visits}</Badge></Table.Cell>
+                  <Table.Cell className="font-medium">{performer.userName}</Table.Cell>
+                  <Table.Cell>{performer.userEmail}</Table.Cell>
+                  <Table.Cell>
+                    <div className="flex flex-wrap gap-1">
+                      {projects.map((project, idx) => (
+                        <Badge key={idx} color="info" className="text-xs">
+                          {project}
+                        </Badge>
+                      ))}
+                    </div>
+                  </Table.Cell>
+                  <Table.Cell><Badge color="blue">{performer.totalVisits}</Badge></Table.Cell>
                 </Table.Row>
-              ));
-            })()}
+              );
+            })}
           </Table.Body>
         </Table>
       </div>
