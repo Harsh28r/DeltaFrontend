@@ -47,6 +47,10 @@ export const API_ENDPOINTS = {
   
   // Leads
   LEADS: (projectId?: string) => projectId ? `${API_BASE_URL}/api/leads?projectId=${projectId}` : `${API_BASE_URL}/api/leads`,
+  FRESH_LEADS: (projectId?: string) => projectId ? `${API_BASE_URL}/api/leads/getFreshLeads?projectId=${projectId}` : `${API_BASE_URL}/api/leads/getFreshLeads`,
+  FRESH_LEAD_DATA: (projectId?: string) => projectId ? `${API_BASE_URL}/api/leads/getFreshLeadsData?projectId=${projectId}` : `${API_BASE_URL}/api/leads/getFreshLeadsData`,
+  LEAD_DATA: (projectId?: string) => projectId ? `${API_BASE_URL}/api/leads/getLeadsData?projectId=${projectId}` : `${API_BASE_URL}/api/leads/getLeadsData`,
+
   LEAD_BY_ID: (id: string) => `${API_BASE_URL}/api/leads/${id}`,
   CREATE_LEAD: (projectId: string) => `${API_BASE_URL}/api/leads?projectId=${projectId}`,
   UPDATE_LEAD: (id: string) => `${API_BASE_URL}/api/leads/${id}`,

@@ -7,7 +7,7 @@ interface ChartData {
   name: string;
   value: number;
   color?: string;
-  percentage?: number;
+  // percentage?: number;
 }
 
 interface ChartCardProps {
@@ -61,11 +61,11 @@ const ChartCard: React.FC<ChartCardProps> = ({
                 <span className="text-sm font-bold text-gray-900 dark:text-white">
                   {item.value}
                 </span>
-                {item.percentage && (
+                {/* {item.percentage && (
                   <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
                     ({item.percentage}%)
                   </span>
-                )}
+                )} */}
               </div>
             </div>
             <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2">
@@ -110,9 +110,9 @@ const ChartCard: React.FC<ChartCardProps> = ({
                     <span className="text-sm font-bold text-gray-900 dark:text-white">
                       {item.value}
                     </span>
-                    <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
+                    {/* <span className="text-xs text-gray-600 dark:text-gray-400 ml-2">
                       ({percentage.toFixed(1)}%)
-                    </span>
+                    </span> */}
                   </div>
                 </div>
               </div>

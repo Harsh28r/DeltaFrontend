@@ -4,12 +4,16 @@ import { Card, Badge, Button, Alert, Modal, TextInput, Label, Select } from "flo
 import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/context/AuthContext";
 import { useWebSocket } from "@/app/context/WebSocketContext";
-import { API_BASE_URL } from "@/lib/config";
+import { API_BASE_URL, API_ENDPOINTS } from "@/lib/config";
 import ChartCard from "@/app/components/dashboards/crm/ChartCard";
 import DateTimePicker from "@/components/DateTimePicker";
 // import ProjectPerformanceAnalytics from "@/app/components/dashboards/analytics/ProjectPerformanceAnalytics";
 import { useRouter } from "next/navigation";
 import type { Metadata } from "next";
+import LeadAnalyticsChart from "../../apps/leads/fresh/LeadAnalyticsChart";
+import LeadStatusChart from "../../apps/leads/fresh/LeadStatusChart";
+
+
 
 // Types for the API response
 interface DashboardStats {
@@ -18,6 +22,10 @@ interface DashboardStats {
   convertedLeads: number;
   conversionRate: string;
   estimatedRevenue: number;
+  totalFreshLeads: number;
+  totalLeadsThisMonth: number;
+  freshLeadsThisMonth: number;
+
 }
 
 interface ChartData {
@@ -25,7 +33,7 @@ interface ChartData {
     _id: string;
     name: string;
     count: number;
-    percentage: number;
+    // percentage: number;
   }>;
   topSources: Array<{
     _id: string | null;
@@ -35,6 +43,11 @@ interface ChartData {
   topPartners: Array<{
     _id: string | null;
     name: string | null;
+    count: number;
+  }>;
+  leadsBySource: Array<{
+    _id: string | null;
+    name: string;
     count: number;
   }>;
 }
@@ -258,85 +271,13 @@ export interface FollowUpsData {
     pending: FollowUp[];
   };
   summary: {
+    pending: number;
+    today: number;
+    tomorrow: number;
+    upcoming: number;
     total: number;
-    type: string;
   };
   timestamp?: string;
-}
-
-export interface FollowUpsStats {
-  stats: {
-    total: number;
-    pending: number;
-    overdue: number;
-    today: number;
-    upcoming: number;
-    completed: number;
-  };
-}
-
-// Analytics types moved to separate analytics dashboard
-
-// Project Performance Analytics Types
-interface ProjectPerformanceData {
-  // Project info can be nested or flat
-  project?: {
-    _id?: string;
-    id?: string;
-    name?: string;
-    projectName?: string;
-    projectLocation?: string;
-    location?: string;
-    address?: string;
-    city?: string;
-    area?: string;
-    place?: string;
-    locality?: string;
-    district?: string;
-    state?: string;
-    region?: string;
-  };
-  // Also handle flat structure
-  _id?: string;
-  id?: string;
-  name?: string;
-  projectName?: string;
-  projectLocation?: string;
-  location?: string;
-  address?: string;
-  city?: string;
-  area?: string;
-  place?: string;
-  locality?: string;
-  district?: string;
-  state?: string;
-  region?: string;
-  // Lead data with different naming conventions
-  totalLeads?: number;
-  total_leads?: number;
-  bookedLeads?: number;
-  booked_leads?: number;
-  activeLeads?: number;
-  active_leads?: number;
-  conversionRate?: number;
-  conversion_rate?: number;
-  estimatedRevenue?: number;
-  estimated_revenue?: number;
-  potentialRevenue?: number;
-  potential_revenue?: number;
-}
-
-interface ProjectPerformanceResponse {
-  success: boolean;
-  data?: ProjectPerformanceData[];
-  summary?: {
-    totalLeads?: number;
-    bookedLeads?: number;
-    activeLeads?: number;
-    overallConversionRate?: number;
-    estimatedRevenue?: number;
-    potentialRevenue?: number;
-  };
 }
 
 interface DashboardData {
@@ -352,389 +293,14 @@ interface DashboardData {
   performance: UserPerformance[];
   projectSummary: ProjectSummary[];
   followUps?: FollowUpsData;
-  followUpsStats?: FollowUpsStats;
 }
-
-// Analytics components moved to separate analytics dashboard
-
-// Project Performance Analytics Component
-const ProjectPerformanceAnalytics: React.FC = () => {
-  const { token } = useAuth();
-  const [data, setData] = useState<ProjectPerformanceData[]>([]);
-  const [summary, setSummary] = useState<ProjectPerformanceResponse['summary'] | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
-  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
-
-  const months = [
-    { value: 1, label: "January" },
-    { value: 2, label: "February" },
-    { value: 3, label: "March" },
-    { value: 4, label: "April" },
-    { value: 5, label: "May" },
-    { value: 6, label: "June" },
-    { value: 7, label: "July" },
-    { value: 8, label: "August" },
-    { value: 9, label: "September" },
-    { value: 10, label: "October" },
-    { value: 11, label: "November" },
-    { value: 12, label: "December" },
-  ];
-
-  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
-
-  const fetchProjectPerformance = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-
-      const response = await fetch(
-        `${API_BASE_URL}/api/analytics/project-wise-performance?month=${selectedMonth}&year=${selectedYear}`,
-        {
-          method: "GET",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-
-      const result: ProjectPerformanceResponse = await response.json();
-      
-      console.log("Project Performance API Response:", result);
-      
-      if (result.success) {
-        console.log("Project Performance Data:", result.data);
-        console.log("First item structure:", result.data?.[0]);
-        
-        // Ensure data is an array and filter out any invalid entries
-        const validData = Array.isArray(result.data) 
-          ? result.data.filter(item => item && typeof item === 'object')
-          : [];
-        console.log("Valid Project Performance Data:", validData);
-        setData(validData);
-        setSummary(result.summary);
-      } else {
-        throw new Error("Failed to fetch project performance data");
-      }
-    } catch (err) {
-      console.error("Error fetching project performance:", err);
-      setError(err instanceof Error ? err.message : "Failed to fetch data");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (token) {
-      fetchProjectPerformance();
-    }
-  }, [token, selectedMonth, selectedYear]);
-
-  const getConversionRateColor = (rate: number) => {
-    if (rate >= 20) return "success";
-    if (rate >= 10) return "warning";
-    return "failure";
-  };
-
-  const formatCurrency = (amount: number) => {
-    try {
-      if (typeof amount !== 'number' || isNaN(amount)) {
-        return '₹0';
-      }
-      return new Intl.NumberFormat("en-IN", {
-        style: "currency",
-        currency: "INR",
-        maximumFractionDigits: 0,
-      }).format(amount);
-    } catch (error) {
-      console.error("Error formatting currency:", error);
-      return `₹${amount || 0}`;
-    }
-  };
-
-  if (loading) {
-    return (
-      <div className="mt-8">
-        <Card className="p-6">
-          <div className="flex items-center justify-center py-8">
-            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
-            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading project performance data...</span>
-          </div>
-        </Card>
-      </div>
-    );
-  }
-
-  if (error) {
-    return (
-      <div className="mt-8">
-        <Alert color="failure">
-          <div className="flex items-center gap-2">
-            <Icon icon="solar:danger-circle-line-duotone" className="text-red-500" />
-            <span className="font-medium">Error loading project performance data:</span> {error}
-          </div>
-        </Alert>
-      </div>
-    );
-  }
-
-  try {
-    return (
-      <div className="mt-8">
-        <Card className="p-6">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Icon icon="solar:chart-2-line-duotone" className="text-blue-500 text-2xl" />
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Project Performance Analytics</h2>
-              <p className="text-gray-600 dark:text-gray-400">Track performance metrics across all projects</p>
-            </div>
-          </div>
-          
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2">
-              <Label htmlFor="month-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Month:
-              </Label>
-              <Select
-                id="month-select"
-                value={selectedMonth}
-                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
-                className="w-32"
-              >
-                {months.map((month) => (
-                  <option key={month.value} value={month.value}>
-                    {month.label}
-                  </option>
-                ))}
-              </Select>
-            </div>
-            
-            <div className="flex items-center gap-2">
-              <Label htmlFor="year-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
-                Year:
-              </Label>
-              <Select
-                id="year-select"
-                value={selectedYear}
-                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
-                className="w-24"
-              >
-                {years.map((year) => (
-                  <option key={year} value={year}>
-                    {year}
-                  </option>
-                ))}
-              </Select>
-            </div>
-          </div>
-        </div>
-
-        {/* Summary Cards */}
-        {summary && (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
-            <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Leads</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{summary.totalLeads || 0}</p>
-                </div>
-                <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-blue-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-400">Booked Leads</p>
-                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">{summary.bookedLeads || 0}</p>
-                </div>
-                <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Active Leads</p>
-                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{summary.activeLeads || 0}</p>
-                </div>
-                <Icon icon="solar:user-plus-line-duotone" className="text-orange-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Conversion Rate</p>
-                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{(summary.overallConversionRate || 0).toFixed(1)}%</p>
-                </div>
-                <Icon icon="solar:chart-line-up-line-duotone" className="text-purple-500 text-xl" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Debug Info - Remove this after fixing */}
-        {/* {data.length > 0 && (
-          <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
-            <h4 className="font-semibold mb-2">Debug Info (First Item):</h4>
-            <pre className="text-xs overflow-auto">
-              {JSON.stringify(data[0], null, 2)}
-            </pre>
-          </div>
-        )} */}
-
-        {/* Project Performance Table */}
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
-            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
-              <tr>
-                <th scope="col" className="px-6 py-3">Project</th>
-                <th scope="col" className="px-6 py-3">Location</th>
-                <th scope="col" className="px-6 py-3 text-center">Total Leads</th>
-                <th scope="col" className="px-6 py-3 text-center">Booked</th>
-                <th scope="col" className="px-6 py-3 text-center">Active</th>
-                <th scope="col" className="px-6 py-3 text-center">Conversion Rate</th>
-              </tr>
-            </thead>
-            <tbody>
-              {!data || data.length === 0 ? (
-                <tr>
-                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
-                    <div className="flex flex-col items-center gap-2">
-                      <Icon icon="solar:chart-2-line-duotone" className="text-4xl text-gray-300 dark:text-gray-600" />
-                      <p>No project performance data available for {months[selectedMonth - 1]?.label} {selectedYear}</p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                data.map((project, index) => {
-                  // Add safety checks for each project
-                  if (!project) {
-                    console.warn("Undefined project at index:", index);
-                    return null;
-                  }
-                  
-                  // Handle different possible API response structures
-                  const projectInfo = project.project || project;
-                  
-                  // More comprehensive location field mapping
-                  const getLocation = () => {
-                    const locationFields = [
-                      projectInfo?.projectLocation,
-                      projectInfo?.location,
-                      projectInfo?.address,
-                      projectInfo?.city,
-                      projectInfo?.area,
-                      projectInfo?.place,
-                      projectInfo?.locality,
-                      projectInfo?.district,
-                      projectInfo?.state,
-                      projectInfo?.region,
-                      project?.projectLocation,
-                      project?.location,
-                      project?.address,
-                      project?.city,
-                      project?.area,
-                      project?.place,
-                      project?.locality,
-                      project?.district,
-                      project?.state,
-                      project?.region
-                    ];
-                    
-                    const validLocation = locationFields.find(field => 
-                      field && typeof field === 'string' && field.trim() !== ''
-                    );
-                    
-                    return validLocation || 'Location Not Available';
-                  };
-                  
-                  const safeProject = {
-                    id: projectInfo?._id || projectInfo?.id || project?._id || project?.id || `project-${index}`,
-                    name: projectInfo?.name || projectInfo?.projectName || project?.name || project?.projectName || `Project ${index + 1}`,
-                    location: getLocation(),
-                    totalLeads: project.totalLeads || project.total_leads || 0,
-                    bookedLeads: project.bookedLeads || project.booked_leads || 0,
-                    activeLeads: project.activeLeads || project.active_leads || 0,
-                    conversionRate: project.conversionRate || project.conversion_rate || 0,
-                    estimatedRevenue: project.estimatedRevenue || project.estimated_revenue || 0,
-                    potentialRevenue: project.potentialRevenue || project.potential_revenue || 0,
-                  };
-                  
-                  console.log(`Project ${index}:`, {
-                    original: project,
-                    projectInfo: projectInfo,
-                    safeProject: safeProject
-                  });
-
-                  return (
-                    <tr key={safeProject.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
-                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
-                        <div className="flex items-center gap-2">
-                          <Icon icon="solar:buildings-2-line-duotone" className="text-blue-500" />
-                          {safeProject.name}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
-                        <div className="flex items-center gap-2">
-                          <Icon icon="solar:map-point-line-duotone" className="text-green-500" />
-                          {safeProject.location}
-                        </div>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge color="info" size="sm">{safeProject.totalLeads}</Badge>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge color="success" size="sm">{safeProject.bookedLeads}</Badge>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge color="warning" size="sm">{safeProject.activeLeads}</Badge>
-                      </td>
-                      <td className="px-6 py-4 text-center">
-                        <Badge color={getConversionRateColor(safeProject.conversionRate)} size="sm">
-                          {safeProject.conversionRate.toFixed(1)}%
-                        </Badge>
-                      </td>
-                    </tr>
-                  );
-                }).filter(Boolean)
-              )}
-            </tbody>
-          </table>
-        </div>
-      </Card>
-    </div>
-    );
-  } catch (error) {
-    console.error("Error rendering ProjectPerformanceAnalytics:", error);
-    return (
-      <div className="mt-8">
-        <Card className="p-6">
-          <Alert color="failure">
-            <div className="flex items-center gap-2">
-              <Icon icon="solar:danger-circle-line-duotone" className="text-red-500" />
-              <span className="font-medium">Error rendering project performance data. Please check the console for details.</span>
-            </div>
-          </Alert>
-        </Card>
-      </div>
-    );
-  }
-};
 
 const CrmDashboard = () => {
   const { token, user } = useAuth();
   const { socket, connected } = useWebSocket();
   const router = useRouter();
   const [dashboardData, setDashboardData] = useState<DashboardData | null>(null);
+  const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [channelPartners, setChannelPartners] = useState<any[]>([]);
@@ -747,6 +313,10 @@ const CrmDashboard = () => {
   const [followUpNotes, setFollowUpNotes] = useState('');
   const [isSubmittingFollowUp, setIsSubmittingFollowUp] = useState(false);
   const [followUpAlert, setFollowUpAlert] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+  // leads
+  const [totalLeads, setTotalLeads] = useState<Lead[]>([]);
+
 
   // Reminder notification state
   const [showReminderNotification, setShowReminderNotification] = useState(false);
@@ -773,8 +343,8 @@ const CrmDashboard = () => {
       try {
         setLoading(true);
 
-        // Fetch stats, leads, performance, project summary, channel partners, CP sourcing data, follow-ups, and follow-ups stats
-        const [statsResponse, leadsResponse, performanceResponse, projectSummaryResponse, channelPartnersResponse, cpSourcingResponse, followUpsResponse, followUpsStatsResponse] = await Promise.all([
+        // Fetch all dashboard data concurrently
+        const [statsResponse, leadsResponse, performanceResponse, projectSummaryResponse, channelPartnersResponse, cpSourcingResponse, followUpsResponse] = await Promise.all([
           fetch(`${API_BASE_URL}/api/dashboard/stats`, {
             method: "GET",
             headers: {
@@ -823,21 +393,16 @@ const CrmDashboard = () => {
               "Content-Type": "application/json",
               Authorization: `Bearer ${token}`,
             },
-          }),
-          fetch(`${API_BASE_URL}/api/follow-ups/stats`, {
-            method: "GET",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
           })
+       
         ]);
 
-        if (!statsResponse.ok || !leadsResponse.ok || !performanceResponse.ok || !projectSummaryResponse.ok || !channelPartnersResponse.ok || !cpSourcingResponse.ok || !followUpsResponse.ok || !followUpsStatsResponse.ok) {
-          throw new Error(`HTTP error! status: ${statsResponse.status} / ${leadsResponse.status} / ${performanceResponse.status} / ${projectSummaryResponse.status} / ${channelPartnersResponse.status} / ${cpSourcingResponse.status} / ${followUpsResponse.status} / ${followUpsStatsResponse.status}`);
+        // Check if all responses are ok
+        if ([statsResponse, leadsResponse, performanceResponse, projectSummaryResponse, channelPartnersResponse, cpSourcingResponse, followUpsResponse].some(res => !res.ok)) {
+          throw new Error(`HTTP error! status: ${statsResponse.status} / ${leadsResponse.status} / ${performanceResponse.status} / ${projectSummaryResponse.status} / ${channelPartnersResponse.status} / ${cpSourcingResponse.status} / ${followUpsResponse.status}`);
         }
 
-        const [statsData, leadsData, performanceData, projectSummaryData, channelPartnersData, cpSourcingData, followUpsData, followUpsStatsData] = await Promise.all([
+        const [statsData, leadsData, performanceData, projectSummaryData, channelPartnersData, cpSourcingData, followUpsData] = await Promise.all([
           statsResponse.json(),
           leadsResponse.json(),
           performanceResponse.json(),
@@ -845,20 +410,9 @@ const CrmDashboard = () => {
           channelPartnersResponse.json(),
           cpSourcingResponse.json(),
           followUpsResponse.json(),
-          followUpsStatsResponse.json()
         ]);
 
-        // Debug logs for CRM Dashboard
-        console.log('🏢 CRM Dashboard - Stats Data:', statsData);
-        console.log('🏢 CRM Dashboard - Leads Data:', leadsData);
-        console.log('🏢 CRM Dashboard - Leads Array:', leadsData?.leads);
-        console.log('🏢 CRM Dashboard - Leads Count:', leadsData?.leads?.length);
-        console.log('📊 CRM Dashboard - Follow-ups Data:', followUpsData);
-        console.log('📈 CRM Dashboard - Follow-ups Stats:', followUpsStatsData);
-        console.log('📋 CRM Dashboard - Today Follow-ups:', followUpsData?.followUps?.today);
-        console.log('📋 CRM Dashboard - Tomorrow Follow-ups:', followUpsData?.followUps?.tomorrow);
-        console.log('📋 CRM Dashboard - Upcoming Follow-ups:', followUpsData?.followUps?.upcoming);
-        console.log('📋 CRM Dashboard - Pending Follow-ups:', followUpsData?.followUps?.pending);
+        
 
         // Set channel partners and CP sourcing data
         setChannelPartners(channelPartnersData.channelPartners || channelPartnersData || []);
@@ -874,12 +428,9 @@ const CrmDashboard = () => {
           performance: performanceData.performance,
           projectSummary: projectSummaryData.summary || [],
           followUps: followUpsData,
-          followUpsStats: followUpsStatsData
         };
 
-        console.log('✅ CRM Dashboard - Combined Data:', combinedData);
-        console.log('✅ CRM Dashboard - Final Leads:', combinedData.leads);
-        console.log('✅ CRM Dashboard - Final Follow-ups:', combinedData.followUps);
+        
 
         setDashboardData(combinedData);
         setError(null);
@@ -890,8 +441,30 @@ const CrmDashboard = () => {
         setLoading(false);
       }
     };
+    const fetchLeaddata = async () => {
+      setLoading(true);
+      try {
+        const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          setTotalLeads(transformLeadData(data.leads || []));
+
+        } else {
+          setAlertMessage({ type: 'error', message: `Failed to fetch fresh leads: ${response.statusText}` });
+        }
+      } catch (error) {
+        console.error("Error fetching fresh leads:", error);
+        setAlertMessage({ type: 'error', message: 'Network error while fetching fresh leads.' });
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchDashboardData();
+    fetchLeaddata()
   }, [token, user]);
 
   // Check for follow-up reminders when dashboard data loads
@@ -945,6 +518,94 @@ const CrmDashboard = () => {
     };
   }, [socket]);
 
+
+
+
+  const transformLeadData = (leadsData: any[]): Lead[] => {
+    return leadsData.map(lead => {
+      // Determine source name - PRIORITIZE leadSource field first
+      let sourceName = 'N/A';
+
+      // First check if leadSource exists and is NOT Channel Partner
+      if (lead.leadSource?._id) {
+        const leadSourceName = lead.leadSource?.name || '';
+
+        // If the lead source is "Channel Partner", then show channel partner details
+        if (leadSourceName.toLowerCase() === 'channel partner') {
+          // Show detailed channel partner info
+          if (lead.channelPartner) {
+            const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
+            const cpName = cpObj?.name;
+            if (cpName) {
+              sourceName = `Channel Partner: ${cpName}`;
+            } else {
+              // fallback to custom data id mapping
+              const cpIdFromCustom = lead.customData?.["Channel Partner"];
+              const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+              if (cp) sourceName = `Channel Partner: ${cp.name}`;
+              else sourceName = 'Channel Partner';
+            }
+
+            // Append sourcing info if available
+            const cpSourcingRef = lead.cpSourcingId || lead.customData?.["Channel Partner Sourcing"];
+            if (cpSourcingRef) {
+              let cpSourcing: any = null;
+              if (typeof cpSourcingRef === 'object' && cpSourcingRef !== null) {
+                cpSourcing = cpSourcingRef;
+                // Check if it has userId.name (new format)
+                if (cpSourcing.userId && cpSourcing.userId.name) {
+                  sourceName += ` (Sourced by: ${cpSourcing.userId.name})`;
+                } else if (cpSourcing.channelPartnerId && cpSourcing.projectId) {
+                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+                }
+              } else {
+                cpSourcing = Array.isArray(cpSourcingOptions) ? cpSourcingOptions.find(cp => cp._id === cpSourcingRef) : null;
+                if (cpSourcing && cpSourcing.channelPartnerId && cpSourcing.projectId) {
+                  sourceName += ` (${cpSourcing.channelPartnerId.name} - ${cpSourcing.projectId.name})`;
+                }
+              }
+            }
+          } else {
+            // No channel partner details, just show the source name
+            sourceName = leadSourceName;
+          }
+        } else {
+          // It's a regular source (Website, Newspaper, etc.) - just use the name
+          sourceName = leadSourceName;
+        }
+      } else if (lead.channelPartner) {
+        // Legacy case: channel partner exists but no leadSource field
+        const cpObj = typeof lead.channelPartner === 'object' ? lead.channelPartner : null;
+        const cpName = cpObj?.name;
+        if (cpName) {
+          sourceName = `Channel Partner: ${cpName}`;
+        } else {
+          sourceName = 'Channel Partner';
+        }
+      } else {
+        // Final fallback: check customData
+        const cpIdFromCustom = lead.customData?.["Channel Partner"];
+        if (cpIdFromCustom) {
+          const cp = channelPartners.find(cp => cp._id === cpIdFromCustom);
+          sourceName = cp ? `Channel Partner: ${cp.name}` : 'Channel Partner';
+        }
+      }
+
+      return {
+        ...lead,
+        name: lead.customData?.["First Name"] || lead.customData?.name || 'N/A',
+        email: lead.customData?.["Email"] || lead.customData?.email || 'N/A',
+        phone: lead.customData?.["Phone"] || lead.customData?.phone || lead.customData?.contact || 'N/A',
+        company: 'N/A',
+        notes: lead.customData?.["Notes"] || lead.customData?.notes || '',
+        source: sourceName,
+        status: lead.currentStatus?._id || 'N/A',
+        projectName: lead.project?.name || 'N/A',
+        LeadScore: lead.LeadScore || 0
+      };
+    });
+  };
+
   // Loading state
   if (loading) {
     return (
@@ -976,7 +637,7 @@ const CrmDashboard = () => {
     );
   }
 
-  const { stats, charts, leads, pagination, performance, projectSummary, followUps, followUpsStats } = dashboardData;
+  const { stats, charts, leads, pagination, performance, projectSummary, followUps } = dashboardData;
 
   // Helper function to get channel partner name
   const getChannelPartnerName = (lead: Lead) => {
@@ -1052,7 +713,7 @@ const CrmDashboard = () => {
 
 
 
-      
+
       case 'cold': return 'info';
       default: return 'gray';
     }
@@ -1306,6 +967,8 @@ const CrmDashboard = () => {
       setIsSubmittingFollowUp(false);
     }
   };
+  
+  console.log('dashboardData:', dashboardData);
 
   return (
     <div className="space-y-8">
@@ -1447,13 +1110,14 @@ const CrmDashboard = () => {
 
       {/* Key Performance Indicators (KPIs) */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Total Lead Pipeline */}
-        <Card className="p-6 border-l-4 border-l-blue-500 hover:shadow-lg transition-shadow">
+        {/* Total Lead Pipeline */} 
+        <Card className="p-6 border-l-4 cursor-pointer border-l-blue-500 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/apps/leads`)}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Lead Pipeline</p>
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">All Leads</p>
               <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{stats.totalLeads}</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Total  Leads</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{stats.totalLeadsThisMonth} Leads From This Month</p>
             </div>
             <div className="p-4 bg-blue-50 dark:bg-blue-900 rounded-xl">
               <Icon icon="solar:users-group-rounded-line-duotone" className="text-3xl text-blue-600 dark:text-blue-400" />
@@ -1465,23 +1129,89 @@ const CrmDashboard = () => {
           </div>
         </Card>
 
-        {/* Conversion Performance */}
-        <Card className="p-6 border-l-4 border-l-green-500 hover:shadow-lg transition-shadow">
+        {/* Total Fresh Leads */}
+        <Card className="p-6 border-l-4 cursor-pointer border-l-teal-500 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/apps/leads/fresh`)}>
+
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Conversion Rate</p>
-              <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{stats.conversionRate}%</p>
-              {/* <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Industry Benchmark: 25%</p> */}
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Total Fresh Leads</p>
+              <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{stats.totalFreshLeads}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">{stats.totalFreshLeads} Leads From This Month</p>
             </div>
-            <div className="p-4 bg-green-50 dark:bg-green-900 rounded-xl">
-              <Icon icon="solar:chart-line-duotone" className="text-3xl text-green-600 dark:text-green-400" />
+            <div className="p-4 bg-teal-50 dark:bg-teal-900 rounded-xl">
+              <Icon icon="solar:user-plus-rounded-line-duotone" className="text-3xl text-teal-600 dark:text-teal-400" />
             </div>
           </div>
           <div className="mt-4 flex items-center text-sm">
-            <Icon icon="solar:trend-up-line-duotone" className="text-green-500 mr-1" />
-            <span className="text-green-600 dark:text-green-400 font-medium">Above Industry Average</span>
+            <Icon icon="solar:star-fall-minimalistic-line-duotone" className="text-teal-500 mr-1" />
+            <span className="text-teal-600 dark:text-teal-400 font-medium">Ready for Action</span>
           </div>
         </Card>
+
+        {/* todays followups followups */}
+
+        <Card className="p-6 border-l-4 cursor-pointer border-l-teal-500 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/apps/follow-ups/view?view=today`)}>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Todays Followups</p>
+              <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{followUps?.summary.today}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Followups For Today</p>
+            </div>
+            <div className="p-4 bg-teal-50 dark:bg-teal-900 rounded-xl">
+              <Icon icon="solar:clock-circle-line-duotone" className="text-red-500 text-xl" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <Icon icon="solar:star-fall-minimalistic-line-duotone" className="text-teal-500 mr-1" />
+            <span className="text-teal-600 dark:text-teal-400 font-medium">Total Todays Followups</span>
+          </div>
+        </Card>
+
+
+
+        {/* tomorrow followups */}
+        <Card className="p-6 border-l-4 cursor-pointer border-l-teal-500 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/apps/follow-ups/view?view=upcoming`)}>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">upcoming Followups</p>
+              <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{followUps?.summary.upcoming}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Total Upcoming Tommorow</p>
+            </div>
+            <div className="p-4 bg-teal-50 dark:bg-teal-900 rounded-xl">
+              <Icon icon="solar:calendar-line-duotone" className="text-yellow-500 text-xl" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <span className="text-teal-600 dark:text-teal-400 font-medium">Upcoming Followups </span>
+          </div>
+        </Card>
+
+
+        {/* pending followups */}
+        <Card className="p-6 border-l-4 cursor-pointer border-l-teal-500 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/apps/follow-ups/view?view=pending`)}>
+
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Pending Followups</p>
+              <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">{followUps?.summary.pending}</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Followups Pending</p>
+            </div>
+            <div className="p-4 bg-teal-50 dark:bg-teal-900 rounded-xl">
+              <Icon icon="solar:calendar-line-duotone" className="text-yellow-500 text-xl" />
+            </div>
+          </div>
+          <div className="mt-4 flex items-center text-sm">
+            <span className="text-teal-600 dark:text-teal-400 font-medium">Total Pending Followups </span>
+          </div>
+        </Card>
+
+
 
         {/* Total Projects */}
         <Card className="p-6 border-l-4 border-l-purple-500 hover:shadow-lg transition-shadow">
@@ -1503,751 +1233,20 @@ const CrmDashboard = () => {
           </div>
         </Card>
 
-        {/* Team Performance */}
-        <Card className="p-6 border-l-4 border-l-orange-500 hover:shadow-lg transition-shadow">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Team Efficiency</p>
-              <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">7</p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Active Team Members</p>
-            </div>
-            <div className="p-4 bg-orange-50 dark:bg-orange-900 rounded-xl">
-              <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-3xl text-orange-600 dark:text-orange-400" />
-            </div>
-          </div>
-          <div className="mt-4 flex items-center text-sm">
-            <Icon icon="solar:trend-up-line-duotone" className="text-green-500 mr-1" />
-            <span className="text-green-600 dark:text-green-400 font-medium">High Performance Team</span>
-          </div>
-        </Card>
+
       </div>
 
-    
 
-     
+      <LeadStatusChart leads={totalLeads} />
 
-    
+      {/* new graphs */}
+
+      <LeadAnalyticsChart leads={totalLeads} />
 
 
-      {/* Organizational Performance Section */}
-     
-
-      {/* Analytics components moved to separate Analytics Dashboard */}
-
-      
 
       {/* Follow-up Dashboard */}
-      <div className="mt-8">
-        <div className="flex items-center justify-between mb-6">
-          <div className="flex items-center gap-3">
-            <Icon icon="solar:calendar-add-line-duotone" className="text-orange-500 text-2xl" />
-            <div>
-              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Follow-up Dashboard</h2>
-              <p className="text-gray-600 dark:text-gray-400">Track leads with upcoming follow-ups and appointments</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <Icon icon="solar:clock-circle-line-duotone" className="text-orange-500 text-lg" />
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {followUpsStats?.stats?.total || followUps?.summary?.total || 0} Follow-ups
-            </span>
-          </div>
-        </div>
 
-        {/* Follow-ups Statistics */}
-        {followUpsStats?.stats && (
-          <div className="grid grid-cols-2 md:grid-cols-6 gap-4 mb-8">
-            <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{followUpsStats.stats.total}</p>
-                </div>
-                <Icon icon="solar:list-line-duotone" className="text-blue-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-red-50 to-red-100 dark:from-red-900/30 dark:to-red-800/30 p-4 rounded-lg border border-red-200 dark:border-red-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-red-600 dark:text-red-400">Today</p>
-                  <p className="text-2xl font-bold text-red-900 dark:text-red-100">{followUpsStats.stats.today}</p>
-                </div>
-                <Icon icon="solar:clock-circle-line-duotone" className="text-red-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/30 dark:to-yellow-800/30 p-4 rounded-lg border border-yellow-200 dark:border-yellow-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Upcoming</p>
-                  <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{followUpsStats.stats.upcoming}</p>
-                </div>
-                <Icon icon="solar:calendar-line-duotone" className="text-yellow-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Pending</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{followUpsStats.stats.pending}</p>
-                </div>
-                <Icon icon="solar:clock-circle-line-duotone" className="text-blue-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Overdue</p>
-                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{followUpsStats.stats.overdue}</p>
-                </div>
-                <Icon icon="solar:danger-circle-line-duotone" className="text-orange-500 text-xl" />
-              </div>
-            </div>
-
-            <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm font-medium text-green-600 dark:text-green-400">Completed</p>
-                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">{followUpsStats.stats.completed}</p>
-                </div>
-                <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-xl" />
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Follow-up Lists */}
-        <div className="space-y-8">
-          {/* Today's Follow-ups */}
-          <div className="border-l-4 border-red-500 pl-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icon icon="solar:clock-circle-line-duotone" className="text-red-500 text-lg" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Today's Follow-ups</h3>
-                <span className="bg-red-100 text-red-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredTodaysFollowUps().length}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="todayFilter" value="Filter by Status:" className="text-sm text-gray-600 dark:text-gray-400" />
-                <Select
-                  id="todayFilter"
-                  value={todayFilter}
-                  onChange={(e) => setTodayFilter(e.target.value)}
-                  className="w-32"
-                >
-                  <option value="all">All Status</option>
-                  {getUniqueStatuses().map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Assigned To</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Processed By</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Mobile</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Next Schedule</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comment</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Email</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredTodaysFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr
-                      key={followUp.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
-                    >
-                      <td className="px-2 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-red-500 flex items-center justify-center">
-                            <span className="text-white font-semibold text-xs">
-                              {(followUp.lead.customData?.["First Name"] || followUp.lead.customData?.name || 'U').charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {followUp.lead.customData?.["First Name"] || followUp.lead.customData?.name || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
-                      <td className="px-2 py-2">
-                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
-                        <div>
-                          <div className="font-medium">{followUp.dateTime.date}</div>
-                          <div className="text-xs text-gray-500">{followUp.dateTime.time}</div>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                        {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {getFilteredTodaysFollowUps().length === 0 && (
-                <div className="text-center py-8">
-                  <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
-                  <p className="text-gray-500 dark:text-gray-400">No follow-ups for today!</p>
-                </div>
-              )}
-            </div>
-
-            {/* Show More Button for Today's Follow-ups */}
-            {getTotalFilteredTodaysFollowUps().length > 2 && (
-              <div className="mt-4 text-center">
-                <Button
-                  color="light"
-                  size="sm"
-                  onClick={() => setShowMoreToday(!showMoreToday)}
-                  className="flex items-center gap-2 mx-auto"
-                >
-                  <Icon icon={showMoreToday ? "solar:arrow-up-line-duotone" : "solar:arrow-down-line-duotone"} className="text-sm" />
-                  {showMoreToday ? 'Show Less' : `Show More (${getTotalFilteredTodaysFollowUps().length - 2} more)`}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Tomorrow's Follow-ups */}
-          <div className="border-l-4 border-yellow-500 pl-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icon icon="solar:calendar-line-duotone" className="text-yellow-500 text-lg" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Tomorrow's Follow-ups</h3>
-                <span className="bg-yellow-100 text-yellow-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredTomorrowsFollowUps().length}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="tomorrowFilter" value="Filter by Status:" className="text-sm text-gray-600 dark:text-gray-400" />
-                <Select
-                  id="tomorrowFilter"
-                  value={tomorrowFilter}
-                  onChange={(e) => setTomorrowFilter(e.target.value)}
-                  className="w-32"
-                >
-                  <option value="all">All Status</option>
-                  {getUniqueStatuses().map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Assigned To</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Processed By</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Mobile</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Next Schedule</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comment</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Email</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredTomorrowsFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr
-                      key={followUp.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
-                    >
-                      <td className="px-2 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-yellow-500 flex items-center justify-center">
-                            <span className="text-white font-semibold text-xs">
-                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {followUp.lead.customData?.["First Name"] || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
-                      <td className="px-2 py-2">
-                        <span className="px-2 py-1 text-xs rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200">
-                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
-                        <div>
-                          <div className="font-medium">{followUp.dateTime.date}</div>
-                          <div className="text-xs text-gray-500">{followUp.dateTime.time}</div>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                        {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {getFilteredTomorrowsFollowUps().length === 0 && (
-                <div className="text-center py-8">
-                  <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
-                  <p className="text-gray-500 dark:text-gray-400">No follow-ups for tomorrow!</p>
-                </div>
-              )}
-            </div>
-
-            {/* Show More Button for Tomorrow's Follow-ups */}
-            {getTotalFilteredTomorrowsFollowUps().length > 2 && (
-              <div className="mt-4 text-center">
-                <Button
-                  color="light"
-                  size="sm"
-                  onClick={() => setShowMoreTomorrow(!showMoreTomorrow)}
-                  className="flex items-center gap-2 mx-auto"
-                >
-                  <Icon icon={showMoreTomorrow ? "solar:arrow-up-line-duotone" : "solar:arrow-down-line-duotone"} className="text-sm" />
-                  {showMoreTomorrow ? 'Show Less' : `Show More (${getTotalFilteredTomorrowsFollowUps().length - 2} more)`}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Upcoming Follow-ups (after tomorrow) */}
-          <div className="border-l-4 border-blue-500 pl-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icon icon="solar:calendar-mark-line-duotone" className="text-blue-500 text-lg" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Upcoming Follow-ups</h3>
-                <span className="bg-blue-100 text-blue-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredUpcomingFollowUps().length}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="upcomingFilter" value="Filter by Status:" className="text-sm text-gray-600 dark:text-gray-400" />
-                <Select
-                  id="upcomingFilter"
-                  value={upcomingFilter}
-                  onChange={(e) => setUpcomingFilter(e.target.value)}
-                  className="w-32"
-                >
-                  <option value="all">All Status</option>
-                  {getUniqueStatuses().map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Assigned To</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Processed By</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Mobile</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Next Schedule</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comment</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Email</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredUpcomingFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr
-                      key={followUp.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
-                    >
-                      <td className="px-2 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-blue-500 flex items-center justify-center">
-                            <span className="text-white font-semibold text-xs">
-                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {followUp.lead.customData?.["First Name"] || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
-                      <td className="px-2 py-2">
-                        <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200">
-                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
-                        <div>
-                          <div className="font-medium">{followUp.dateTime.date}</div>
-                          <div className="text-xs text-gray-500">{followUp.dateTime.time}</div>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                        {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {getFilteredUpcomingFollowUps().length === 0 && (
-                <div className="text-center py-8">
-                  <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
-                  <p className="text-gray-500 dark:text-gray-400">No upcoming follow-ups!</p>
-                </div>
-              )}
-            </div>
-
-            {/* Show More Button for Upcoming Follow-ups */}
-            {getTotalFilteredUpcomingFollowUps().length > 2 && (
-              <div className="mt-4 text-center">
-                <Button
-                  color="light"
-                  size="sm"
-                  onClick={() => setShowMoreUpcoming(!showMoreUpcoming)}
-                  className="flex items-center gap-2 mx-auto"
-                >
-                  <Icon icon={showMoreUpcoming ? "solar:arrow-up-line-duotone" : "solar:arrow-down-line-duotone"} className="text-sm" />
-                  {showMoreUpcoming ? 'Show Less' : `Show More (${getTotalFilteredUpcomingFollowUps().length - 2} more)`}
-                </Button>
-              </div>
-            )}
-          </div>
-
-          {/* Pending Follow-ups (Overdue) */}
-          <div className="border-l-4 border-orange-500 pl-4">
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Icon icon="solar:danger-triangle-line-duotone" className="text-orange-500 text-lg" />
-                <h3 className="text-lg font-semibold text-gray-900 dark:text-white">Pending Follow-ups (Overdue)</h3>
-                <span className="bg-orange-100 text-orange-800 text-xs font-medium px-2 py-1 rounded-full">{getTotalFilteredPendingFollowUps().length}</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Label htmlFor="pendingFilter" value="Filter by Status:" className="text-sm text-gray-600 dark:text-gray-400" />
-                <Select
-                  id="pendingFilter"
-                  value={pendingFilter}
-                  onChange={(e) => setPendingFilter(e.target.value)}
-                  className="w-32"
-                >
-                  <option value="all">All Status</option>
-                  {getUniqueStatuses().map(status => (
-                    <option key={status} value={status}>{status}</option>
-                  ))}
-                </Select>
-              </div>
-            </div>
-
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead className="bg-gray-50 dark:bg-gray-800">
-                  <tr>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Name </th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Assigned To</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Processed By</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Mobile</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Status</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Next Schedule</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Comment</th>
-                    <th className="px-2 py-2 text-left font-medium text-gray-700 dark:text-gray-300">Email</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredPendingFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr
-                      key={followUp.id}
-                      className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
-                      onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
-                    >
-                      <td className="px-2 py-2">
-                        <div className="flex items-center gap-2">
-                          <div className="h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center">
-                            <span className="text-white font-semibold text-xs">
-                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
-                            </span>
-                          </div>
-                          <span className="font-medium text-gray-900 dark:text-white">
-                            {followUp.lead.customData?.["First Name"] || 'Unknown'} {followUp.lead.customData?.["Last Name"] || ''}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.assignedTo.name}</td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Phone"] || followUp.lead.customData?.phone || followUp.lead.customData?.contact || 'N/A'}</td>
-                      <td className="px-2 py-2">
-                        <span className="px-2 py-1 text-xs rounded-full bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200">
-                          {followUp.lead.status || followUp.lead.currentStatus?.name || 'N/A'}
-                        </span>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">
-                        <div>
-                          <div className="font-medium text-orange-600 dark:text-orange-400">{followUp.dateTime.date}</div>
-                          <div className="text-xs text-orange-500 dark:text-orange-500">{followUp.dateTime.time}</div>
-                        </div>
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400 max-w-xs truncate">
-                        {followUp.lead.customData?.["Summary of the conversation"] || followUp.description || followUp.lead.customData?.["Notes"] || 'N/A'}
-                      </td>
-                      <td className="px-2 py-2 text-gray-600 dark:text-gray-400">{followUp.lead.customData?.["Email"] || followUp.lead.customData?.email || 'N/A'}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-
-              {getFilteredPendingFollowUps().length === 0 && (
-                <div className="text-center py-8">
-                  <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
-                  <p className="text-gray-500 dark:text-gray-400">No overdue follow-ups!</p>
-                </div>
-              )}
-            </div>
-
-            {/* Show More Button for Pending Follow-ups */}
-            {getTotalFilteredPendingFollowUps().length > 2 && (
-              <div className="mt-4 text-center">
-                <Button
-                  color="light"
-                  size="sm"
-                  onClick={() => setShowMorePending(!showMorePending)}
-                  className="flex items-center gap-2 mx-auto"
-                >
-                  <Icon icon={showMorePending ? "solar:arrow-up-line-duotone" : "solar:arrow-down-line-duotone"} className="text-sm" />
-                  {showMorePending ? 'Show Less' : `Show More (${getTotalFilteredPendingFollowUps().length - 2} more)`}
-                </Button>
-              </div>
-            )}
-          </div>
-
-        </div>
-      </div>
-      
-      {/* Lead Details Modal */}
-      <Modal show={isFollowUpModalOpen} onClose={handleCloseFollowUpModal} size="lg">
-        <Modal.Header>
-          <div className="flex items-center gap-2">
-            <Icon icon="solar:user-line-duotone" className="text-blue-600 text-xl" />
-            <span>Lead Details</span>
-          </div>
-        </Modal.Header>
-        <Modal.Body>
-          {selectedLead && (
-            <div className="space-y-6">
-              {/* Lead Header */}
-              <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900/30 dark:to-purple-900/30 p-6 rounded-lg">
-                <div className="flex items-center gap-4">
-                  <div className="h-16 w-16 rounded-full bg-gradient-to-r from-blue-500 to-purple-500 flex items-center justify-center">
-                    <span className="text-white font-bold text-2xl">
-                      {(selectedLead?.customData?.["First Name"] || selectedLead?.customData?.name || 'U').charAt(0).toUpperCase()}
-                    </span>
-                  </div>
-                  <div>
-                    <h3 className="text-2xl font-bold text-gray-900 dark:text-white">
-                      {selectedLead?.customData?.["First Name"] || selectedLead?.customData?.name || 'Unknown'} {selectedLead?.customData?.["Last Name"] || ''}
-                    </h3>
-                    <p className="text-gray-600 dark:text-gray-400 text-lg">{selectedLead?.project.name}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <Badge color="info" size="sm">{selectedLead?.currentStatus.name}</Badge>
-                      <Badge
-                        color={
-                          (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Hot' ? 'failure' :
-                            (selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority) === 'Warm' ? 'warning' : 'success'
-                        }
-                        size="sm"
-                      >
-                        {selectedLead?.customData?.["Lead Priority"] || selectedLead?.customData?.leadPriority || 'Low'} Priority
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Contact Information */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <Icon icon="solar:phone-line-duotone" className="text-blue-500" />
-                    Contact Information
-                  </h4>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Phone:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Phone"] || selectedLead?.customData?.phone || selectedLead?.customData?.contact || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Email:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Email"] || selectedLead?.customData?.email || 'N/A'}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Assigned To:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.user.name}</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <Icon icon="solar:buildings-line-duotone" className="text-green-500" />
-                    Project Details
-                  </h4>
-                  <div className="space-y-2">
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Project:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.project.name}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Lead Source:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.leadSource.name}</p>
-                    </div>
-                    <div>
-                      <span className="text-sm text-gray-600 dark:text-gray-400">Property Type:</span>
-                      <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Property Type"] || selectedLead?.customData?.propertyType || 'N/A'}</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Additional Details */}
-              <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                  <Icon icon="solar:settings-line-duotone" className="text-purple-500" />
-                  Additional Details
-                </h4>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Configuration:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Configuration"] || selectedLead?.customData?.configuration || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Funding Mode:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Funding Mode"] || selectedLead?.customData?.fundingMode || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Budget:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Budget"] || selectedLead?.customData?.budget || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Gender:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.customData?.["Gender"] || selectedLead?.customData?.gender || 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Created:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.createdAt ? new Date(selectedLead.createdAt).toLocaleDateString() : 'N/A'}</p>
-                  </div>
-                  <div>
-                    <span className="text-sm text-gray-600 dark:text-gray-400">Days Open:</span>
-                    <p className="font-medium text-gray-900 dark:text-white">{selectedLead?.daysOpen || 0} days</p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Notes */}
-              {(selectedLead?.customData?.["Notes"] || selectedLead?.customData?.["Remark"]) && (
-                <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border border-gray-200 dark:border-gray-700">
-                  <h4 className="font-semibold text-gray-900 dark:text-white mb-3 flex items-center gap-2">
-                    <Icon icon="solar:notes-line-duotone" className="text-orange-500" />
-                    Notes
-                  </h4>
-                  <p className="text-gray-700 dark:text-gray-300">
-                    {selectedLead?.customData?.["Notes"] || selectedLead?.customData?.notes || selectedLead?.customData?.["Remark"] || 'No notes available'}
-                  </p>
-                </div>
-              )}
-
-              {/* Follow-up Section */}
-              <div className="bg-gradient-to-r from-orange-50 to-red-50 dark:from-orange-900/30 dark:to-red-900/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
-                <h4 className="font-semibold text-gray-900 dark:text-white mb-4 flex items-center gap-2">
-                  <Icon icon="solar:calendar-add-line-duotone" className="text-orange-500" />
-                  Set Follow-up
-                </h4>
-                <div className="space-y-4">
-                  <div>
-                    <Label htmlFor="followUpDate" value="Follow-up Date & Time" className="block mb-2" />
-                    <DateTimePicker
-                      id="followUpDate"
-                      type="datetime"
-                      value={followUpDate}
-                      onChange={setFollowUpDate}
-                      placeholder="Select follow-up date and time"
-                      className="w-full"
-                      required
-                    />
-                  </div>
-
-                  <div>
-                    <Label htmlFor="followUpNotes" value="Follow-up Notes (Optional)" className="block mb-2" />
-                    <TextInput
-                      id="followUpNotes"
-                      value={followUpNotes}
-                      onChange={(e) => setFollowUpNotes(e.target.value)}
-                      placeholder="Add any notes about this follow-up..."
-                      className="w-full"
-                    />
-                  </div>
-
-                  {/* Alert */}
-                  {followUpAlert && (
-                    <Alert color={followUpAlert.type} className="mb-4">
-                      <Icon
-                        icon={followUpAlert?.type === 'success' ? 'solar:check-circle-line-duotone' : 'solar:danger-circle-line-duotone'}
-                        className="mr-2"
-                      />
-                      {followUpAlert?.message}
-                    </Alert>
-                  )}
-                </div>
-              </div>
-            </div>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          <div className="flex justify-between">
-            <Button
-              color="gray"
-              onClick={handleCloseFollowUpModal}
-              disabled={isSubmittingFollowUp}
-            >
-              Close
-            </Button>
-            <Button
-              color="blue"
-              onClick={handleSubmitFollowUp}
-              disabled={isSubmittingFollowUp || !followUpDate}
-              className="flex items-center gap-2"
-            >
-              {isSubmittingFollowUp ? (
-                <>
-                  <Icon icon="solar:loading-line-duotone" className="animate-spin text-sm" />
-                  Setting Follow-up...
-                </>
-              ) : (
-                <>
-                  <Icon icon="solar:calendar-add-line-duotone" className="text-sm" />
-                  Set Follow-up
-                </>
-              )}
-            </Button>
-          </div>
-        </Modal.Footer>
-      </Modal>
     </div>
   );
 };
