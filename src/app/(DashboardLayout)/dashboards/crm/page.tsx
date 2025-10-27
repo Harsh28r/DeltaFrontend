@@ -7,6 +7,7 @@ import { useWebSocket } from "@/app/context/WebSocketContext";
 import { API_BASE_URL } from "@/lib/config";
 import ChartCard from "@/app/components/dashboards/crm/ChartCard";
 import DateTimePicker from "@/components/DateTimePicker";
+// import ProjectPerformanceAnalytics from "@/app/components/dashboards/analytics/ProjectPerformanceAnalytics";
 import { useRouter } from "next/navigation";
 import type { Metadata } from "next";
 
@@ -274,6 +275,70 @@ interface FollowUpsStats {
   };
 }
 
+// Analytics types moved to separate analytics dashboard
+
+// Project Performance Analytics Types
+interface ProjectPerformanceData {
+  // Project info can be nested or flat
+  project?: {
+    _id?: string;
+    id?: string;
+    name?: string;
+    projectName?: string;
+    projectLocation?: string;
+    location?: string;
+    address?: string;
+    city?: string;
+    area?: string;
+    place?: string;
+    locality?: string;
+    district?: string;
+    state?: string;
+    region?: string;
+  };
+  // Also handle flat structure
+  _id?: string;
+  id?: string;
+  name?: string;
+  projectName?: string;
+  projectLocation?: string;
+  location?: string;
+  address?: string;
+  city?: string;
+  area?: string;
+  place?: string;
+  locality?: string;
+  district?: string;
+  state?: string;
+  region?: string;
+  // Lead data with different naming conventions
+  totalLeads?: number;
+  total_leads?: number;
+  bookedLeads?: number;
+  booked_leads?: number;
+  activeLeads?: number;
+  active_leads?: number;
+  conversionRate?: number;
+  conversion_rate?: number;
+  estimatedRevenue?: number;
+  estimated_revenue?: number;
+  potentialRevenue?: number;
+  potential_revenue?: number;
+}
+
+interface ProjectPerformanceResponse {
+  success: boolean;
+  data?: ProjectPerformanceData[];
+  summary?: {
+    totalLeads?: number;
+    bookedLeads?: number;
+    activeLeads?: number;
+    overallConversionRate?: number;
+    estimatedRevenue?: number;
+    potentialRevenue?: number;
+  };
+}
+
 interface DashboardData {
   stats: DashboardStats;
   charts: ChartData;
@@ -289,6 +354,381 @@ interface DashboardData {
   followUps?: FollowUpsData;
   followUpsStats?: FollowUpsStats;
 }
+
+// Analytics components moved to separate analytics dashboard
+
+// Project Performance Analytics Component
+const ProjectPerformanceAnalytics: React.FC = () => {
+  const { token } = useAuth();
+  const [data, setData] = useState<ProjectPerformanceData[]>([]);
+  const [summary, setSummary] = useState<ProjectPerformanceResponse['summary'] | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth() + 1);
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  const months = [
+    { value: 1, label: "January" },
+    { value: 2, label: "February" },
+    { value: 3, label: "March" },
+    { value: 4, label: "April" },
+    { value: 5, label: "May" },
+    { value: 6, label: "June" },
+    { value: 7, label: "July" },
+    { value: 8, label: "August" },
+    { value: 9, label: "September" },
+    { value: 10, label: "October" },
+    { value: 11, label: "November" },
+    { value: 12, label: "December" },
+  ];
+
+  const years = Array.from({ length: 5 }, (_, i) => new Date().getFullYear() - i);
+
+  const fetchProjectPerformance = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/analytics/project-wise-performance?month=${selectedMonth}&year=${selectedYear}`,
+        {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+
+      const result: ProjectPerformanceResponse = await response.json();
+      
+      console.log("Project Performance API Response:", result);
+      
+      if (result.success) {
+        console.log("Project Performance Data:", result.data);
+        console.log("First item structure:", result.data?.[0]);
+        
+        // Ensure data is an array and filter out any invalid entries
+        const validData = Array.isArray(result.data) 
+          ? result.data.filter(item => item && typeof item === 'object')
+          : [];
+        console.log("Valid Project Performance Data:", validData);
+        setData(validData);
+        setSummary(result.summary);
+      } else {
+        throw new Error("Failed to fetch project performance data");
+      }
+    } catch (err) {
+      console.error("Error fetching project performance:", err);
+      setError(err instanceof Error ? err.message : "Failed to fetch data");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (token) {
+      fetchProjectPerformance();
+    }
+  }, [token, selectedMonth, selectedYear]);
+
+  const getConversionRateColor = (rate: number) => {
+    if (rate >= 20) return "success";
+    if (rate >= 10) return "warning";
+    return "failure";
+  };
+
+  const formatCurrency = (amount: number) => {
+    try {
+      if (typeof amount !== 'number' || isNaN(amount)) {
+        return '₹0';
+      }
+      return new Intl.NumberFormat("en-IN", {
+        style: "currency",
+        currency: "INR",
+        maximumFractionDigits: 0,
+      }).format(amount);
+    } catch (error) {
+      console.error("Error formatting currency:", error);
+      return `₹${amount || 0}`;
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="mt-8">
+        <Card className="p-6">
+          <div className="flex items-center justify-center py-8">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-orange-500"></div>
+            <span className="ml-3 text-gray-600 dark:text-gray-400">Loading project performance data...</span>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="mt-8">
+        <Alert color="failure">
+          <div className="flex items-center gap-2">
+            <Icon icon="solar:danger-circle-line-duotone" className="text-red-500" />
+            <span className="font-medium">Error loading project performance data:</span> {error}
+          </div>
+        </Alert>
+      </div>
+    );
+  }
+
+  try {
+    return (
+      <div className="mt-8">
+        <Card className="p-6">
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-3">
+            <Icon icon="solar:chart-2-line-duotone" className="text-blue-500 text-2xl" />
+            <div>
+              <h2 className="text-2xl font-bold text-gray-900 dark:text-white">Project Performance Analytics</h2>
+              <p className="text-gray-600 dark:text-gray-400">Track performance metrics across all projects</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-4">
+            <div className="flex items-center gap-2">
+              <Label htmlFor="month-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Month:
+              </Label>
+              <Select
+                id="month-select"
+                value={selectedMonth}
+                onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                className="w-32"
+              >
+                {months.map((month) => (
+                  <option key={month.value} value={month.value}>
+                    {month.label}
+                  </option>
+                ))}
+              </Select>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <Label htmlFor="year-select" className="text-sm font-medium text-gray-700 dark:text-gray-300">
+                Year:
+              </Label>
+              <Select
+                id="year-select"
+                value={selectedYear}
+                onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                className="w-24"
+              >
+                {years.map((year) => (
+                  <option key={year} value={year}>
+                    {year}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          </div>
+        </div>
+
+        {/* Summary Cards */}
+        {summary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-gradient-to-r from-blue-50 to-blue-100 dark:from-blue-900/30 dark:to-blue-800/30 p-4 rounded-lg border border-blue-200 dark:border-blue-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total Leads</p>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{summary.totalLeads || 0}</p>
+                </div>
+                <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-blue-500 text-xl" />
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-green-50 to-green-100 dark:from-green-900/30 dark:to-green-800/30 p-4 rounded-lg border border-green-200 dark:border-green-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-green-600 dark:text-green-400">Booked Leads</p>
+                  <p className="text-2xl font-bold text-green-900 dark:text-green-100">{summary.bookedLeads || 0}</p>
+                </div>
+                <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-xl" />
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Active Leads</p>
+                  <p className="text-2xl font-bold text-orange-900 dark:text-orange-100">{summary.activeLeads || 0}</p>
+                </div>
+                <Icon icon="solar:user-plus-line-duotone" className="text-orange-500 text-xl" />
+              </div>
+            </div>
+
+            <div className="bg-gradient-to-r from-purple-50 to-purple-100 dark:from-purple-900/30 dark:to-purple-800/30 p-4 rounded-lg border border-purple-200 dark:border-purple-700">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-purple-600 dark:text-purple-400">Conversion Rate</p>
+                  <p className="text-2xl font-bold text-purple-900 dark:text-purple-100">{(summary.overallConversionRate || 0).toFixed(1)}%</p>
+                </div>
+                <Icon icon="solar:chart-line-up-line-duotone" className="text-purple-500 text-xl" />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Debug Info - Remove this after fixing */}
+        {/* {data.length > 0 && (
+          <div className="mb-4 p-4 bg-gray-100 dark:bg-gray-800 rounded-lg">
+            <h4 className="font-semibold mb-2">Debug Info (First Item):</h4>
+            <pre className="text-xs overflow-auto">
+              {JSON.stringify(data[0], null, 2)}
+            </pre>
+          </div>
+        )} */}
+
+        {/* Project Performance Table */}
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm text-left text-gray-500 dark:text-gray-400">
+            <thead className="text-xs text-gray-700 uppercase bg-gray-50 dark:bg-gray-700 dark:text-gray-400">
+              <tr>
+                <th scope="col" className="px-6 py-3">Project</th>
+                <th scope="col" className="px-6 py-3">Location</th>
+                <th scope="col" className="px-6 py-3 text-center">Total Leads</th>
+                <th scope="col" className="px-6 py-3 text-center">Booked</th>
+                <th scope="col" className="px-6 py-3 text-center">Active</th>
+                <th scope="col" className="px-6 py-3 text-center">Conversion Rate</th>
+              </tr>
+            </thead>
+            <tbody>
+              {!data || data.length === 0 ? (
+                <tr>
+                  <td colSpan={6} className="px-6 py-8 text-center text-gray-500 dark:text-gray-400">
+                    <div className="flex flex-col items-center gap-2">
+                      <Icon icon="solar:chart-2-line-duotone" className="text-4xl text-gray-300 dark:text-gray-600" />
+                      <p>No project performance data available for {months[selectedMonth - 1]?.label} {selectedYear}</p>
+                    </div>
+                  </td>
+                </tr>
+              ) : (
+                data.map((project, index) => {
+                  // Add safety checks for each project
+                  if (!project) {
+                    console.warn("Undefined project at index:", index);
+                    return null;
+                  }
+                  
+                  // Handle different possible API response structures
+                  const projectInfo = project.project || project;
+                  
+                  // More comprehensive location field mapping
+                  const getLocation = () => {
+                    const locationFields = [
+                      projectInfo?.projectLocation,
+                      projectInfo?.location,
+                      projectInfo?.address,
+                      projectInfo?.city,
+                      projectInfo?.area,
+                      projectInfo?.place,
+                      projectInfo?.locality,
+                      projectInfo?.district,
+                      projectInfo?.state,
+                      projectInfo?.region,
+                      project?.projectLocation,
+                      project?.location,
+                      project?.address,
+                      project?.city,
+                      project?.area,
+                      project?.place,
+                      project?.locality,
+                      project?.district,
+                      project?.state,
+                      project?.region
+                    ];
+                    
+                    const validLocation = locationFields.find(field => 
+                      field && typeof field === 'string' && field.trim() !== ''
+                    );
+                    
+                    return validLocation || 'Location Not Available';
+                  };
+                  
+                  const safeProject = {
+                    id: projectInfo?._id || projectInfo?.id || project?._id || project?.id || `project-${index}`,
+                    name: projectInfo?.name || projectInfo?.projectName || project?.name || project?.projectName || `Project ${index + 1}`,
+                    location: getLocation(),
+                    totalLeads: project.totalLeads || project.total_leads || 0,
+                    bookedLeads: project.bookedLeads || project.booked_leads || 0,
+                    activeLeads: project.activeLeads || project.active_leads || 0,
+                    conversionRate: project.conversionRate || project.conversion_rate || 0,
+                    estimatedRevenue: project.estimatedRevenue || project.estimated_revenue || 0,
+                    potentialRevenue: project.potentialRevenue || project.potential_revenue || 0,
+                  };
+                  
+                  console.log(`Project ${index}:`, {
+                    original: project,
+                    projectInfo: projectInfo,
+                    safeProject: safeProject
+                  });
+
+                  return (
+                    <tr key={safeProject.id} className="bg-white border-b dark:bg-gray-800 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600">
+                      <td className="px-6 py-4 font-medium text-gray-900 dark:text-white">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="solar:buildings-2-line-duotone" className="text-blue-500" />
+                          {safeProject.name}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-gray-600 dark:text-gray-400">
+                        <div className="flex items-center gap-2">
+                          <Icon icon="solar:map-point-line-duotone" className="text-green-500" />
+                          {safeProject.location}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <Badge color="info" size="sm">{safeProject.totalLeads}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <Badge color="success" size="sm">{safeProject.bookedLeads}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <Badge color="warning" size="sm">{safeProject.activeLeads}</Badge>
+                      </td>
+                      <td className="px-6 py-4 text-center">
+                        <Badge color={getConversionRateColor(safeProject.conversionRate)} size="sm">
+                          {safeProject.conversionRate.toFixed(1)}%
+                        </Badge>
+                      </td>
+                    </tr>
+                  );
+                }).filter(Boolean)
+              )}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+    </div>
+    );
+  } catch (error) {
+    console.error("Error rendering ProjectPerformanceAnalytics:", error);
+    return (
+      <div className="mt-8">
+        <Card className="p-6">
+          <Alert color="failure">
+            <div className="flex items-center gap-2">
+              <Icon icon="solar:danger-circle-line-duotone" className="text-red-500" />
+              <span className="font-medium">Error rendering project performance data. Please check the console for details.</span>
+            </div>
+          </Alert>
+        </Card>
+      </div>
+    );
+  }
+};
 
 const CrmDashboard = () => {
   const { token, user } = useAuth();
@@ -592,6 +1032,11 @@ const CrmDashboard = () => {
     switch (priority.toLowerCase()) {
       case 'hot': return 'failure';
       case 'warm': return 'warning';
+
+
+
+
+      
       case 'cold': return 'info';
       default: return 'gray';
     }
@@ -1061,331 +1506,19 @@ const CrmDashboard = () => {
         </Card>
       </div>
 
-      {/* Strategic Analytics Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Lead Pipeline Analysis */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Lead Pipeline Analysis</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Current lead distribution and conversion funnel</p>
-            </div>
-            <Icon icon="solar:pie-chart-line-duotone" className="text-2xl text-blue-600 dark:text-blue-400" />
-          </div>
-          <ChartCard
-            title=""
-            icon=""
-            data={charts.leadsByStatus.map((status, index) => ({
-              name: status.name,
-              value: status.count,
-              percentage: status.percentage,
-              color: index === 0 ? '#3B82F6' : index === 1 ? '#10B981' : '#F59E0B'
-            }))}
-            type="pie"
-            className="p-0"
-          />
-          <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-blue-900 dark:text-blue-100">Pipeline Health</span>
-              <Badge color="success" size="sm">Excellent</Badge>
-            </div>
-            <p className="text-xs text-blue-700 dark:text-blue-200 mt-1">
-              {stats.conversionRate}% conversion rate exceeds industry standards
-            </p>
-          </div>
-        </Card>
+    
 
-        {/* Channel Performance Analysis */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Channel Partner Performance</h3>
-              {/* <p className="text-sm text-gray-600 dark:text-gray-400">Lead source effectiveness and ROI analysis</p> */}
-            </div>
-            <Icon icon="solar:chart-2-line-duotone" className="text-2xl text-green-600 dark:text-green-400" />
-          </div>
-          <ChartCard
-            title=""
-            icon=""
-            data={getProcessedSourceData().map((source, index) => ({
-              name: source.name,
-              value: source.count,
-              color: index === 0 ? '#8B5CF6' : index === 1 ? '#06B6D4' : '#F59E0B'
-            }))}
-            type="bar"
-            className="p-0"
-          />
-          <div className="mt-4 p-4 bg-green-50 dark:bg-green-900 rounded-lg">
-            <div className="flex items-center justify-between">
-              <span className="text-sm font-medium text-green-900 dark:text-green-100">Channel ROI</span>
-              <Badge color="info" size="sm">High Performance</Badge>
-            </div>
-            <p className="text-xs text-green-700 dark:text-green-200 mt-1">
-              Channel Partners generating {getProcessedSourceData()[0]?.count || 0} leads
-            </p>
-          </div>
-        </Card>
-      </div>
+     
 
-      {/* Market Intelligence Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        {/* Lead Quality Analysis */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Lead Quality Analysis</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Priority distribution and lead scoring</p>
-            </div>
-            <Icon icon="solar:chart-2-line-duotone" className="text-2xl text-purple-600 dark:text-purple-400" />
-          </div>
-          <ChartCard
-            title=""
-            icon=""
-            data={(() => {
-              const priorityCounts = leads.reduce((acc, lead) => {
-                const priority = lead.customData["Lead Priority"] || lead.customData.leadPriority || 'Not Set';
-                acc[priority] = (acc[priority] || 0) + 1;
-                return acc;
-              }, {} as Record<string, number>);
-              
-              return Object.entries(priorityCounts).map(([priority, count], index) => ({
-                name: priority,
-                value: count,
-                color: getPriorityColor(priority) === 'failure' ? '#EF4444' : 
-                       getPriorityColor(priority) === 'warning' ? '#F59E0B' : '#3B82F6'
-              }));
-            })()}
-            type="pie"
-            className="p-0"
-          />
-          <div className="mt-4 grid grid-cols-3 gap-4">
-            <div className="text-center p-3 bg-red-50 dark:bg-red-900 rounded-lg">
-              <p className="text-2xl font-bold text-red-600 dark:text-red-400">
-                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Hot').length}
-              </p>
-              <p className="text-xs text-red-700 dark:text-red-200">Hot Leads</p>
-            </div>
-            <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900 rounded-lg">
-              <p className="text-2xl font-bold text-yellow-600 dark:text-yellow-400">
-                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Warm').length}
-              </p>
-              <p className="text-xs text-yellow-700 dark:text-yellow-200">Warm Leads</p>
-            </div>
-            <div className="text-center p-3 bg-blue-50 dark:bg-blue-900 rounded-lg">
-              <p className="text-2xl font-bold text-blue-600 dark:text-blue-400">
-                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Cold').length}
-              </p>
-              <p className="text-xs text-blue-700 dark:text-blue-200">Cold Leads</p>
-            </div>
-          </div>
-        </Card>
-
-        {/* Portfolio Performance */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h3 className="text-xl font-bold text-gray-900 dark:text-white">Portfolio Performance</h3>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Project-wise lead generation and conversion</p>
-            </div>
-            <Icon icon="solar:buildings-line-duotone" className="text-2xl text-green-600 dark:text-green-400" />
-          </div>
-          <ChartCard
-            title=""
-            icon=""
-            data={projectSummary.map((project, index) => ({
-              name: project.projectName,
-              value: project.convertedLeads, // Show converted leads based on final status
-              color: index === 0 ? '#10B981' : index === 1 ? '#3B82F6' : '#8B5CF6'
-            }))}
-            type="bar"
-            className="p-0"
-          />
-          <div className="mt-4 space-y-2">
-            {projectSummary.map((project) => (
-              <div key={project._id} className="flex items-center justify-between p-2 bg-gray-50 dark:bg-gray-800 rounded">
-                <div className="flex items-center space-x-3">
-                  <span className="text-sm font-medium text-gray-900 dark:text-white">{project.projectName}</span>
-                  <Badge color="info" size="sm">{project.conversionRate}%</Badge>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <span className="text-sm font-bold text-gray-900 dark:text-white">{project.convertedLeads}</span>
-                  <span className="text-xs text-gray-600 dark:text-gray-400">Final Closure</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-
-      {/* Business KPIs */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Average Days to Close */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Avg Days to Close</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {(() => {
-                  const closedLeads = leads.filter(lead => lead.currentStatus.is_final_status);
-                  if (closedLeads.length === 0) return 'N/A';
-                  const avgDays = closedLeads.reduce((sum, lead) => sum + lead.daysOpen, 0) / closedLeads.length;
-                  return Math.round(avgDays);
-                })()}
-              </p>
-            </div>
-            <div className="p-3 bg-purple-100 dark:bg-purple-900 rounded-full">
-              <Icon icon="solar:clock-circle-line-duotone" className="text-2xl text-purple-600 dark:text-purple-400" />
-            </div>
-          </div>
-        </Card>
-
-        {/* Hot Leads Count */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Hot Leads</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => (lead.customData["Lead Priority"] || lead.customData.leadPriority) === 'Hot').length}
-              </p>
-            </div>
-            <div className="p-3 bg-red-100 dark:bg-red-900 rounded-full">
-              <Icon icon="solar:fire-line-duotone" className="text-2xl text-red-600 dark:text-red-400" />
-            </div>
-          </div>
-        </Card>
-
-        {/* Channel Partner Performance */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Partner Leads</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => 
-                  lead.channelPartner || 
-                  lead.customData?.["Channel Partner"] || 
-                  lead.customData?.["Channel Partner Sourcing"]
-                ).length}
-              </p>
-            </div>
-            <div className="p-3 bg-green-100 dark:bg-green-900 rounded-full">
-              <Icon icon="solar:users-group-two-rounded-line-duotone" className="text-2xl text-green-600 dark:text-green-400" />
-            </div>
-          </div>
-        </Card>
-
-        {/* Budget Distribution */}
-        <Card className="p-6">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm font-medium text-gray-600 dark:text-gray-400">High Value Leads</p>
-              <p className="text-2xl font-bold text-gray-900 dark:text-white">
-                {leads.filter(lead => (lead.customData.Budget || lead.customData.budget) === 'Above 5 Crores').length}
-              </p>
-            </div>
-            <div className="p-3 bg-yellow-100 dark:bg-yellow-900 rounded-full">
-              <Icon icon="solar:dollar-minimalistic-line-duotone" className="text-2xl text-yellow-600 dark:text-yellow-400" />
-            </div>
-          </div>
-        </Card>
-      </div>
+    
 
 
       {/* Organizational Performance Section */}
-      <Card className="p-8">
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h3 className="text-2xl font-bold text-gray-900 dark:text-white">Organizational Performance</h3>
-            <p className="text-gray-600 dark:text-gray-400">Team efficiency metrics and performance analytics</p>
-          </div>
-          <div className="flex items-center space-x-2">
-            <Icon icon="solar:users-group-rounded-line-duotone" className="text-2xl text-blue-600 dark:text-blue-400" />
-            <Badge color="success" size="lg">High Performance Team</Badge>
-          </div>
-        </div>
-        
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Performance Analytics */}
-          <div>
-            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Conversion Performance Matrix</h4>
-            <ChartCard
-              title=""
-              icon=""
-              data={performance.map((user, index) => ({
-                name: user.name,
-                value: user.conversionRate,
-                color: index === 0 ? '#10B981' : index === 1 ? '#3B82F6' : '#8B5CF6'
-              }))}
-              type="bar"
-              className="p-0"
-            />
-            <div className="mt-4 p-4 bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-900 dark:to-purple-900 rounded-lg">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold text-blue-900 dark:text-blue-100">Team Average</span>
-                <span className="text-lg font-bold text-blue-600 dark:text-blue-400">
-                  {Math.round(performance.reduce((sum, user) => sum + user.conversionRate, 0) / performance.length)}%
-                </span>
-              </div>
-              <p className="text-xs text-blue-700 dark:text-blue-200 mt-1">
-                Exceeds industry benchmark of 25%
-              </p>
-            </div>
-          </div>
-          
-          {/* Performance Scorecard */}
-          {/* <div>
-            <h4 className="text-lg font-semibold text-gray-900 dark:text-white mb-6">Individual Scorecards</h4>
-            <div className="space-y-4">
-              {performance.map((user, index) => (
-                <div key={user._id} className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 dark:from-gray-800 dark:to-gray-700 rounded-xl border border-gray-200 dark:border-gray-600">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center space-x-4">
-                      <div className={`w-12 h-12 rounded-full flex items-center justify-center ${
-                        index === 0 ? 'bg-green-100 dark:bg-green-900' : 
-                        index === 1 ? 'bg-blue-100 dark:bg-blue-900' : 'bg-purple-100 dark:bg-purple-900'
-                      }`}>
-                        <Icon icon="solar:user-line-duotone" className={`text-xl ${
-                          index === 0 ? 'text-green-600 dark:text-green-400' : 
-                          index === 1 ? 'text-blue-600 dark:text-blue-400' : 'text-purple-600 dark:text-purple-400'
-                        }`} />
-                      </div>
-                      <div>
-                        <h5 className="font-bold text-gray-900 dark:text-white text-lg">{user.name}</h5>
-                        <p className="text-sm text-gray-600 dark:text-gray-400">{user.email}</p>
-                      </div>
-                    </div>
-                    <div className="text-right">
-                      <Badge 
-                        color={user.conversionRate >= 80 ? "success" : user.conversionRate >= 50 ? "warning" : "failure"}
-                        size="lg"
-                      >
-                        {user.conversionRate}% Conversion
-                      </Badge>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 mt-1">
-                        {user.conversionRate >= 80 ? 'Excellent' : user.conversionRate >= 50 ? 'Good' : 'Needs Improvement'}
-                      </p>
-                    </div>
-                  </div>
-                  
-                  <div className="grid grid-cols-3 gap-6 text-center">
-                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <p className="text-2xl font-bold text-gray-900 dark:text-white">{user.totalLeads}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Total Leads</p>
-                    </div>
-                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <p className="text-2xl font-bold text-green-600 dark:text-green-400">{user.convertedLeads}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Converted</p>
-                    </div>
-                    <div className="p-3 bg-white dark:bg-gray-800 rounded-lg">
-                      <p className="text-2xl font-bold text-purple-600 dark:text-purple-400">₹{user.totalRevenue.toLocaleString()}</p>
-                      <p className="text-xs text-gray-600 dark:text-gray-400 font-medium">Revenue</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div> */}
-        </div>
-      </Card>
+     
+
+      {/* Analytics components moved to separate Analytics Dashboard */}
+
+      
 
       {/* Follow-up Dashboard */}
       <div className="mt-8">
@@ -1890,7 +2023,7 @@ const CrmDashboard = () => {
 
         </div>
       </div>
-
+      
       {/* Lead Details Modal */}
       <Modal show={isFollowUpModalOpen} onClose={handleCloseFollowUpModal} size="lg">
         <Modal.Header>

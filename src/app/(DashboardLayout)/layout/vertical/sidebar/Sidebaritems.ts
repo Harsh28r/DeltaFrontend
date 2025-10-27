@@ -195,6 +195,12 @@ export const useSidebarData = () => {
               id: uniqueId(),
               url: "/dashboards/crm",
             },
+            {
+              name: "Analytics",
+              icon: "solar:layers-line-duotone",
+              id: uniqueId(),
+              url: "/dashboards/analytics",
+            },
            
 
             
@@ -889,7 +895,18 @@ export const staticSidebarData: MenuItem[] = [
             name: "Analytics",
             icon: "solar:chart-line-duotone",
             id: uniqueId(),
-            url: "/dashboards/analytics",
+            children: [
+              {
+                name: "Analytics Dashboard",
+                id: uniqueId(),
+                url: "/dashboards/analytics",
+              },
+              {
+                name: "Project Performance",
+                id: uniqueId(),
+                url: "/apps/analytics/project-performance",
+              },
+            ],
           },
           {
             name: "SuperAdmin",
