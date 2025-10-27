@@ -104,6 +104,7 @@ export const PERMISSIONS = {
   
   // Reporting permissions
   REPORTING_READ: 'reporting:read',
+  REPORTS_READ: 'reports:read', // Lead reports permission (API uses reports:read)
   
   // Notification bulk permissions
   NOTIFICATIONS_BULK_UPDATE: 'notifications:bulk-update',
