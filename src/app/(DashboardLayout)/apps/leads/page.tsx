@@ -199,6 +199,14 @@ const LeadsPage = () => {
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [datePreset, setDatePreset] = useState<string>("custom");
+
+  // Initialize filterStatus from URL query parameter if present
+  useEffect(() => {
+    const statusParam = searchParams.get('status');
+    if (statusParam) {
+      setFilterStatus(statusParam);
+    }
+  }, [searchParams]);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingLead, setEditingLead] = useState<Lead | null>(null);
   const [formData, setFormData] = useState({
