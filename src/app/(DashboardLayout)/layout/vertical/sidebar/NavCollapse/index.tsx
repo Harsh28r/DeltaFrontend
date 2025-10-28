@@ -38,18 +38,16 @@ const NavCollapse: React.FC<NavCollapseProps> = ({ item }: any) => {
         }}
       >
         {/* Render child items */}
-        {item.children && (
+        {item.children && item.children.length > 0 && (
           <Sidebar.ItemGroup className="sidebar-dropdown">
-            {item.children.map((child: any) => (
-              <React.Fragment key={child.id}>
-                {/* Render NavItems for child items */}
-                {child.children ? (
-                  <NavCollapse item={child}  /> // Recursive call for nested collapse
-                ) : (
-                  <NavItems item={child} />
-                )}
-              </React.Fragment>
-            ))}
+            {item.children.map((child: any, index: number) => {
+              const uniqueKey = child.id || `${item.id}-child-${index}`;
+              return child.children ? (
+                <NavCollapse key={uniqueKey} item={child} />
+              ) : (
+                <NavItems key={uniqueKey} item={child} />
+              );
+            })}
           </Sidebar.ItemGroup>
         )}
       </Sidebar.Collapse>
