@@ -192,14 +192,24 @@ const CPSourcingDetailPage = () => {
     fallbackIcon?: string;
   }) => {
     const [imageError, setImageError] = useState(false);
+    const [imageLoaded, setImageLoaded] = useState(false);
     const [imageSrc, setImageSrc] = useState<string | undefined>(src);
     const [isLoading, setIsLoading] = useState(false);
+    const [loadStartTime, setLoadStartTime] = useState<number | null>(null);
 
     // Handle authenticated image loading
     const loadAuthenticatedImage = async (url: string) => {
       try {
         setIsLoading(true);
-        console.log('Loading authenticated image:', url);
+        const startTime = Date.now();
+        setLoadStartTime(startTime);
+        
+        console.log('[Image Tracking] Loading authenticated image:', {
+          url,
+          alt,
+          timestamp: new Date().toISOString()
+        });
+        
         const response = await fetch(url, {
           method: 'GET',
           headers: {
@@ -208,21 +218,55 @@ const CPSourcingDetailPage = () => {
           credentials: 'include',
         });
 
-        console.log('Image response status:', response.status);
+        const loadTime = Date.now() - startTime;
+        console.log('[Image Tracking] Image response received:', {
+          url,
+          status: response.status,
+          statusText: response.statusText,
+          loadTime: `${loadTime}ms`,
+          contentType: response.headers.get('content-type'),
+          contentLength: response.headers.get('content-length')
+        });
+
         if (response.ok) {
           const blob = await response.blob();
           const objectUrl = URL.createObjectURL(blob);
-          console.log('Image loaded successfully, blob URL created');
+          const totalTime = Date.now() - startTime;
+          
+          console.log('[Image Tracking] Image loaded successfully:', {
+            url,
+            alt,
+            blobSize: `${(blob.size / 1024).toFixed(2)} KB`,
+            blobType: blob.type,
+            loadTime: `${totalTime}ms`,
+            objectUrl: objectUrl.substring(0, 50) + '...'
+          });
+          
           setImageSrc(objectUrl);
         } else {
-          console.warn(`Failed to load authenticated image: ${url} - ${response.status}`);
+          const errorTime = Date.now() - startTime;
+          console.warn('[Image Tracking] Failed to load authenticated image:', {
+            url,
+            alt,
+            status: response.status,
+            statusText: response.statusText,
+            loadTime: `${errorTime}ms`
+          });
           setImageError(true);
         }
       } catch (error) {
-        console.warn(`Error loading authenticated image: ${url}`, error);
+        const errorTime = loadStartTime ? Date.now() - loadStartTime : 0;
+        console.warn('[Image Tracking] Error loading authenticated image:', {
+          url,
+          alt,
+          error: error instanceof Error ? error.message : 'Unknown error',
+          loadTime: `${errorTime}ms`,
+          stack: error instanceof Error ? error.stack : undefined
+        });
         setImageError(true);
       } finally {
         setIsLoading(false);
+        setLoadStartTime(null);
       }
     };
 
@@ -231,9 +275,23 @@ const CPSourcingDetailPage = () => {
       if (src && src.includes('/api/cp-sourcing/') && src.includes('/selfie/')) {
         loadAuthenticatedImage(src);
       } else {
+        console.log('[Image Tracking] Using direct image URL:', {
+          url: src,
+          alt
+        });
         setImageSrc(src);
       }
     }, [src, token]);
+
+    // Cleanup: Revoke object URLs when component unmounts or imageSrc changes
+    React.useEffect(() => {
+      return () => {
+        if (imageSrc && imageSrc.startsWith('blob:')) {
+          console.log('[Image Tracking] Cleaning up blob URL:', imageSrc.substring(0, 50));
+          URL.revokeObjectURL(imageSrc);
+        }
+      };
+    }, [imageSrc]);
 
     if (isLoading) {
       return (
@@ -257,14 +315,29 @@ const CPSourcingDetailPage = () => {
         alt={alt}
         className={className}
         crossOrigin="anonymous"
+        onLoad={() => {
+          setImageLoaded(true);
+          console.log('[Image Tracking] Image rendered successfully on client:', {
+            url: imageSrc,
+            alt,
+            timestamp: new Date().toISOString()
+          });
+        }}
         onError={(e) => {
-          console.warn(`Failed to load image: ${src}`);
+          console.warn('[Image Tracking] Failed to render image:', {
+            url: imageSrc,
+            originalSrc: src,
+            alt,
+            error: e.type,
+            timestamp: new Date().toISOString()
+          });
           setImageError(true);
         }}
         style={{ 
           objectFit: 'cover',
           borderRadius: '50%'
         }}
+        referrerPolicy="strict-origin-when-cross-origin"
       />
     );
   };
