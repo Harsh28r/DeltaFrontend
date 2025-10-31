@@ -14,6 +14,8 @@ export const API_ENDPOINTS = {
   // Users - TEMPORARY: Using projects endpoint until backend implements users API
   USERS: `${API_BASE_URL}/api/projects`, // Temporary: will extract users from projects
   USERS_BY_ROLE: (roleName: string) => `${API_BASE_URL}/api/projects`, // Temporary: will filter by role
+  // Total users count endpoint (for dashboards/reports)
+  TOTAL_USERS: `${API_BASE_URL}/api/totalusers`,
   CREATE_USER: `${API_BASE_URL}/api/superadmin/create-user`,
   CREATE_USER_WITH_PROJECTS: `${API_BASE_URL}/api/superadmin/create-user-with-projects`,
   UPDATE_USER_PROJECTS: `${API_BASE_URL}/api/superadmin/update-user-projects`,

@@ -179,19 +179,24 @@ interface TopSourcingPerformersData {
 // CP Site Performance Component
 const CPSitePerformance = () => {
   const router = useRouter();
-
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CPSitePerformanceData | null>(null);
   const [error, setError] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState('10');
-  const [selectedYear, setSelectedYear] = useState('2025');
+  
+  // Initialize with current month dates
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(lastDay.toISOString().split('T')[0]);
 
   const fetchData = async () => {
     try {
       setLoading(true);
       setError('');
       const response = await fetch(
-        `${API_BASE_URL}/api/analytics/cp-site-wise-performance?month=${selectedMonth}&year=${selectedYear}`,
+        `${API_BASE_URL}/api/analytics/cp-site-wise-performance?startDate=${startDate}&endDate=${endDate}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
@@ -211,19 +216,7 @@ const CPSitePerformance = () => {
 
   useEffect(() => {
     fetchData();
-  }, [selectedMonth, selectedYear]);
-
-  const months = [
-    { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
-    { value: '4', label: 'April' }, { value: '5', label: 'May' }, { value: '6', label: 'June' },
-    { value: '7', label: 'July' }, { value: '8', label: 'August' }, { value: '9', label: 'September' },
-    { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' },
-  ];
-
-  const years = Array.from({ length: 5 }, (_, i) => {
-    const year = new Date().getFullYear() - i;
-    return { value: year.toString(), label: year.toString() };
-  });
+  }, [startDate, endDate]);
 
   if (loading) return <Spinner size="lg" />;
   if (error) return <Alert color="failure">{error}</Alert>;
@@ -236,31 +229,50 @@ const CPSitePerformance = () => {
           <IconChartPie className="mr-2 text-purple-600" size={24} />
           Site Performance
         </h3>
-        <div className="flex gap-2">
-          <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-            {months.map(month => (
-              <option key={month.value} value={month.value}>{month.label}</option>
-            ))}
-          </Select>
-          <Select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-            {years.map(year => (
-              <option key={year.value} value={year.value}>{year.label}</option>
-            ))}
-          </Select>
+        <div className="flex gap-2 items-center">
+          <Label className="text-sm font-medium whitespace-nowrap">From:</Label>
+          <TextInput
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-auto"
+          />
+          <Label className="text-sm font-medium whitespace-nowrap">To:</Label>
+          <TextInput
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-auto"
+          />
+          <Button size="sm" onClick={fetchData}>
+            <IconRefresh size={16} />
+          </Button>
         </div>
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6" >
-        <div className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow">
+      <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div 
+          className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 border-transparent hover:border-blue-300"
+          onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&leadType=total`)}
+          title="Click to view all leads"
+        >
           <div className="text-2xl font-bold text-blue-600">{data.totals.totalLeads}</div>
           <div className="text-sm text-blue-600">Total Leads</div>
         </div>
-        <div className="bg-green-50 dark:bg-green-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow" >
+        <div 
+          className="bg-green-50 dark:bg-green-900 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 border-transparent hover:border-green-300"
+          onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&leadType=digital`)}
+          title="Click to view digital leads"
+        >
           <div className="text-2xl font-bold text-green-600">{data.totals.digitalLeads}</div>
           <div className="text-sm text-green-600">Digital Leads</div>
         </div>
-        <div className="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow" >
+        <div 
+          className="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 border-transparent hover:border-purple-300"
+          onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&leadType=cp`)}
+          title="Click to view CP leads"
+        >
           <div className="text-2xl font-bold text-purple-600">{data.totals.cpLeads}</div>
           <div className="text-sm text-purple-600">CP Leads</div>
         </div>
@@ -284,7 +296,12 @@ const CPSitePerformance = () => {
           const centerY = 80;
 
           return (
-            <div key={project._id} className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+            <div 
+              key={project._id} 
+              className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-all duration-200 border-2 border-transparent hover:border-blue-300"
+              onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}`)}
+              title="Click to view leads for this project"
+            >
               <h4 className="font-semibold mb-3 text-center">{project.projectName}</h4>
               <div className="flex justify-center">
                 <svg width="160" height="160" className="transform rotate-0" style={{ perspective: '1000px' }}>
@@ -340,14 +357,28 @@ const CPSitePerformance = () => {
                 </svg>
               </div>
               <div className="mt-3 space-y-1 text-sm">
-                <div className="flex justify-between">
+                <div 
+                  className="flex justify-between hover:bg-green-100 dark:hover:bg-green-900/20 p-1 rounded cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}&leadType=digital`);
+                  }}
+                  title="Click to view digital leads for this project"
+                >
                   <span className="flex items-center">
                     <div className="w-3 h-3 bg-green-500 rounded-full mr-2"></div>
                     Digital: {project.digitalLeads}
                   </span>
                   <span className="font-medium">{project.digitalPercentage.toFixed(1)}%</span>
                 </div>
-                <div className="flex justify-between">
+                <div 
+                  className="flex justify-between hover:bg-orange-100 dark:hover:bg-orange-900/20 p-1 rounded cursor-pointer"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}&leadType=cp`);
+                  }}
+                  title="Click to view CP leads for this project"
+                >
                   <span className="flex items-center">
                     <div className="w-3 h-3 bg-orange-500 rounded-full mr-2"></div>
                     CP: {project.cpLeads}
@@ -381,12 +412,48 @@ const CPSitePerformance = () => {
           </Table.Head>
           <Table.Body>
             {data.data.map((project) => (
-              <Table.Row key={project._id}>
+              <Table.Row 
+                key={project._id}
+                className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
+                onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}`)}
+                title="Click to view all leads for this project"
+              >
                 <Table.Cell className="font-medium">{project.projectName}</Table.Cell>
                 <Table.Cell>{project.location}</Table.Cell>
-                <Table.Cell><Badge color="blue">{project.totalLeads}</Badge></Table.Cell>
-                <Table.Cell><Badge color="success">{project.digitalLeads}</Badge></Table.Cell>
-                <Table.Cell><Badge color="purple">{project.cpLeads}</Badge></Table.Cell>
+                <Table.Cell>
+                  <Badge 
+                    color="blue"
+                    className="cursor-pointer"
+                  >
+                    {project.totalLeads}
+                  </Badge>
+                </Table.Cell>
+                <Table.Cell>
+                  <Badge 
+                    color="success"
+                    className="cursor-pointer hover:opacity-80"
+                    onClick={(e: any) => {
+                      e.stopPropagation();
+                      router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}&leadType=digital`);
+                    }}
+                    title="Click to view digital leads"
+                  >
+                    {project.digitalLeads}
+                  </Badge>
+                </Table.Cell>
+                <Table.Cell>
+                  <Badge 
+                    color="purple"
+                    className="cursor-pointer hover:opacity-80"
+                    onClick={(e: any) => {
+                      e.stopPropagation();
+                      router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}&leadType=cp`);
+                    }}
+                    title="Click to view CP leads"
+                  >
+                    {project.cpLeads}
+                  </Badge>
+                </Table.Cell>
                 <Table.Cell><Badge color="warning">{project.otherLeads}</Badge></Table.Cell>
                 <Table.Cell><Badge color="info">{project.activeCPsCount}</Badge></Table.Cell>
               </Table.Row>
@@ -759,8 +826,16 @@ const TopSourcingPerformers = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TopSourcingPerformersData | null>(null);
   const [error, setError] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState('10');
-  const [selectedYear, setSelectedYear] = useState('2025');
+  
+  // Initialize with current month dates
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(lastDay.toISOString().split('T')[0]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
   const router = useRouter();
 
   const fetchData = async () => {
@@ -768,7 +843,7 @@ const TopSourcingPerformers = () => {
       setLoading(true);
       setError('');
       const response = await fetch(
-        `${API_BASE_URL}/api/analytics/top-sourcing-performers?month=${selectedMonth}&year=${selectedYear}`,
+        `${API_BASE_URL}/api/analytics/top-sourcing-performers?startDate=${startDate}&endDate=${endDate}`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
@@ -788,22 +863,11 @@ const TopSourcingPerformers = () => {
 
   useEffect(() => {
     fetchData();
-  }, [selectedMonth, selectedYear]);
-
-  const months = [
-    { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
-    { value: '4', label: 'April' }, { value: '5', label: 'May' }, { value: '6', label: 'June' },
-    { value: '7', label: 'July' }, { value: '8', label: 'August' }, { value: '9', label: 'September' },
-    { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' },
-  ];
-
-  const years = Array.from({ length: 5 }, (_, i) => {
-    const year = new Date().getFullYear() - i;
-    return { value: year.toString(), label: year.toString() };
-  });
+  }, [startDate, endDate]);
 
   const handleUserClick = (userId: string) => {
-    router.push(`/apps/users/${userId}`);
+    // Navigate to leads page with user filter and date range
+    router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&userId=${userId}`);
   };
 
   if (loading) return <Spinner size="lg" />;
@@ -817,17 +881,24 @@ const TopSourcingPerformers = () => {
           <IconUsers className="mr-2 text-indigo-600" size={24} />
           Top Sourcing Performers
         </h3>
-        <div className="flex gap-2">
-          <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-            {months.map(month => (
-              <option key={month.value} value={month.value}>{month.label}</option>
-            ))}
-          </Select>
-          <Select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-            {years.map(year => (
-              <option key={year.value} value={year.value}>{year.label}</option>
-            ))}
-          </Select>
+        <div className="flex gap-2 items-center">
+          <Label className="text-sm font-medium whitespace-nowrap">From:</Label>
+          <TextInput
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-auto"
+          />
+          <Label className="text-sm font-medium whitespace-nowrap">To:</Label>
+          <TextInput
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-auto"
+          />
+          <Button size="sm" onClick={fetchData}>
+            <IconRefresh size={16} />
+          </Button>
         </div>
       </div>
 
@@ -872,8 +943,9 @@ const TopSourcingPerformers = () => {
               return (
                 <Table.Row
                   key={performer.userId}
-                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
                   onClick={() => handleUserClick(performer.userId)}
+                  title={`Click to view all leads for ${performer.userName}`}
                 >
                   <Table.Cell>
                     <div className="flex items-center justify-center">
@@ -914,8 +986,14 @@ const TopBookingPerformers = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TopPerformersData | null>(null);
   const [error, setError] = useState('');
-  const [selectedMonth, setSelectedMonth] = useState('10');
-  const [selectedYear, setSelectedYear] = useState('2025');
+  
+  // Initialize with current month dates
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  
+  const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
+  const [endDate, setEndDate] = useState(lastDay.toISOString().split('T')[0]);
   const router = useRouter();
 
   const fetchData = async () => {
@@ -923,7 +1001,7 @@ const TopBookingPerformers = () => {
       setLoading(true);
       setError('');
       const response = await fetch(
-        `${API_BASE_URL}/api/analytics/top-booking-performers?month=${selectedMonth}&year=${selectedYear}&limit=5`,
+        `${API_BASE_URL}/api/analytics/top-booking-performers?startDate=${startDate}&endDate=${endDate}&limit=5`,
         {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
@@ -943,22 +1021,11 @@ const TopBookingPerformers = () => {
 
   useEffect(() => {
     fetchData();
-  }, [selectedMonth, selectedYear]);
-
-  const months = [
-    { value: '1', label: 'January' }, { value: '2', label: 'February' }, { value: '3', label: 'March' },
-    { value: '4', label: 'April' }, { value: '5', label: 'May' }, { value: '6', label: 'June' },
-    { value: '7', label: 'July' }, { value: '8', label: 'August' }, { value: '9', label: 'September' },
-    { value: '10', label: 'October' }, { value: '11', label: 'November' }, { value: '12', label: 'December' },
-  ];
-
-  const years = Array.from({ length: 5 }, (_, i) => {
-    const year = new Date().getFullYear() - i;
-    return { value: year.toString(), label: year.toString() };
-  });
+  }, [startDate, endDate]);
 
   const handleUserClick = (userId: string) => {
-    router.push(`/apps/users/${userId}`);
+    // Navigate to leads page with user filter and date range
+    router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&userId=${userId}`);
   };
 
   if (loading) return <Spinner size="lg" />;
@@ -972,17 +1039,24 @@ const TopBookingPerformers = () => {
           <IconTrophy className="mr-2 text-yellow-600" size={24} />
           Top 5 Booking Performers
         </h3>
-        <div className="flex gap-2">
-          <Select value={selectedMonth} onChange={(e) => setSelectedMonth(e.target.value)}>
-            {months.map(month => (
-              <option key={month.value} value={month.value}>{month.label}</option>
-            ))}
-          </Select>
-          <Select value={selectedYear} onChange={(e) => setSelectedYear(e.target.value)}>
-            {years.map(year => (
-              <option key={year.value} value={year.value}>{year.label}</option>
-            ))}
-          </Select>
+        <div className="flex gap-2 items-center">
+          <Label className="text-sm font-medium whitespace-nowrap">From:</Label>
+          <TextInput
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="w-auto"
+          />
+          <Label className="text-sm font-medium whitespace-nowrap">To:</Label>
+          <TextInput
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="w-auto"
+          />
+          <Button size="sm" onClick={fetchData}>
+            <IconRefresh size={16} />
+          </Button>
         </div>
       </div>
 
@@ -999,10 +1073,11 @@ const TopBookingPerformers = () => {
           </Table.Head>
           <Table.Body>
             {data.data.map((performer, index) => (
-              <Table.Row
-                key={performer._id}
+              <Table.Row 
+                key={performer._id} 
                 className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                 onClick={() => handleUserClick(performer.userId)}
+                title={`Click to view all leads for ${performer.userName}`}
               >
                 <Table.Cell>
                   <div className="flex items-center justify-center">
