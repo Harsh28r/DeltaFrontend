@@ -70,8 +70,11 @@ export interface FollowUpsData {
     pending: FollowUp[];
   };
   summary: {
+    pending: number;
+    today: number;
+    tomorrow: number;
+    upcoming: number;
     total: number;
-    type: string;
   };
   timestamp?: string;
 }
@@ -93,13 +96,13 @@ const FollowUpsPage = () => {
   const [followUps, setFollowUps] = useState<FollowUpsData | null>(null);
   const [followUpsStats, setFollowUpsStats] = useState<FollowUpsStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  
+
   // Filter states for each section
   const [todayFilter, setTodayFilter] = useState<string>('all');
   const [tomorrowFilter, setTomorrowFilter] = useState<string>('all');
   const [upcomingFilter, setUpcomingFilter] = useState<string>('all');
   const [pendingFilter, setPendingFilter] = useState<string>('all');
-  
+
   // Show more states for each section
   const [showMoreToday, setShowMoreToday] = useState(false);
   const [showMoreTomorrow, setShowMoreTomorrow] = useState(false);
@@ -113,7 +116,7 @@ const FollowUpsPage = () => {
 
       try {
         setIsLoading(true);
-        
+
         const [followUpsResponse, followUpsStatsResponse] = await Promise.all([
           fetch(`${API_BASE_URL}/api/follow-ups`, {
             method: "GET",
@@ -194,7 +197,7 @@ const FollowUpsPage = () => {
   // Filtered follow-ups functions
   const getFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
-    const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => 
+    const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
     );
     return showMoreToday ? filtered : filtered.slice(0, 2);
@@ -202,7 +205,7 @@ const FollowUpsPage = () => {
 
   const getFilteredTomorrowsFollowUps = () => {
     const tomorrowsFollowUps = getTomorrowsFollowUps();
-    const filtered = tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => 
+    const filtered = tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
     );
     return showMoreTomorrow ? filtered : filtered.slice(0, 2);
@@ -210,7 +213,7 @@ const FollowUpsPage = () => {
 
   const getFilteredUpcomingFollowUps = () => {
     const upcomingFollowUps = getUpcomingFollowUps();
-    const filtered = upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp => 
+    const filtered = upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === upcomingFilter
     );
     return showMoreUpcoming ? filtered : filtered.slice(0, 2);
@@ -218,7 +221,7 @@ const FollowUpsPage = () => {
 
   const getFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
-    const filtered = pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
+    const filtered = pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === pendingFilter
     );
     return showMorePending ? filtered : filtered.slice(0, 2);
@@ -227,28 +230,28 @@ const FollowUpsPage = () => {
   // Get total filtered counts (without limit)
   const getTotalFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
-    return todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp => 
+    return todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
     );
   };
 
   const getTotalFilteredTomorrowsFollowUps = () => {
     const tomorrowsFollowUps = getTomorrowsFollowUps();
-    return tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp => 
+    return tomorrowFilter === 'all' ? tomorrowsFollowUps : tomorrowsFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === tomorrowFilter
     );
   };
 
   const getTotalFilteredUpcomingFollowUps = () => {
     const upcomingFollowUps = getUpcomingFollowUps();
-    return upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp => 
+    return upcomingFilter === 'all' ? upcomingFollowUps : upcomingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === upcomingFilter
     );
   };
 
   const getTotalFilteredPendingFollowUps = () => {
     const pendingFollowUps = getPendingFollowUps();
-    return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp => 
+    return pendingFilter === 'all' ? pendingFollowUps : pendingFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === pendingFilter
     );
   };
@@ -256,14 +259,14 @@ const FollowUpsPage = () => {
   // Get unique statuses for filter options
   const getUniqueStatuses = () => {
     if (!followUps?.followUps) return [];
-    
+
     const allFollowUps = [
       ...(Array.isArray(followUps.followUps.today) ? followUps.followUps.today : []),
       ...(Array.isArray(followUps.followUps.tomorrow) ? followUps.followUps.tomorrow : []),
       ...(Array.isArray(followUps.followUps.upcoming) ? followUps.followUps.upcoming : []),
       ...(Array.isArray(followUps.followUps.pending) ? followUps.followUps.pending : [])
     ];
-    
+
     const statuses = new Set(
       allFollowUps
         .filter(followUp => followUp.lead)
@@ -289,8 +292,8 @@ const FollowUpsPage = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 p-8">
-       {/* Follow-up Dashboard */}
-       <div>
+      {/* Follow-up Dashboard */}
+      <div>
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-3">
             <Icon icon="solar:calendar-add-line-duotone" className="text-orange-500 text-2xl" />
@@ -302,7 +305,7 @@ const FollowUpsPage = () => {
           <div className="flex items-center gap-2">
             <Icon icon="solar:clock-circle-line-duotone" className="text-orange-500 text-lg" />
             <span className="text-sm font-medium text-gray-700 dark:text-gray-300">
-              {followUpsStats?.stats?.total || followUps?.summary?.total || 0} Follow-ups
+              {followUps?.summary?.total || 0} Follow-ups
             </span>
           </div>
         </div>
@@ -314,7 +317,7 @@ const FollowUpsPage = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Total</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{followUpsStats.stats.total}</p>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100"> {followUps?.summary?.total || 0}</p>
                 </div>
                 <Icon icon="solar:list-line-duotone" className="text-blue-500 text-xl" />
               </div>
@@ -324,7 +327,7 @@ const FollowUpsPage = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-red-600 dark:text-red-400">Today</p>
-                  <p className="text-2xl font-bold text-red-900 dark:text-red-100">{followUpsStats.stats.today}</p>
+                  <p className="text-2xl font-bold text-red-900 dark:text-red-100"> {followUps?.summary?.today || 0}</p>
                 </div>
                 <Icon icon="solar:clock-circle-line-duotone" className="text-red-500 text-xl" />
               </div>
@@ -334,7 +337,7 @@ const FollowUpsPage = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-yellow-600 dark:text-yellow-400">Upcoming</p>
-                  <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100">{followUpsStats.stats.upcoming}</p>
+                  <p className="text-2xl font-bold text-yellow-900 dark:text-yellow-100"> {followUps?.summary?.upcoming || 0}</p>
                 </div>
                 <Icon icon="solar:calendar-line-duotone" className="text-yellow-500 text-xl" />
               </div>
@@ -344,13 +347,13 @@ const FollowUpsPage = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-blue-600 dark:text-blue-400">Pending</p>
-                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100">{followUpsStats.stats.pending}</p>
+                  <p className="text-2xl font-bold text-blue-900 dark:text-blue-100"> {followUps?.summary?.pending || 0}</p>
                 </div>
                 <Icon icon="solar:clock-circle-line-duotone" className="text-blue-500 text-xl" />
               </div>
             </div>
 
-            <div className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
+            {/* <div className="bg-gradient-to-r from-orange-50 to-orange-100 dark:from-orange-900/30 dark:to-orange-800/30 p-4 rounded-lg border border-orange-200 dark:border-orange-700">
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm font-medium text-orange-600 dark:text-orange-400">Overdue</p>
@@ -368,8 +371,12 @@ const FollowUpsPage = () => {
                 </div>
                 <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-xl" />
               </div>
-            </div>
+            </div> */}
+
+
           </div>
+
+
         )}
 
         {/* Follow-up Lists */}
@@ -397,7 +404,7 @@ const FollowUpsPage = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -414,8 +421,8 @@ const FollowUpsPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredTodaysFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                       onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
@@ -453,7 +460,7 @@ const FollowUpsPage = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredTodaysFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -461,7 +468,7 @@ const FollowUpsPage = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Today's Follow-ups */}
             {getTotalFilteredTodaysFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -501,7 +508,7 @@ const FollowUpsPage = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -518,8 +525,8 @@ const FollowUpsPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredTomorrowsFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                       onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
@@ -557,7 +564,7 @@ const FollowUpsPage = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredTomorrowsFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -565,7 +572,7 @@ const FollowUpsPage = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Tomorrow's Follow-ups */}
             {getTotalFilteredTomorrowsFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -605,7 +612,7 @@ const FollowUpsPage = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -622,8 +629,8 @@ const FollowUpsPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredUpcomingFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                       onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
@@ -661,7 +668,7 @@ const FollowUpsPage = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredUpcomingFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -669,7 +676,7 @@ const FollowUpsPage = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Upcoming Follow-ups */}
             {getTotalFilteredUpcomingFollowUps().length > 2 && (
               <div className="mt-4 text-center">
@@ -709,7 +716,7 @@ const FollowUpsPage = () => {
                 </Select>
               </div>
             </div>
-            
+
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead className="bg-gray-50 dark:bg-gray-800">
@@ -726,8 +733,8 @@ const FollowUpsPage = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
                   {getFilteredPendingFollowUps().filter(followUp => followUp.lead).map(followUp => (
-                    <tr 
-                      key={followUp.id} 
+                    <tr
+                      key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
                       onClick={() => followUp.lead && handleLeadClick(followUp.lead.id || followUp.lead._id || '')}
                     >
@@ -735,7 +742,7 @@ const FollowUpsPage = () => {
                         <div className="flex items-center gap-2">
                           <div className="h-6 w-6 rounded-full bg-orange-500 flex items-center justify-center">
                             <span className="text-white font-semibold text-xs">
-                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()} 
+                              {(followUp.lead.customData?.["First Name"] || 'U').charAt(0).toUpperCase()}
                             </span>
                           </div>
                           <span className="font-medium text-gray-900 dark:text-white">
@@ -765,7 +772,7 @@ const FollowUpsPage = () => {
                   ))}
                 </tbody>
               </table>
-              
+
               {getFilteredPendingFollowUps().length === 0 && (
                 <div className="text-center py-8">
                   <Icon icon="solar:check-circle-line-duotone" className="text-green-500 text-3xl mx-auto mb-2" />
@@ -773,7 +780,7 @@ const FollowUpsPage = () => {
                 </div>
               )}
             </div>
-            
+
             {/* Show More Button for Pending Follow-ups */}
             {getTotalFilteredPendingFollowUps().length > 2 && (
               <div className="mt-4 text-center">
