@@ -6,7 +6,7 @@ import { useAuth } from "@/app/context/AuthContext";
 import { API_ENDPOINTS } from "@/lib/config";
 import { PERMISSIONS } from "@/app/types/permissions";
 import { usePermissions } from "@/app/context/PermissionContext";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Interfaces
 interface LeadStatusSummary {
@@ -29,6 +29,7 @@ interface UserPerformance {
   userLevel: number;
   totalLeads: number;
   freshLead: number;
+  isActive?: boolean;
   statusBreakdown: {
     [statusName: string]: StatusBreakdown;
   };
@@ -51,9 +52,20 @@ interface ReportInfo {
     channelPartnerId: string | null;
     leadSourceId: string | null;
     statusId: string | null;
+    sortOrder?: 'asc' | 'desc';
+    page?: number;
+    limit?: number;
   };
   totalUsers: number;
   totalLeads: number;
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    totalUsers: number;
+    limit: number;
+    hasNextPage: boolean;
+    hasPrevPage: boolean;
+  };
 }
 
 interface LeadReportData {
@@ -91,6 +103,7 @@ const LeadReportsPage = () => {
   const { token, user } = useAuth();
   const { hasPermission } = usePermissions();
   const router = useRouter();
+  const searchParams = useSearchParams();
   
   // Super admin bypass - no permission checks needed
   const isSuperAdmin = user?.role === 'superadmin' || user?.email === 'superadmin@deltayards.com';
@@ -124,11 +137,47 @@ const LeadReportsPage = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [leadSources, setLeadSources] = useState<LeadSource[]>([]);
   const [channelPartners, setChannelPartners] = useState<ChannelPartner[]>([]);
+  const [totalUsersCount, setTotalUsersCount] = useState<number | null>(null);
 
   // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
+  // Initialize filters from URL query parameters
+  useEffect(() => {
+    const statusIdParam = searchParams.get('statusId');
+    const userIdParam = searchParams.get('userId');
+
+    let hasFilters = false;
+    let filterMessage = '';
+
+    if (statusIdParam) {
+      setFilterStatusId(statusIdParam);
+      hasFilters = true;
+      filterMessage += 'Status filter applied';
+    }
+    
+    if (userIdParam) {
+      setFilterUserId(userIdParam);
+      hasFilters = true;
+      if (filterMessage) filterMessage += ' and ';
+      filterMessage += 'User filter applied';
+    }
+
+    // Auto-apply filters when coming from charts
+    if (hasFilters && token && finalPermissions.canReadReports) {
+      setAlertMessage({ 
+        type: 'info', 
+        message: `${filterMessage} from chart selection. Click "Apply Filters" to refresh or "Clear All" to reset.` 
+      });
+      
+      // Small delay to ensure state is updated
+      setTimeout(() => {
+        fetchLeadReport();
+      }, 100);
+    }
+  }, [searchParams]);
 
   // Fetch reference data on mount
   useEffect(() => {
@@ -137,12 +186,12 @@ const LeadReportsPage = () => {
     }
   }, [token]);
 
-  // Fetch report when filters change or on mount
+  // Fetch report when dependencies change or on mount
   useEffect(() => {
     if (token && finalPermissions.canReadReports) {
       fetchLeadReport();
     }
-  }, [token, finalPermissions.canReadReports]);
+  }, [token, finalPermissions.canReadReports, currentPage, pageSize, sortOrder]);
 
   const fetchReferenceData = async () => {
     try {
@@ -228,6 +277,29 @@ const LeadReportsPage = () => {
           setUsers(usersList);
         }
       }
+
+      // Fetch total users count for stats card
+      try {
+        const totalUsersResponse = await fetch(API_ENDPOINTS.TOTAL_USERS, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (totalUsersResponse.ok) {
+          const totalUsersData = await totalUsersResponse.json();
+          const count =
+            (typeof totalUsersData === 'number' ? totalUsersData : null) ??
+            totalUsersData?.totalUsers ??
+            totalUsersData?.count ??
+            totalUsersData?.total ??
+            (Array.isArray(totalUsersData?.users) ? totalUsersData.users.length : null) ??
+            (Array.isArray(totalUsersData) ? totalUsersData.length : null);
+          if (typeof count === 'number') {
+            setTotalUsersCount(count);
+          }
+        }
+      } catch (e) {
+        // Non-fatal; fall back to reportInfo.totalUsers
+        console.warn('Failed to fetch total users count');
+      }
     } catch (error) {
       console.error("Error fetching reference data:", error);
     } finally {
@@ -250,6 +322,9 @@ const LeadReportsPage = () => {
       if (filterChannelPartnerId && filterChannelPartnerId !== 'all') params.append('channelPartnerId', filterChannelPartnerId);
       if (filterLeadSourceId && filterLeadSourceId !== 'all') params.append('leadSourceId', filterLeadSourceId);
       if (filterStatusId && filterStatusId !== 'all') params.append('statusId', filterStatusId);
+      params.append('sortOrder', sortOrder);
+      params.append('page', String(currentPage));
+      params.append('limit', String(pageSize));
 
       const url = `${API_ENDPOINTS.LEAD_REPORTS}${params.toString() ? '?' + params.toString() : ''}`;
       
@@ -450,24 +525,16 @@ const LeadReportsPage = () => {
     setAlertMessage({ type: 'success', message: `Exported ${filteredUsers.length} user records to CSV` });
   }, [reportData, filteredUsers]);
 
-  // Pagination
-  const totalItems = filteredUsers.length;
-  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
-  const displayedPage = Math.min(currentPage, totalPages);
-  const startIndex = (displayedPage - 1) * pageSize;
-  const endIndex = startIndex + pageSize;
-  const paginatedUsers = filteredUsers.slice(startIndex, endIndex);
+  // Server pagination (use API response metadata when available)
+  const pagination = reportData?.reportInfo.pagination;
+  const paginatedUsers = filteredUsers; // server already paginates
 
   // Reset page when filters change
   useEffect(() => {
     setCurrentPage(1);
   }, [searchTerm, pageSize]);
 
-  useEffect(() => {
-    if (currentPage > totalPages) {
-      setCurrentPage(totalPages);
-    }
-  }, [totalPages, currentPage]);
+  // Server-driven pagination; currentPage validity is managed by API metadata
 
   if (isLoading || finalPermissions.permissionsLoading) {
     return (
@@ -588,7 +655,7 @@ const LeadReportsPage = () => {
           <Card className="p-6">
             <div className="text-center">
               <div className="text-3xl lg:text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
-                {reportData.reportInfo.totalUsers}
+                {reportData.reportInfo.pagination?.totalUsers ?? totalUsersCount ?? reportData.reportInfo.totalUsers}
               </div>
               <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Total Users</div>
             </div>
@@ -684,7 +751,7 @@ const LeadReportsPage = () => {
           </div>
 
           {/* Additional Filters */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-3 lg:gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-3 lg:gap-4">
             <div className="w-full">
               <Select
                 value={filterProjectId}
@@ -760,6 +827,17 @@ const LeadReportsPage = () => {
               </Select>
               <p className="text-xs text-gray-500 mt-1">Status</p>
             </div>
+            <div className="w-full">
+              <Select
+                value={sortOrder}
+                onChange={(e) => { setCurrentPage(1); setSortOrder((e.target.value as 'asc' | 'desc')); }}
+                className="w-full"
+              >
+                <option value="desc">Sort: High to Low</option>
+                <option value="asc">Sort: Low to High</option>
+              </Select>
+              <p className="text-xs text-gray-500 mt-1">Sort Order</p>
+            </div>
           </div>
 
           {/* Filter Actions */}
@@ -795,7 +873,7 @@ const LeadReportsPage = () => {
                 <Table.HeadCell className="min-w-[150px]">User</Table.HeadCell>
                 <Table.HeadCell className="min-w-[120px]">Email</Table.HeadCell>
                 <Table.HeadCell className="min-w-[80px]">Role</Table.HeadCell>
-                <Table.HeadCell className="min-w-[60px]">Level</Table.HeadCell>
+                <Table.HeadCell className="min-w-[90px]">Status</Table.HeadCell>
                 <Table.HeadCell className="min-w-[80px]">Total Leads</Table.HeadCell>
                 <Table.HeadCell className="min-w-[80px]">Fresh Leads</Table.HeadCell>
                 {reportData.availableStatuses.map(status => (
@@ -839,13 +917,13 @@ const LeadReportsPage = () => {
                           {userPerf.userRole}
                         </Badge>
                       </Table.Cell>
-                      <Table.Cell className="text-center">
-                        <Badge color="purple" size="sm">
-                          L{userPerf.userLevel}
+                      <Table.Cell>
+                        <Badge color={userPerf.isActive ? 'success' : 'gray'} size="sm">
+                          {userPerf.isActive ? 'Active' : 'Inactive'}
                         </Badge>
                       </Table.Cell>
                       <Table.Cell className="text-center font-semibold text-blue-600 dark:text-blue-400">
-                        {userPerf.totalLeads}
+                        {userPerf.totalLeads === 0 ? <span className="text-gray-400">0</span> : userPerf.totalLeads}
                       </Table.Cell>
                       <Table.Cell className="text-center font-semibold text-green-600 dark:text-green-400">
                         {userPerf.freshLead}
@@ -887,12 +965,21 @@ const LeadReportsPage = () => {
             {filteredUsers.length > 0 && (
               <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 py-4 border-t border-gray-200 dark:border-gray-700">
             <div className="text-xs sm:text-sm text-gray-600 dark:text-gray-400 text-center sm:text-left">
-              Showing {Math.min(startIndex + 1, totalItems)}-{Math.min(endIndex, totalItems)} of {totalItems} user{totalItems !== 1 ? 's' : ''}
+              {(() => {
+                const start = ((pagination?.currentPage || currentPage) - 1) * (pagination?.limit || pageSize) + 1;
+                const end = start + (paginatedUsers.length || 0) - 1;
+                const total = pagination?.totalUsers ?? reportData?.reportInfo.totalUsers ?? paginatedUsers.length;
+                return (
+                  <span>
+                    Showing {Math.min(start, total)}-{Math.min(end, total)} of {total} user{total !== 1 ? 's' : ''}
+                  </span>
+                );
+              })()}
             </div>
             <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
               <div className="flex items-center gap-2 text-xs sm:text-sm w-full sm:w-auto justify-center">
                 <span className="text-gray-600 dark:text-gray-400 whitespace-nowrap">Rows:</span>
-                <Select value={String(pageSize)} onChange={(e) => setPageSize(parseInt(e.target.value, 10))} className="w-20">
+                <Select value={String(pageSize)} onChange={(e) => { setPageSize(parseInt(e.target.value, 10)); setCurrentPage(1); }} className="w-20">
                   <option value="10">10</option>
                   <option value="20">20</option>
                   <option value="50">50</option>
@@ -900,9 +987,9 @@ const LeadReportsPage = () => {
                 </Select>
               </div>
               <Pagination
-                currentPage={displayedPage}
-                totalPages={totalPages}
-                onPageChange={(page) => setCurrentPage(page)}
+                currentPage={pagination?.currentPage || currentPage}
+                totalPages={pagination?.totalPages || 1}
+                onPageChange={(page) => setCurrentPage(Math.max(page, 1))}
                 showIcons
               />
               </div>
