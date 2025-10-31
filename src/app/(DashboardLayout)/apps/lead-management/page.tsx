@@ -20,6 +20,7 @@ interface FormField {
   type: string;
   required: boolean;
   options: string[];
+  statusIds?: string[]; // Store status IDs for dynamic field lookup
 }
 
 interface LeadStatus {
@@ -63,8 +64,11 @@ const LeadManagementPage = () => {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [activeTab, setActiveTab] = useState("source");
   const [editingItem, setEditingItem] = useState<{ type: 'source' | 'status', id: string, data: any } | null>(null);
-  const defaultFormFields: FormField[] = [{ name: "Remark", type: "text", required: true, options: [] as string[] }];
-  const bookingDateField: FormField = { name: "Booking Date", type: "date", required: true, options: [] };
+  const defaultFormFields: FormField[] = [
+    { name: "Remark", type: "text", required: true, options: [] as string[], statusIds: [] },
+    { name: "Date", type: "date", required: true, options: [], statusIds: [] }
+  ];
+  const bookingDateField: FormField = { name: "Booking Date", type: "date", required: true, options: [], statusIds: [] };
   const finalStatusFormFields: FormField[] = [bookingDateField]; // Only Booking Date for final statuses
 
   const [formData, setFormData] = useState<FormData>({
@@ -356,7 +360,8 @@ const LeadManagementPage = () => {
                   name: field.name,
                   type: field.type,
                   required: field.required,
-                  options: field.options || []
+                  options: field.options || [],
+                  statusIds: field.statusIds || []
                 })),
               is_final_status: formData.is_final_status,
               is_default_status: formData.is_default_status,
@@ -389,7 +394,8 @@ const LeadManagementPage = () => {
                   name: field.name,
                   type: field.type,
                   required: field.required,
-                  options: field.options || []
+                  options: field.options || [],
+                  statusIds: field.statusIds || []
                 })),
               is_final_status: formData.is_final_status,
               is_default_status: formData.is_default_status,
@@ -551,7 +557,7 @@ const LeadManagementPage = () => {
   const addFormField = () => {
     setFormData(prev => ({
       ...prev,
-      formFields: [...prev.formFields, { name: "", type: "text", required: false, options: [] as string[] }]
+      formFields: [...prev.formFields, { name: "", type: "text", required: false, options: [] as string[], statusIds: [] }]
     }));
   };
 
@@ -1357,52 +1363,64 @@ const LeadManagementPage = () => {
                         {/* Options for Select fields */}
                         {field.type === 'select' && (
                           <div className="mt-4 p-4 bg-blue-50 dark:bg-blue-900/20 rounded-lg border border-blue-200 dark:border-blue-700">
-                            <div className="flex items-center justify-between mb-3">
-                              <div className="flex items-center gap-2">
-                                <Icon icon="solar:list-line-duotone" className="text-blue-600 dark:text-blue-400" />
-                                <Label value="Select Options" className="text-sm font-medium text-blue-800 dark:text-blue-200" />
+                            <div className="flex items-center gap-2 mb-3">
+                              <Icon icon="solar:list-line-duotone" className="text-blue-600 dark:text-blue-400" />
+                              <Label value="Select Lead Statuses as Options" className="text-sm font-medium text-blue-800 dark:text-blue-200" />
+                            </div>
+                            <p className="text-xs text-blue-600 dark:text-blue-400 mb-3">
+                              <Icon icon="solar:info-circle-line-duotone" className="inline mr-1" />
+                              Check the lead statuses you want to show as options in this select field
+                            </p>
+                            <div className="space-y-2 max-h-60 overflow-y-auto bg-white dark:bg-gray-700 rounded-lg p-3 border border-blue-200 dark:border-blue-600">
+                              {leadStatuses.map((status) => {
+                                const isSelected = field.options?.includes(status.name) || false;
+                                return (
+                                  <div key={status._id} className="flex items-center gap-2 p-2 hover:bg-gray-100 dark:hover:bg-gray-600 rounded-lg">
+                                    <input
+                                      type="checkbox"
+                                      id={`status-option-${index}-${status._id}`}
+                                      checked={isSelected}
+                                      onChange={(e) => {
+                                        const currentOptions = field.options || [];
+                                        const currentStatusIds = field.statusIds || [];
+                                        let newOptions, newStatusIds;
+                                        if (e.target.checked) {
+                                          // Add status name to options and ID to statusIds
+                                          newOptions = [...currentOptions, status.name];
+                                          newStatusIds = [...currentStatusIds, status._id];
+                                        } else {
+                                          // Remove status name from options and ID from statusIds
+                                          newOptions = currentOptions.filter(opt => opt !== status.name);
+                                          newStatusIds = currentStatusIds.filter(id => id !== status._id);
+                                        }
+                                        updateFormField(index, { options: newOptions, statusIds: newStatusIds });
+                                      }}
+                                      className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 focus:ring-2"
+                                    />
+                                    <label
+                                      htmlFor={`status-option-${index}-${status._id}`}
+                                      className="flex-1 cursor-pointer text-sm text-gray-700 dark:text-gray-300 flex items-center gap-2"
+                                    >
+                                      <Badge color="info" size="sm">{status.name}</Badge>
+                                      {status.is_final_status && <span className="text-xs text-red-600 dark:text-red-400">(Final)</span>}
+                                      {status.is_default_status && <span className="text-xs text-blue-600 dark:text-blue-400">(Default)</span>}
+                                    </label>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {(field.options || []).length > 0 && (
+                              <div className="mt-3 p-2 bg-blue-100 dark:bg-blue-800/30 rounded-lg">
+                                <p className="text-xs font-medium text-blue-800 dark:text-blue-200 mb-2">Selected Options ({field.options.length}):</p>
+                                <div className="flex flex-wrap gap-2">
+                                  {field.options.map((option, optionIndex) => (
+                                    <Badge key={optionIndex} color="info" size="sm">
+                                      {option}
+                                    </Badge>
+                                  ))}
+                                </div>
                               </div>
-                              <Button
-                                type="button"
-                                size="sm"
-                                color="blue"
-                                onClick={() => addOption(index)}
-                                className="flex items-center gap-1"
-                              >
-                                <Icon icon="solar:add-circle-line-duotone" className="text-sm" />
-                                Add Option
-                              </Button>
-                            </div>
-                            <div className="space-y-3">
-                              {(field.options || []).map((option, optionIndex) => (
-                                <div key={optionIndex} className="flex gap-2 items-center">
-                                  <TextInput
-                                    placeholder="Option value (e.g., Yes, No, Maybe)..."
-                                    value={option}
-                                    onChange={(e) => updateOption(index, optionIndex, e.target.value)}
-                                    className="flex-1 bg-white dark:bg-gray-700"
-                                  />
-                                  <Button
-                                    type="button"
-                                    size="sm"
-                                    color="failure"
-                                    onClick={() => removeOption(index, optionIndex)}
-                                    className="flex items-center gap-1"
-                                  >
-                                    <Icon icon="solar:trash-bin-trash-line-duotone" className="text-sm" />
-                                    Remove
-                                  </Button>
-                                </div>
-                              ))}
-                              {(!field.options || field.options.length === 0) && (
-                                <div className="text-center py-4">
-                                  <Icon icon="solar:info-circle-line-duotone" className="text-blue-400 text-2xl mx-auto mb-2" />
-                                  <p className="text-sm text-blue-600 dark:text-blue-400">
-                                    No options added yet. Click "Add Option" to add choices for this select field.
-                                  </p>
-                                </div>
-                              )}
-                            </div>
+                            )}
                           </div>
                         )}
 

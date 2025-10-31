@@ -69,6 +69,7 @@ interface FormField {
   required: boolean;
   options: string[];
   _id: string;
+  statusIds?: string[]; // Store status IDs for dynamic field lookup
 }
 
 interface LeadStatus {
@@ -450,6 +451,12 @@ const LeadsPage = () => {
   // Get required fields for selected status
   const getRequiredFieldsForStatus = (statusId: string) => {
     const status = leadStatuses.find(s => s._id === statusId);
+    console.log('Getting fields for status:', {
+      statusId,
+      statusName: status?.name,
+      formFields: status?.formFields,
+      formFieldsCount: status?.formFields?.length || 0
+    });
     return status?.formFields || [];
   };
 
@@ -3378,7 +3385,7 @@ const LeadsPage = () => {
                       onChange={(e) => handleStatusChange(e.target.value)}
                       required
                       className="w-full"
-                      disabled={!editingLead}
+                      disabled={!!editingLead}
                     >
                       <option value="">Select lead status</option>
                       {leadStatuses.map(status => (
@@ -3387,9 +3394,9 @@ const LeadsPage = () => {
                         </option>
                       ))}
                     </Select>
-                    <p className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-1">
-                      <Icon icon="solar:lock-line-duotone" className="w-3 h-3" />
-                      Status is automatically set to default and locked
+                    <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
+                      <Icon icon="solar:info-circle-line-duotone" className="w-3 h-3" />
+                      {editingLead ? "Status cannot be changed when editing a lead" : "Status is automatically set to default"}
                     </p>
                   </div>
                 </div>
@@ -3512,7 +3519,6 @@ const LeadsPage = () => {
                               onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                               required={field.required}
                               className="w-full"
-                            // disabled={!!editingLead}
                             />
                           ) : field.type === 'email' ? (
                             <TextInput
@@ -3523,7 +3529,6 @@ const LeadsPage = () => {
                               onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                               required={field.required}
                               className="w-full"
-                              disabled={!!editingLead}
                             />
                           ) : field.type === 'tel' || field.type === 'phone' ? (
                             <TextInput
@@ -3534,7 +3539,6 @@ const LeadsPage = () => {
                               onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                               required={field.required}
                               className="w-full"
-                              disabled={!!editingLead}
                             />
                           ) : field.type === 'number' ? (
                             <TextInput
@@ -3545,7 +3549,6 @@ const LeadsPage = () => {
                               onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                               required={field.required}
                               className="w-full"
-                              disabled={!!editingLead}
                             />
                           ) : field.type === 'date' ? (
                             <TextInput
@@ -3590,16 +3593,53 @@ const LeadsPage = () => {
                               rows={3}
                               required={field.required}
                               className="w-full"
-                              disabled={!!editingLead}
                             />
                           ) : field.type === 'select' && field.options && field.options.length > 0 ? (
+                            <div className="space-y-2">
                             <Select
                               id={field.name}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                                onChange={(e) => {
+                                  const selectedValue = e.target.value;
+                                  setDynamicFields(prev => ({ ...prev, [field.name]: selectedValue }));
+                                  
+                                  // If this field has statusIds, find which status was selected and load its fields
+                                  if (field.statusIds && field.statusIds.length > 0) {
+                                    const selectedIndex = field.options.indexOf(selectedValue);
+                                    if (selectedIndex >= 0 && selectedIndex < field.statusIds.length) {
+                                      const selectedStatusId = field.statusIds[selectedIndex];
+                                      const selectedStatus = leadStatuses.find(s => s._id === selectedStatusId);
+                                      
+                                      if (selectedStatus && selectedStatus.formFields) {
+                                        const nestedFields: { [key: string]: any } = { ...dynamicFields, [field.name]: selectedValue };
+                                        
+                                        // Use namespaced field names to avoid collisions
+                                        const namespacedPrefix = `${field.name}_${selectedValue}_`;
+                                        
+                                        selectedStatus.formFields.forEach((nestedField: FormField) => {
+                                          const namespacedFieldName = `${namespacedPrefix}${nestedField.name}`;
+                                          
+                                          if (nestedField.type === 'date') {
+                                            if (selectedStatus.is_final_status) {
+                                              const today = new Date();
+                                              nestedFields[namespacedFieldName] = nestedFields[namespacedFieldName] || formatDateToYYYYMMDD(today);
+                                            } else {
+                                              nestedFields[namespacedFieldName] = nestedFields[namespacedFieldName] || '';
+                                            }
+                                          } else if (nestedField.type === 'checkbox') {
+                                            nestedFields[namespacedFieldName] = nestedFields[namespacedFieldName] || [];
+                                          } else {
+                                            nestedFields[namespacedFieldName] = nestedFields[namespacedFieldName] || '';
+                                          }
+                                        });
+                                        
+                                        setDynamicFields(nestedFields);
+                                      }
+                                    }
+                                  }
+                                }}
                               required={field.required}
                               className="w-full"
-                              disabled={!!editingLead}
                             >
                               <option value="">Select {field.name}</option>
                               {field.options.map((option: string, index: number) => (
@@ -3608,6 +3648,7 @@ const LeadsPage = () => {
                                 </option>
                               ))}
                             </Select>
+                            </div>
                           ) : field.type === 'checkbox' && field.options && field.options.length > 0 ? (
                             <div className="space-y-2">
                               {field.options.map((option: string, index: number) => {
@@ -3639,7 +3680,6 @@ const LeadsPage = () => {
                                         setDynamicFields(prev => ({ ...prev, [field.name]: newValues }));
                                       }}
                                       className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
-                                      disabled={!!editingLead}
                                     />
                                     <label htmlFor={`${field.name}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
                                       {option}
@@ -3657,13 +3697,120 @@ const LeadsPage = () => {
                               onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
                               required={field.required}
                               className="w-full"
-                            // disabled={!!editingLead}
                             />
                           )}
                         </div>
                       ))}
                   </div>
                 </div>
+              )}
+
+              {/* Nested Dynamic Fields from Selected Status in Select Options */}
+              {formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
+                <>
+                  {getRequiredFieldsForStatus(formData.status)
+                    .filter(field => field.type === 'select' && field.statusIds && field.statusIds.length > 0)
+                    .map(parentField => {
+                      const selectedOption = dynamicFields[parentField.name];
+                      if (!selectedOption) return null;
+                      
+                      const selectedIndex = parentField.options.indexOf(selectedOption);
+                      if (selectedIndex < 0 || selectedIndex >= (parentField.statusIds?.length || 0)) return null;
+                      
+                      const selectedStatusId = parentField.statusIds![selectedIndex];
+                      const selectedStatus = leadStatuses.find(s => s._id === selectedStatusId);
+                      if (!selectedStatus || !selectedStatus.formFields || selectedStatus.formFields.length === 0) return null;
+                      
+                      return (
+                        <div key={`nested-${parentField.name}`} className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-200 dark:border-green-700 p-6">
+                          <div className="flex items-center mb-6">
+                            <div className="bg-green-100 dark:bg-green-900/20 p-2 rounded-lg mr-3">
+                              <Icon icon="solar:folder-with-files-line-duotone" className="text-green-600 dark:text-green-400 text-xl" />
+                            </div>
+                            <div>
+                              <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                Additional Fields for "{selectedStatus.name}"
+                              </h3>
+                              <p className="text-sm text-gray-600 dark:text-gray-400">
+                                Selected from "{parentField.name}" field
+                              </p>
+                            </div>
+                          </div>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {selectedStatus.formFields
+                              .filter(nestedField => nestedField.name && nestedField.name.trim() !== '')
+                              .map(nestedField => {
+                                const namespacedFieldName = `${parentField.name}_${selectedOption}_${nestedField.name}`;
+                                return (
+                                  <div key={namespacedFieldName} className="space-y-2">
+                                    <Label
+                                      htmlFor={`nested-${namespacedFieldName}`}
+                                      value={`${nestedField.name} ${nestedField.required ? '*' : ''}`}
+                                      className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                                    />
+                                    {nestedField.type === 'text' ? (
+                                      <TextInput
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="text"
+                                        placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                      />
+                                    ) : nestedField.type === 'date' ? (
+                                      <TextInput
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="date"
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                      />
+                                    ) : nestedField.type === 'textarea' ? (
+                                      <Textarea
+                                        id={`nested-${namespacedFieldName}`}
+                                        placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        rows={3}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                      />
+                                    ) : nestedField.type === 'select' && nestedField.options && nestedField.options.length > 0 ? (
+                                      <Select
+                                        id={`nested-${namespacedFieldName}`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                      >
+                                        <option value="">Select {nestedField.name}</option>
+                                        {nestedField.options.map((option: string, index: number) => (
+                                          <option key={index} value={option}>
+                                            {option}
+                                          </option>
+                                        ))}
+                                      </Select>
+                                    ) : (
+                                      <TextInput
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="text"
+                                        placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                      />
+                                    )}
+                                  </div>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      );
+                    })}
+                </>
               )}
 
               {/* Additional Lead Information */}

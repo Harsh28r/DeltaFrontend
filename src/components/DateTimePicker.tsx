@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
-import { TextInput, Button } from 'flowbite-react';
+import React from 'react';
+import { TextInput } from 'flowbite-react';
 import { Icon } from '@iconify/react';
 import { formatForInput, formatForStorage, validateDateTime, getRelativeTime } from '@/utils/datetimeUtils';
 
@@ -14,6 +14,7 @@ interface DateTimePickerProps {
   required?: boolean;
   type: 'date' | 'datetime' | 'time';
   label?: string;
+  disabled?: boolean;
 }
 
 const DateTimePicker: React.FC<DateTimePickerProps> = ({
@@ -24,9 +25,9 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
   className = "w-full",
   required = false,
   type,
-  label
+  label,
+  disabled = false
 }) => {
-  const [isOpen, setIsOpen] = useState(false);
 
   // Convert input value back to proper format for storage
   const handleInputChange = (inputValue: string) => {
@@ -103,6 +104,7 @@ const DateTimePicker: React.FC<DateTimePickerProps> = ({
           placeholder={getPlaceholder()}
           className={`${className} pr-10`}
           required={required}
+          disabled={disabled}
         />
         <div className="absolute inset-y-0 right-0 flex items-center pr-3 pointer-events-none">
           <Icon 

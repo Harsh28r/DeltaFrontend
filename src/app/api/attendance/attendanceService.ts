@@ -35,10 +35,37 @@ const getAuthHeaders = () => {
  * Check-in with GPS location
  */
 export const checkIn = async (data: CheckInRequest): Promise<Attendance> => {
+  let token = localStorage.getItem('auth_token') || 
+              sessionStorage.getItem('auth_token') || 
+              localStorage.getItem('token');
+
+  // Use FormData if selfie is present (base64 image), otherwise use JSON
+  const headers: any = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  let body: any;
+
+  if (data.selfie) {
+    // Use FormData for image data
+    const formData = new FormData();
+    formData.append('latitude', data.latitude.toString());
+    formData.append('longitude', data.longitude.toString());
+    formData.append('address', data.address);
+    if (data.accuracy !== undefined) formData.append('accuracy', data.accuracy.toString());
+    if (data.selfie) formData.append('selfie', data.selfie);
+    if (data.platform) formData.append('platform', data.platform);
+    body = formData;
+  } else {
+    // Use JSON for non-image data
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(data);
+  }
+
   const response = await fetch(API_ENDPOINTS.ATTENDANCE_CHECK_IN, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(data),
+    headers,
+    body,
   });
 
   if (!response.ok) {
@@ -54,10 +81,35 @@ export const checkIn = async (data: CheckInRequest): Promise<Attendance> => {
  * Check-out with GPS location
  */
 export const checkOut = async (data: CheckOutRequest): Promise<Attendance> => {
+  let token = localStorage.getItem('auth_token') || 
+              sessionStorage.getItem('auth_token') || 
+              localStorage.getItem('token');
+
+  const headers: any = {
+    Authorization: `Bearer ${token}`,
+  };
+
+  let body: any;
+
+  if (data.selfie) {
+    // Use FormData for image data
+    const formData = new FormData();
+    formData.append('latitude', data.latitude.toString());
+    formData.append('longitude', data.longitude.toString());
+    formData.append('address', data.address);
+    if (data.accuracy !== undefined) formData.append('accuracy', data.accuracy.toString());
+    if (data.selfie) formData.append('selfie', data.selfie);
+    body = formData;
+  } else {
+    // Use JSON for non-image data
+    headers['Content-Type'] = 'application/json';
+    body = JSON.stringify(data);
+  }
+
   const response = await fetch(API_ENDPOINTS.ATTENDANCE_CHECK_OUT, {
     method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(data),
+    headers,
+    body,
   });
 
   if (!response.ok) {

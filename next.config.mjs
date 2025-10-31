@@ -3,6 +3,8 @@ const nextConfig = {
     reactStrictMode: false,
     // Fix the workspace root issue
     outputFileTracingRoot: process.cwd(),
+    // Enable standalone output for Docker
+    output: 'standalone',
     // Remove deprecated appDir option (App Router is default in Next.js 13+)
     // Add webpack configuration to handle memory issues
     webpack: (config, { isServer }) => {
