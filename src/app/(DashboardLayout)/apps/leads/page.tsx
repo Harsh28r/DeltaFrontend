@@ -86,15 +86,15 @@ interface Lead {
     name: string;
     email: string;
     role?: string;
-  } | null;
+  };
   leadSource?: {
     _id: string;
     name: string;
-  } | null;
+  };
   currentStatus?: {
     _id: string;
     name: string;
-  } | null;
+  };
   cpSourcingId?: {
     _id: string;
     name?: string;
@@ -102,15 +102,15 @@ interface Lead {
       _id: string;
       name: string;
     };
-  } | null;
+  };
   channelPartner?: {
     _id: string;
     name: string;
-  } | null;
+  };
   project?: {
     _id: string;
     name: string;
-  } | null;
+  };
   customData: {
     "First Name"?: string;
     "Email"?: string;
@@ -199,12 +199,75 @@ const LeadsPage = () => {
   const [filterDateFrom, setFilterDateFrom] = useState<string>("");
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [datePreset, setDatePreset] = useState<string>("custom");
+  const [filterLeadType, setFilterLeadType] = useState<string>("all"); // New state for lead type filter
 
-  // Initialize filterStatus from URL query parameter if present
+  // Initialize filters from URL query parameters if present
   useEffect(() => {
     const statusParam = searchParams.get('status');
+    const sourceParam = searchParams.get('source');
+    const monthParam = searchParams.get('month');
+    const yearParam = searchParams.get('year');
+    const startDateParam = searchParams.get('startDate');
+    const endDateParam = searchParams.get('endDate');
+    const leadTypeParam = searchParams.get('leadType');
+    const projectIdParam = searchParams.get('projectId');
+    const userIdParam = searchParams.get('userId');
+
+    // Check if any analytics filters are being applied
+    const hasAnalyticsFilters = monthParam || yearParam || startDateParam || endDateParam || leadTypeParam || projectIdParam || userIdParam;
+
     if (statusParam) {
       setFilterStatus(statusParam);
+    }
+    
+    if (sourceParam) {
+      setFilterSource(sourceParam);
+    }
+
+    // Handle custom date range parameters (from analytics page)
+    if (startDateParam && endDateParam) {
+      setFilterDateFrom(startDateParam);
+      setFilterDateTo(endDateParam);
+      setDatePreset("custom");
+    }
+    // Handle month and year parameters (legacy support)
+    else if (monthParam && yearParam) {
+      // Convert month and year to date range
+      const year = parseInt(yearParam);
+      const month = parseInt(monthParam);
+      
+      // First day of the month
+      const fromDate = new Date(year, month - 1, 1);
+      // Last day of the month
+      const toDate = new Date(year, month, 0);
+      
+      setFilterDateFrom(formatDateToYYYYMMDD(fromDate));
+      setFilterDateTo(formatDateToYYYYMMDD(toDate));
+      setDatePreset("custom");
+    }
+
+    // Handle lead type parameter (total, digital, cp)
+    if (leadTypeParam) {
+      setFilterLeadType(leadTypeParam);
+    }
+
+    // Handle project ID parameter
+    if (projectIdParam) {
+      setSelectedProjectId(projectIdParam);
+    }
+
+    // Handle user ID parameter
+    if (userIdParam) {
+      setFilterUser(userIdParam);
+    }
+
+    // Automatically refresh data when coming from analytics page
+    if (hasAnalyticsFilters && !isLoading && token) {
+      // Small delay to ensure all state updates are applied
+      const refreshTimer = setTimeout(() => {
+        fetchLeads();
+      }, 100);
+      return () => clearTimeout(refreshTimer);
     }
   }, [searchParams]);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -606,16 +669,13 @@ const LeadsPage = () => {
     }
   };
 
-  const fetchLeads = async () => {
-    if (isLoadingLeads) return;
-
+  // Fetch ALL leads without pagination for stats and charts
+  const fetchAllLeads = async () => {
     try {
-      setIsLoadingLeads(true);
-      // Build URL with pagination params (backend-supported)
+      // Use all=true parameter as per backend fix
       const baseUrl = API_ENDPOINTS.LEADS();
       const url = new URL(baseUrl);
-      url.searchParams.set('page', String(currentPage));
-      url.searchParams.set('limit', String(pageSize));
+      url.searchParams.set('all', 'true'); // Backend now supports this parameter
 
       const leadsResponse = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
@@ -623,39 +683,38 @@ const LeadsPage = () => {
 
       if (leadsResponse.ok) {
         const leadsData = await leadsResponse.json();
-        console.log('Leads Data:', leadsData);
         const leadsArray = leadsData.leads || leadsData || [];
-        // Capture server pagination metadata if provided
-        const paginationMeta = (leadsData as any).pagination;
-        if (paginationMeta && typeof paginationMeta === 'object') {
-          const srvCurrentPage = Number(paginationMeta.currentPage) || currentPage;
-          const srvTotalPages = Number(paginationMeta.totalPages) || null;
-          const srvTotalItems = Number(paginationMeta.totalItems) || null;
-          const srvLimit = Number(paginationMeta.limit) || pageSize;
-          setServerTotalItems(srvTotalItems);
-          setServerTotalPages(srvTotalPages);
-          if (srvCurrentPage !== currentPage) setCurrentPage(srvCurrentPage);
-          if (srvLimit !== pageSize) setPageSize(srvLimit);
-        } else {
-          setServerTotalItems(null);
-          setServerTotalPages(null);
-        }
         const transformedLeads = transformLeadData(leadsArray);
-        setLeads(transformedLeads);
+        setTotalLeads(transformedLeads); // Store all leads for stats/charts
+        console.log('✅ Fetched ALL leads for stats/charts:', transformedLeads.length);
+        } else {
+        console.error('❌ Failed to fetch all leads:', leadsResponse.status, leadsResponse.statusText);
+        setTotalLeads([]); // Clear on error
+      }
+    } catch (error) {
+      console.error("❌ Error fetching all leads:", error);
+      setTotalLeads([]); // Clear on error
+    }
+  };
+
+  const fetchLeads = async () => {
+    if (isLoadingLeads) return;
+
+    try {
+      setIsLoadingLeads(true);
+      
+      // Fetch ALL leads (no pagination) - we'll do client-side pagination
+      await fetchAllLeads();
+      
         setLastRefresh(new Date());
 
         // Only clear selected leads if we're not in bulk transfer mode
         // This prevents clearing selection when refreshing for bulk transfer
         if (!bulkTransferModal) {
           setSelectedLeads([]);
-        }
-      } else {
-        setLeads([]);
-        handleLeadsError(leadsResponse);
       }
     } catch (error) {
       console.error("Error fetching leads:", error);
-      setLeads([]);
       setAlertMessage({
         type: 'error',
         message: 'Network error: Failed to fetch leads. Please check your connection.'
@@ -1250,7 +1309,7 @@ const LeadsPage = () => {
       setIsUpdatingStatus(true);
 
       // Find the lead to get its current data
-      const currentLead = leads.find(lead => lead._id === leadId);
+      const currentLead = totalLeads.find(lead => lead._id === leadId);
 
       const requestBody = {
         newStatusId, // new status id
@@ -1330,10 +1389,10 @@ const LeadsPage = () => {
   };
 
   const handleSelectAllLeads = () => {
-    if (selectedLeads.length === filteredLeads.length) {
+    if (selectedLeads.length === filteredTotalLeads.length) {
       setSelectedLeads([]);
     } else {
-      setSelectedLeads(filteredLeads.map(lead => lead._id));
+      setSelectedLeads(filteredTotalLeads.map(lead => lead._id));
     }
   };
 
@@ -1835,7 +1894,7 @@ const LeadsPage = () => {
 
   // Export leads to CSV
   const handleExportToCSV = () => {
-    if (filteredLeads.length === 0) {
+    if (filteredTotalLeads.length === 0) {
       setAlertMessage({ type: 'error', message: 'No leads to export' });
       return;
     }
@@ -1861,8 +1920,8 @@ const LeadsPage = () => {
       'Notes'
     ];
 
-    // Convert leads to CSV rows
-    const rows = filteredLeads.map(lead => [
+    // Convert ALL filtered leads to CSV rows (not just current page)
+    const rows = filteredTotalLeads.map(lead => [
       lead.name || 'N/A',
       lead.email || 'N/A',
       lead.phone || 'N/A',
@@ -1914,12 +1973,12 @@ const LeadsPage = () => {
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
 
-    setAlertMessage({ type: 'success', message: `Exported ${filteredLeads.length} leads to CSV` });
+    setAlertMessage({ type: 'success', message: `Exported ${filteredTotalLeads.length} leads to CSV` });
   };
 
   // Export leads to PDF
   const handleExportToPDF = () => {
-    if (filteredLeads.length === 0) {
+    if (filteredTotalLeads.length === 0) {
       setAlertMessage({ type: 'error', message: 'No leads to export' });
       return;
     }
@@ -1944,7 +2003,7 @@ const LeadsPage = () => {
         <h1>Leads Export Report</h1>
         <div class="meta">
           <p>Generated on: ${new Date().toLocaleString()}</p>
-          <p>Total Leads: ${filteredLeads.length}</p>
+          <p>Total Leads: ${filteredTotalLeads.length}</p>
           ${filterStatus !== 'all' ? `<p>Filtered by Status: ${leadStatuses.find(s => s._id === filterStatus)?.name || filterStatus}</p>` : ''}
           ${filterSource !== 'all' ? `<p>Filtered by Source: ${leadSources.find(s => s._id === filterSource)?.name || filterSource}</p>` : ''}
         </div>
@@ -1965,7 +2024,7 @@ const LeadsPage = () => {
             </tr>
           </thead>
           <tbody>
-            ${filteredLeads.map((lead, index) => `
+            ${filteredTotalLeads.map((lead, index) => `
               <tr>
                 <td>${index + 1}</td>
                 <td>${lead.name || 'N/A'}</td>
@@ -1987,7 +2046,7 @@ const LeadsPage = () => {
           </tbody>
         </table>
         <div class="footer">
-          <p>This report contains ${filteredLeads.length} lead(s)</p>
+          <p>This report contains ${filteredTotalLeads.length} lead(s)</p>
         </div>
       </body>
       </html>
@@ -2008,7 +2067,7 @@ const LeadsPage = () => {
     }
 
     URL.revokeObjectURL(url);
-    setAlertMessage({ type: 'success', message: `PDF export ready for ${filteredLeads.length} leads` });
+    setAlertMessage({ type: 'success', message: `PDF export ready for ${filteredTotalLeads.length} leads` });
   };
 
   // Download sample template
@@ -2364,7 +2423,9 @@ const LeadsPage = () => {
     }
   };
 
-  const filteredLeads = leads.filter(lead => {
+  // Filter function to be reused for both totalLeads and paginated leads
+  const applyLeadFilters = (leadsList: Lead[]) => {
+    return leadsList.filter(lead => {
     const matchesSearch =
       (lead.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
       (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
@@ -2392,26 +2453,54 @@ const LeadsPage = () => {
       }
     }
     
-    return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesProject && matchesDate;
-  });
+      // Lead type filtering (total, digital, cp)
+      let matchesLeadType = true;
+      if (filterLeadType !== "all") {
+        const isChannelPartnerSource = lead.leadSource?.name?.toLowerCase() === 'channel partner' || 
+                                        lead.leadSource?.name?.toLowerCase().includes('channel') ||
+                                        lead.leadSource?.name?.toLowerCase().includes('cp');
+        const hasCPSourcing = !!lead.cpSourcingId;
+        const hasChannelPartner = !!lead.channelPartner;
+        
+        // A lead is considered a CP lead if it has CP sourcing, channel partner, or CP-related source
+        const isCPLead = isChannelPartnerSource || hasCPSourcing || hasChannelPartner;
+        
+        if (filterLeadType === "digital") {
+          // Digital leads are those that are NOT CP leads
+          matchesLeadType = !isCPLead;
+        } else if (filterLeadType === "cp") {
+          // CP leads
+          matchesLeadType = isCPLead;
+        } else if (filterLeadType === "total") {
+          // Total shows all leads
+          matchesLeadType = true;
+        }
+      }
+      
+      return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesProject && matchesDate && matchesLeadType;
+    });
+  };
 
-  // Pagination derived values
-  const clientTotalItems = filteredLeads.length;
-  const totalItems = serverTotalItems ?? clientTotalItems;
-  const totalPages = serverTotalPages ?? Math.max(1, Math.ceil(clientTotalItems / pageSize));
+  // Filter ALL leads (uses totalLeads - no pagination)
+  const filteredTotalLeads = applyLeadFilters(totalLeads);
+
+  // Client-side pagination on filtered data
+  const clientTotalItems = filteredTotalLeads.length;
+  const totalItems = clientTotalItems;
+  const totalPages = Math.max(1, Math.ceil(clientTotalItems / pageSize));
   const displayedPage = Math.min(currentPage, totalPages);
   const startIndex = (displayedPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedLeads = serverTotalItems != null || serverTotalPages != null
-    ? filteredLeads
-    : filteredLeads.slice(startIndex, endIndex);
+  
+  // Paginate the filtered total leads for table display
+  const paginatedLeads = filteredTotalLeads.slice(startIndex, endIndex);
   const currentPageLeadIds = paginatedLeads.map(l => l._id);
   const allCurrentSelected = currentPageLeadIds.length > 0 && currentPageLeadIds.every(id => selectedLeads.includes(id));
 
   // Reset/clamp page when filters, leads, or page size change
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterSource, filterStatus, filterUser, filterDateFrom, filterDateTo, pageSize]);
+  }, [searchTerm, filterSource, filterStatus, filterUser, filterDateFrom, filterDateTo, filterLeadType, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -2502,17 +2591,17 @@ const LeadsPage = () => {
             <Button
               onClick={() => setShowExportMenu(!showExportMenu)}
               color="success"
-              disabled={filteredLeads.length === 0}
-              title={filteredLeads.length === 0 ? "No leads to export" : "Export leads"}
+              disabled={filteredTotalLeads.length === 0}
+              title={filteredTotalLeads.length === 0 ? "No leads to export" : "Export all filtered leads"}
               className="w-full lg:w-auto"
             >
               <Icon icon="solar:download-minimalistic-line-duotone" className="mr-2" />
-              Export ({filteredLeads.length})
+              Export ({filteredTotalLeads.length})
               <Icon icon={showExportMenu ? "solar:alt-arrow-up-line-duotone" : "solar:alt-arrow-down-line-duotone"} className="ml-2" />
             </Button>
 
             {/* Dropdown Menu */}
-            {showExportMenu && filteredLeads.length > 0 && (
+            {showExportMenu && filteredTotalLeads.length > 0 && (
               <div className="absolute right-0 mt-2 w-56 bg-white dark:bg-gray-800 rounded-lg shadow-xl border border-gray-200 dark:border-gray-700 z-50">
                 <div className="py-2">
                   <button
@@ -2594,33 +2683,63 @@ const LeadsPage = () => {
         <Card className="p-6">
           <div className="text-center">
             <div className="text-3xl lg:text-4xl font-bold text-blue-600 dark:text-blue-400 mb-2">
-              {serverTotalItems ?? leads.length}
+              {filteredTotalLeads.length}
             </div>
-            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Total Leads</div>
+            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">
+              {searchTerm || filterSource !== 'all' || filterStatus !== 'all' || filterUser !== 'all' || 
+               selectedProjectId !== 'all' || filterDateFrom || filterDateTo || filterLeadType !== 'all' 
+                ? 'Filtered Leads' : 'Total Leads'}
+            </div>
+            {(searchTerm || filterSource !== 'all' || filterStatus !== 'all' || filterUser !== 'all' || 
+              selectedProjectId !== 'all' || filterDateFrom || filterDateTo || filterLeadType !== 'all') && (
+              <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+                of {totalLeads.length} total
+              </div>
+            )}
           </div>
         </Card>
         <Card className="p-6">
           <div className="text-center">
             <div className="text-3xl lg:text-4xl font-bold text-green-600 dark:text-green-400 mb-2">
-              {leadSources.length}
+              {(() => {
+                const uniqueSources = new Set(filteredTotalLeads.map(lead => lead.leadSource?._id).filter(Boolean));
+                return uniqueSources.size;
+              })()}
             </div>
-            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Lead Sources</div>
+            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Active Sources</div>
           </div>
         </Card>
         <Card className="p-6">
           <div className="text-center">
             <div className="text-3xl lg:text-4xl font-bold text-purple-600 dark:text-purple-400 mb-2">
-              {leadStatuses.length}
+              {(() => {
+                const uniqueStatuses = new Set(filteredTotalLeads.map(lead => lead.currentStatus?._id).filter(Boolean));
+                return uniqueStatuses.size;
+              })()}
             </div>
-            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Lead Statuses</div>
+            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Active Statuses</div>
           </div>
         </Card>
         <Card className="p-6">
           <div className="text-center">
             <div className="text-3xl lg:text-4xl font-bold text-indigo-600 dark:text-indigo-400 mb-2">
-              {projects.length}
+              {(() => {
+                const uniqueProjects = new Set(filteredTotalLeads.map(lead => lead.project?._id).filter(Boolean));
+                return uniqueProjects.size;
+              })()}
             </div>
-            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Total Projects</div>
+            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Active Projects</div>
+          </div>
+        </Card>
+        <Card className="p-6">
+          <div className="text-center">
+            <div className="text-3xl lg:text-4xl font-bold text-orange-600 dark:text-orange-400 mb-2">
+              {(() => {
+                const uniqueUsers = new Set(filteredTotalLeads.map(lead => lead.user?._id).filter(Boolean));
+                return uniqueUsers.size;
+              })()}
+            </div>
+            <div className="text-base text-gray-600 dark:text-gray-400 font-medium">Assigned Users</div>
           </div>
         </Card>
       </div>
@@ -2629,7 +2748,7 @@ const LeadsPage = () => {
 
       {/* Chart Section */}
       {/* graphs */}
-      <LeadAnalyticsChart leads={totalLeads} />
+      <LeadAnalyticsChart leads={filteredTotalLeads} />
 
 
       {/* No Projects Warning */}
@@ -2670,6 +2789,46 @@ const LeadsPage = () => {
           </div>
         </div>
       </Card>
+
+      {/* Active Filters from Analytics */}
+      {(filterLeadType !== "all" || (searchParams.get('projectId') && selectedProjectId !== 'all') || 
+        (searchParams.get('userId') && filterUser !== 'all')) && (filterDateFrom || filterDateTo) && (
+        <Alert color="info" onDismiss={() => {
+          setFilterLeadType("all");
+          setFilterDateFrom("");
+          setFilterDateTo("");
+          setSelectedProjectId('all');
+          setFilterUser('all');
+          router.push('/apps/leads');
+        }}>
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Icon icon="solar:filter-line-duotone" className="text-lg" />
+              <div>
+                <p className="font-medium">
+                  Filters Applied from Analytics Dashboard
+                </p>
+                <p className="text-sm mt-1">
+                  Showing <strong>
+                    {filterLeadType === 'total' ? 'All Leads' : 
+                     filterLeadType === 'digital' ? 'Digital Leads' : 
+                     filterLeadType === 'cp' ? 'CP Leads' : 'Leads'}
+                  </strong>
+                  {selectedProjectId && selectedProjectId !== 'all' && (
+                    <> for <strong>{projects.find(p => p._id === selectedProjectId)?.name || 'Selected Project'}</strong></>
+                  )}
+                  {filterUser && filterUser !== 'all' && filterUser !== 'unassigned' && (
+                    <> assigned to <strong>{users.find(u => u._id === filterUser)?.name || 'Selected User'}</strong></>
+                  )}
+                  {filterDateFrom && filterDateTo && (
+                    <> from <strong>{new Date(filterDateFrom).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong> to <strong>{new Date(filterDateTo).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</strong></>
+                  )}
+                </p>
+              </div>
+            </div>
+          </div>
+        </Alert>
+      )}
 
       {/* Search and Filters */}
       <Card>
@@ -2804,6 +2963,9 @@ const LeadsPage = () => {
                 setFilterDateFrom("");
                 setFilterDateTo("");
                 setDatePreset("custom");
+                setFilterLeadType("all");
+                setSelectedProjectId('all');
+                router.push('/apps/leads'); // Clear URL parameters as well
               }}
               disabled={projects.length === 0}
               className="w-full"
@@ -2814,7 +2976,7 @@ const LeadsPage = () => {
           </div>
           <div className="flex items-center">
             <Badge color="info" size="lg">
-              {filteredLeads.length} Lead{filteredLeads.length !== 1 ? 's' : ''}
+              {filteredTotalLeads.length} Lead{filteredTotalLeads.length !== 1 ? 's' : ''}
             </Badge>
           </div>
         </div>
@@ -2856,14 +3018,14 @@ const LeadsPage = () => {
                   <Table.HeadCell className="min-w-[150px]">Actions</Table.HeadCell>
                 </Table.Head>
                 <Table.Body className="divide-y">
-                  {filteredLeads.length === 0 ? (
+                  {paginatedLeads.length === 0 ? (
                     <Table.Row>
                       <Table.Cell colSpan={9} className="text-center py-8">
                         <div className="text-gray-500 dark:text-gray-400">
                           <Icon icon="solar:info-circle-line-duotone" className="mx-auto text-4xl mb-2" />
                           <p>No leads found</p>
                           <p className="text-sm">
-                            {leads.length === 0
+                            {totalLeads.length === 0
                               ? "No leads available in the system"
                               : "No leads match your current filters"
                             }
@@ -3024,8 +3186,7 @@ const LeadsPage = () => {
           {/* Pagination Footer */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 pb-4">
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {serverTotalItems != null ? (paginatedLeads.length > 0 ? startIndex + 1 : 0) : Math.min(startIndex + 1, clientTotalItems)}-
-              {serverTotalItems != null ? Math.min(endIndex, totalItems) : Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
+              Showing {paginatedLeads.length > 0 ? startIndex + 1 : 0}-{Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm">
@@ -3191,14 +3352,11 @@ const LeadsPage = () => {
                       className="w-full"
                       disabled={!!editingLead}
                     >
-                      console.log(leadSources)
                       <option value="">Select lead source</option>
                       {leadSources.map(source => (
                         <option key={source._id} value={source._id}>
-
                           {source.name}
                         </option>
-
                       ))}
                       {!leadSources.some(source => source.name.toLowerCase() === 'channel partner') && (
                         <option value="channel-partner">Channel Partner</option>
@@ -3700,10 +3858,10 @@ const LeadsPage = () => {
                     <strong>Selected Leads:</strong> {selectedLeads.length} lead(s) ready for transfer
                   </p>
                   <p className="text-xs text-gray-500 dark:text-gray-400 mt-1">
-                    Total leads available: {leads.length}
+                    Total leads available: {totalLeads.length}
                   </p>
                   {transferToUser && selectedProjectId && (() => {
-                    const selectedLeadsData = leads.filter(lead => selectedLeads.includes(lead._id));
+                    const selectedLeadsData = totalLeads.filter(lead => selectedLeads.includes(lead._id));
                     const alreadyAssignedCount = selectedLeadsData.filter(lead =>
                       lead.user?._id === transferToUser && lead.project?._id === selectedProjectId
                     ).length;
