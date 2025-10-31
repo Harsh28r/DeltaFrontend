@@ -25,6 +25,7 @@ interface DashboardStats {
   totalFreshLeads: number;
   totalLeadsThisMonth: number;
   freshLeadsThisMonth: number;
+  totalProjects :number
 
 }
 
@@ -1214,14 +1215,15 @@ const CrmDashboard = () => {
 
 
         {/* Total Projects */}
-        <Card className="p-6 border-l-4 border-l-purple-500 hover:shadow-lg transition-shadow">
+        <Card className="p-6 cursor-pointer border-l-4 border-l-purple-500 hover:shadow-lg transition-shadow"
+          onClick={() => router.push(`/apps/projects`)}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-sm font-semibold text-gray-600 dark:text-gray-400 uppercase tracking-wide">Total Projects</p>
               <p className="text-4xl font-bold text-gray-900 dark:text-white mt-2">
-                {projectSummary.length}
+                {stats.totalProjects} 
               </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">Active Portfolio</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">All Projects</p>
             </div>
             <div className="p-4 bg-purple-50 dark:bg-purple-900 rounded-xl">
               <Icon icon="solar:buildings-line-duotone" className="text-3xl text-purple-600 dark:text-purple-400" />
@@ -1229,7 +1231,7 @@ const CrmDashboard = () => {
           </div>
           <div className="mt-4 flex items-center text-sm">
             <Icon icon="solar:trend-up-line-duotone" className="text-green-500 mr-1" />
-            <span className="text-green-600 dark:text-green-400 font-medium">Portfolio Growth</span>
+            <span className="text-green-600 dark:text-green-400 font-medium">Total Projects</span>
           </div>
         </Card>
 

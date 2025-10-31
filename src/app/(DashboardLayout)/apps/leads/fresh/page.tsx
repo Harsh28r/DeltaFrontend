@@ -1341,7 +1341,6 @@ const FreshLeadsPage = () => {
             <LeadAnalyticsChart leads={totalFreshLeads} />
 
             {/* New Status Chart */}
-            <LeadStatusChart leads={totalFreshLeads} />
 
             {/* Add/Edit Modal */}
             <Modal show={isModalOpen && projects.length > 0} onClose={handleCloseModal} size="6xl">
@@ -2306,9 +2305,8 @@ const FreshLeadsPage = () => {
                     {/* Pagination Footer */}
                     <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 pb-4">
                         <div className="text-sm text-gray-600 dark:text-gray-400">
-                            Showing {serverTotalItems != null ? (paginatedLeads.length > 0 ? startIndex + 1 : 0) : Math.min(startIndex + 1, clientTotalItems)}-
-                            {serverTotalItems != null ? Math.min(endIndex, totalItems) : Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
-                        </div>
+                            Showing {paginatedLeads.length > 0 ? startIndex + 1 : 0}-
+                            {Math.min(endIndex, clientTotalItems)} of {clientTotalItems} lead{totalItems !== 1 ? 's' : ''}</div>
                         <div className="flex items-center gap-3">
                             <div className="flex items-center gap-2 text-sm">
                                 <span className="text-gray-600 dark:text-gray-400">Rows per page:</span>
