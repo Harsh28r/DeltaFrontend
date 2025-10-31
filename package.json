@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
-    "build:analyze": "cross-env ANALYZE=true NODE_OPTIONS=--max-old-space-size=4096 next build",
-    "build:windows": "set NODE_OPTIONS=--max-old-space-size=4096 && next build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=768 next build",
+    "build:analyze": "cross-env ANALYZE=true NODE_OPTIONS=--max-old-space-size=768 next build",
+    "build:windows": "set NODE_OPTIONS=--max-old-space-size=768 && next build",
     "start": "next start",
     "lint": "next lint"
   },
