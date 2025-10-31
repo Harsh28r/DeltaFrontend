@@ -2387,16 +2387,15 @@ const LeadsPage = () => {
     return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesProject && matchesDate;
   });
 
-  // Pagination derived values
-  const clientTotalItems = filteredLeads.length;
-  const totalItems = serverTotalItems ?? clientTotalItems;
-  const totalPages = serverTotalPages ?? Math.max(1, Math.ceil(clientTotalItems / pageSize));
+  // Pagination derived values - Corrected for client-side filtering
+  const totalItems = filteredLeads.length; // Always base total on filtered leads for client-side logic
+  const totalPages = Math.max(1, Math.ceil(totalItems / pageSize));
   const displayedPage = Math.min(currentPage, totalPages);
   const startIndex = (displayedPage - 1) * pageSize;
   const endIndex = startIndex + pageSize;
-  const paginatedLeads = serverTotalItems != null || serverTotalPages != null
-    ? filteredLeads
-    : filteredLeads.slice(startIndex, endIndex);
+  // Since filtering is client-side, we always slice the filteredLeads array for pagination.
+  const paginatedLeads = filteredLeads.slice(startIndex, endIndex);
+
   const currentPageLeadIds = paginatedLeads.map(l => l._id);
   const allCurrentSelected = currentPageLeadIds.length > 0 && currentPageLeadIds.every(id => selectedLeads.includes(id));
 
@@ -3016,8 +3015,8 @@ const LeadsPage = () => {
           {/* Pagination Footer */}
           <div className="flex flex-col sm:flex-row items-center justify-between gap-3 px-4 pb-4">
             <div className="text-sm text-gray-600 dark:text-gray-400">
-              Showing {serverTotalItems != null ? (paginatedLeads.length > 0 ? startIndex + 1 : 0) : Math.min(startIndex + 1, clientTotalItems)}-
-              {serverTotalItems != null ? Math.min(endIndex, totalItems) : Math.min(endIndex, clientTotalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
+              Showing {paginatedLeads.length > 0 ? startIndex + 1 : 0}-
+              {Math.min(endIndex, totalItems)} of {totalItems} lead{totalItems !== 1 ? 's' : ''}
             </div>
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2 text-sm">
