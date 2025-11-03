@@ -11,21 +11,6 @@ const ProfileTab = () => {
       icon: "solar:user-circle-broken",
       to: "/apps/user-profile/profile",
     },
-    {
-      label: "Followers",
-      icon: "solar:heart-linear",
-      to: "/apps/user-profile/followers",
-    },
-    {
-      label: "Friends",
-      icon: "solar:users-group-two-rounded-outline",
-      to: "/apps/user-profile/friends",
-    },
-    {
-      label: "Gallery",
-      icon: "solar:gallery-minimalistic-outline",
-      to: "/apps/user-profile/gallery",
-    },
   ];
 
   return (

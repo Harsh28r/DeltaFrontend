@@ -1,5 +1,4 @@
 import BreadcrumbComp from "../../layout/shared/breadcrumb/BreadcrumbComp";
-import ContactApp from "@/app/components/apps/contacts/index";
 import { Metadata } from "next";
 export const metadata: Metadata = {
   title: "Contact App",
@@ -17,7 +16,12 @@ const Contacts = () => {
   return (
     <>
       <BreadcrumbComp title="Contact App" items={BCrumb} />
-      <ContactApp />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">Contacts</h2>
+          <p className="text-muted-foreground">Contacts coming soon</p>
+        </div>
+      </div>
     </>
   );
 };
