@@ -1,18 +1,6 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: false,
-    // Fix the workspace root issue
-    outputFileTracingRoot: process.cwd(),
-    // Enable standalone output for Docker
-    output: 'standalone',
-    // Optimize standalone output to reduce disk space
-    outputFileTracingExcludes: {
-        '*': [
-            'node_modules/@swc/core*',
-            'node_modules/@next/swc*',
-            'node_modules/.cache/**',
-        ],
-    },
     // Remove deprecated appDir option (App Router is default in Next.js 13+)
     // Add webpack configuration to handle memory issues
     webpack: (config, { isServer }) => {
@@ -20,7 +8,28 @@ const nextConfig = {
         config.resolve.fallback = {
             ...config.resolve.fallback,
             fs: false,
+            net: false,
+            tls: false,
         };
+        
+        // Handle ws module (needed for socket.io-client on server)
+        if (isServer) {
+            config.externals = config.externals || [];
+            config.externals.push({
+                'ws': 'ws',
+            });
+        } else {
+            // For client-side, mark ws as external or false
+            config.resolve.fallback = {
+                ...config.resolve.fallback,
+                ws: false,
+            };
+        }
+        
+        // Ensure proper module resolution for ESM packages
+        if (!config.resolve.fullySpecified) {
+            config.resolve.fullySpecified = false;
+        }
         
         // DISABLE CACHE to prevent "no space left on device" errors
         // This will make builds slower but won't fail when disk is full

@@ -85,7 +85,7 @@
     "react-day-picker": "^8.10.1",
     "react-dnd": "^16.0.1",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2",
+    "react-hook-form": "^7.66.0",
     "react-i18next": "^15.0.0",
     "react-leaflet": "^5.0.0",
     "react-slick": "^0.29.0",
@@ -99,6 +99,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^10.0.0",
     "vaul": "^1.1.2",
+    "ws": "^8.18.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
