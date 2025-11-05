@@ -124,9 +124,7 @@ const FilteredLeadsComponent = () => {
                     const data = await response.json();
                     const allLeads = data.leads || [];
                     // Log all fetched leads before filtering, as requested.
-                    console.log("All leads:", allLeads);
                     setLeads(allLeads);
-                    console.log('allLeads', allLeads);
 
 
                     // Check if data is a valid array before filtering
@@ -176,20 +174,21 @@ const FilteredLeadsComponent = () => {
         // Handle date range from analytics page
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
-        let startDate: Date | null = startDateParam ? new Date(startDateParam) : null;
-        let endDate: Date | null = endDateParam ? new Date(endDateParam) : null;
+        let startDate = startDateParam ? new Date(startDateParam).toISOString() : null;
+        let endDate = endDateParam ? new Date(endDateParam).toISOString() : null;
 
         // Handle month/year from other pages
         if (!startDate && !endDate) {
             const year = Number(searchParams.get('year'));
             const month = Number(searchParams.get('month'));
             if (!isNaN(year) && year > 0 && !isNaN(month) && month > 0) {
-                startDate = new Date(year, month - 1, 1);
-                endDate = new Date(year, month, 0, 23, 59, 59);
+                startDate = new Date(year, month - 1, 1).toISOString();
+                endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
             }
         }
+        console.log('startdate', startDate)
 
-        if (filter && startDate && endDate && (siteVisitStatusId || bookingStatusId)) {
+        if (filter && startDate && endDate) {
             const filtered = leads.filter(lead => {
                 const projectMatch = !projectId || lead.project?._id === projectId;
                 if (!projectMatch) return false;
@@ -207,26 +206,25 @@ const FilteredLeadsComponent = () => {
                 // For "bookings", only check currentStatus and its history entry for the date.
                 if (filter === 'bookings' && bookingStatusId) {
                     const isCurrentlyBooked = lead.currentStatus?._id === bookingStatusId;
-                    if (!isCurrentlyBooked) return false;
 
-                    const lastStatusChange = lead.statusHistory[lead.statusHistory.length - 1];
-                    if (lastStatusChange && lastStatusChange.status?._id === bookingStatusId) {
-                        const changedDate = new Date(lastStatusChange.changedAt);
-                        return changedDate >= startDate! && changedDate <= endDate!;
-                    }
+                    if (!isCurrentlyBooked) return false;
                 }
 
+
+                if (!(lead.updatedAt >= startDate) || !(lead.updatedAt <= endDate)) {
+                    console.log('faled in date');
+                    
+                    return false;
+                }
+
+
                 // For "siteVisits" and "projectImpact", check both creation and history.
-                const isCreatedWithStatus = lead.currentStatus?._id && targetStatusIds.includes(lead.currentStatus._id) &&
-                    new Date(lead.createdAt) >= startDate! &&
-                    new Date(lead.createdAt) <= endDate!;
+                const isCreatedWithStatus = lead.currentStatus?._id && targetStatusIds.includes(lead.currentStatus._id)
+                
                 if (isCreatedWithStatus) return true;
 
                 const hasStatusInHistory = lead.statusHistory.some((historyItem: any) => {
-                    const historyDate = new Date(historyItem.changedAt);
-                    return targetStatusIds.includes(historyItem.status?._id) &&
-                        historyDate >= startDate! &&
-                        historyDate <= endDate!;
+                    return targetStatusIds.includes(historyItem.status?._id)
                 });
                 return hasStatusInHistory;
             });
@@ -245,7 +243,8 @@ const FilteredLeadsComponent = () => {
 
 
 
-            return statusMatch && projectMatch && userMatch ;
+
+            return statusMatch && projectMatch && userMatch;
         });
 
         return transformLeadData(filtered);
