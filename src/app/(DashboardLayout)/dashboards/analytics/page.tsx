@@ -527,8 +527,6 @@ const TopPerformingSites = () => {
         }
       );
 
-
-
       // If site-visit-performance doesn't exist, use top-performing-sites
       if (!response.ok) {
         console.log('top-performing-sites called');
