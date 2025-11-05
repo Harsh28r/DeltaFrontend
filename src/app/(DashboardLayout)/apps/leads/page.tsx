@@ -295,6 +295,16 @@ const LeadsPage = () => {
 
   // Dynamic form fields based on selected status
   const [dynamicFields, setDynamicFields] = useState<{ [key: string]: any }>({});
+  
+  // Track which fields were initially auto-filled from API (when modal opens)
+  const [initialAutoFilledFields, setInitialAutoFilledFields] = useState<Set<string>>(new Set());
+  
+  // Track which fields the user has modified in current session
+  const [userModifiedFields, setUserModifiedFields] = useState<Set<string>>(new Set());
+  
+  // Track selected sub-status ID when user selects an option with statusIds (supports nested sub-statuses)
+  const [selectedSubStatusId, setSelectedSubStatusId] = useState<string | null>(null);
+  
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
   const [lastRefresh, setLastRefresh] = useState<Date | null>(null);
@@ -389,6 +399,13 @@ const LeadsPage = () => {
         console.log('📝 Updated leads list:', newLeads);
         return newLeads;
       });
+      // ✅ Also update totalLeads for table display
+      setTotalLeads(prev => {
+        const transformed = transformLeadData([data.lead]);
+        const newTotalLeads = [...transformed, ...prev];
+        console.log('📝 Updated totalLeads list:', newTotalLeads.length);
+        return newTotalLeads;
+      });
     });
 
     // Listen for lead updates
@@ -401,6 +418,15 @@ const LeadsPage = () => {
         console.log('📝 Updated leads list:', updatedLeads);
         return updatedLeads;
       });
+      // ✅ Also update totalLeads for table display
+      setTotalLeads(prev => {
+        const transformed = transformLeadData([data.lead]);
+        const updatedTotalLeads = prev.map(lead =>
+          lead._id === data.lead._id ? transformed[0] : lead
+        );
+        console.log('📝 Updated totalLeads list:', updatedTotalLeads.length);
+        return updatedTotalLeads;
+      });
     });
 
     // Listen for lead deletion
@@ -410,6 +436,12 @@ const LeadsPage = () => {
         const filteredLeads = prev.filter(lead => lead._id !== data.leadId);
         console.log('📝 Updated leads list:', filteredLeads);
         return filteredLeads;
+      });
+      // ✅ Also update totalLeads for table display
+      setTotalLeads(prev => {
+        const filteredTotalLeads = prev.filter(lead => lead._id !== data.leadId);
+        console.log('📝 Updated totalLeads list:', filteredTotalLeads.length);
+        return filteredTotalLeads;
       });
     });
 
@@ -423,6 +455,15 @@ const LeadsPage = () => {
         console.log('📝 Updated leads list:', updatedLeads);
         return updatedLeads;
       });
+      // ✅ Also update totalLeads for table display
+      setTotalLeads(prev => {
+        const transformed = transformLeadData([data.lead]);
+        const updatedTotalLeads = prev.map(lead =>
+          lead._id === data.lead._id ? transformed[0] : lead
+        );
+        console.log('📝 Updated totalLeads list:', updatedTotalLeads.length);
+        return updatedTotalLeads;
+      });
     });
 
     // Listen for lead assignment
@@ -434,6 +475,15 @@ const LeadsPage = () => {
         );
         console.log('📝 Updated leads list:', updatedLeads);
         return updatedLeads;
+      });
+      // ✅ Also update totalLeads for table display
+      setTotalLeads(prev => {
+        const transformed = transformLeadData([data.lead]);
+        const updatedTotalLeads = prev.map(lead =>
+          lead._id === data.lead._id ? transformed[0] : lead
+        );
+        console.log('📝 Updated totalLeads list:', updatedTotalLeads.length);
+        return updatedTotalLeads;
       });
     });
 
@@ -1093,56 +1143,186 @@ const LeadsPage = () => {
       source: formData.source
     });
 
-    // Validate dynamic fields based on selected status
-    if (!editingLead) { // Only validate dynamic fields for new leads
-      const requiredFields = getRequiredFieldsForStatus(formData.status);
-      for (const field of requiredFields) {
-        if (field.required) {
-          const fieldValue = dynamicFields[field.name] || formData[field.name as keyof typeof formData];
-          if (!fieldValue || !fieldValue.toString().trim()) {
-            setAlertMessage({
-              type: 'error',
-              message: `Please fill in the required field: ${field.name}`
-            });
-            return;
-          }
-        }
-      }
-    }
+    // Dynamic fields validation removed for new leads since we don't show them in the UI anymore
+    // New leads only need basic info (name, email, phone, project, status)
+    // Dynamic fields are only shown and validated when editing/changing status
 
     try {
       setIsSubmitting(true);
 
       if (editingLead) {
-        // Check if status has changed - if so, use status update API
-        const statusChanged = editingLead.currentStatus?._id !== formData.status;
+        // Check if status has changed OR if sub-status is selected - if so, use status update API
+        const statusChanged = editingLead.currentStatus?._id !== formData.status || !!selectedSubStatusId;
 
         if (statusChanged) {
+          // ✅ Use selectedSubStatusId if available (user selected a sub-status), otherwise use formData.status
+          const finalStatusId = selectedSubStatusId || formData.status;
+          
+          // ✅ VALIDATE: Check if all required fields are filled (ONLY when editing lead, not when adding new lead)
+          const finalStatus = leadStatuses.find(s => s._id === finalStatusId);
+          if (editingLead && finalStatus && finalStatus.formFields && finalStatus.formFields.length > 0) {
+            // Filter out select fields from validation since we hide them in UI (only validate non-select fields)
+            const nonSelectFields = finalStatus.formFields.filter(field => field.type !== 'select');
+            
+            console.log('🔍 [VALIDATION] Starting validation:', {
+              totalFields: finalStatus.formFields.length,
+              nonSelectFields: nonSelectFields.length,
+              selectFields: finalStatus.formFields.filter(f => f.type === 'select').length,
+              nonSelectFieldNames: nonSelectFields.map(f => `${f.name} (${f.type})${f.required ? ' *' : ''}`),
+              dynamicFieldsKeys: Object.keys(dynamicFields)
+            });
+            
+            // Only validate if there are non-select required fields to validate
+            if (nonSelectFields.length > 0) {
+              const missingFields: string[] = [];
+              
+              nonSelectFields.forEach(field => {
+              if (field.required && field.name) {
+                // ✅ Check both plain field name and namespaced versions
+                let fieldValue = dynamicFields[field.name];
+                
+                // If not found with plain name, search for namespaced versions
+                if (!fieldValue || (typeof fieldValue === 'string' && fieldValue.trim() === '')) {
+                  // Look for any key in dynamicFields that ends with the field name
+                  const namespacedKey = Object.keys(dynamicFields).find(key => 
+                    key.endsWith(`_${field.name}`)
+                  );
+                  if (namespacedKey) {
+                    fieldValue = dynamicFields[namespacedKey];
+                  }
+                }
+                
+                const isEmpty = !fieldValue || 
+                               (typeof fieldValue === 'string' && fieldValue.trim() === '') ||
+                               (Array.isArray(fieldValue) && fieldValue.length === 0);
+                
+                if (isEmpty) {
+                  missingFields.push(field.name);
+                }
+              }
+            });
+            
+            console.log('✅ [VALIDATION] Validation complete:', {
+              missingFieldsCount: missingFields.length,
+              missingFields: missingFields
+            });
+            
+            if (missingFields.length > 0) {
+              setAlertMessage({
+                type: 'error',
+                message: `Please fill in these required fields for "${finalStatus.name}": ${missingFields.join(', ')}`
+              });
+              console.error('❌ [VALIDATION] Missing required fields for DEEPEST status only:', {
+                missingFields,
+                finalStatusName: finalStatus.name,
+                finalStatusId,
+                validatingOnlyDeepest: true,
+                allRequiredNonSelectFields: nonSelectFields.filter(f => f.required).map(f => ({
+                  name: f.name,
+                  type: f.type,
+                  value: dynamicFields[f.name] || 'NOT FOUND'
+                })),
+                dynamicFields,
+                note: 'Only validating non-select fields shown in UI'
+              });
+              setIsSubmitting(false);
+              return;
+            } else {
+              console.log('✅ [VALIDATION] All required fields filled, proceeding with status update');
+            }
+            } else {
+              console.log('✅ [VALIDATION] No non-select fields to validate, proceeding with status update');
+            }
+          }
+          
+          console.log('');
+          console.log('═══════════════════════════════════════════════════════════');
+          console.log('📝 [LEADS PAGE] STATUS UPDATE - ID SELECTION');
+          console.log('═══════════════════════════════════════════════════════════');
+          console.log('📊 Current Status ID:', editingLead.currentStatus?._id);
+          console.log('📊 Form Status ID:', formData.status);
+          console.log('🎯 Selected Sub-Status ID (deepest):', selectedSubStatusId || 'NONE');
+          if (selectedSubStatusId) {
+            const subStatus = leadStatuses.find(s => s._id === selectedSubStatusId);
+            console.log('📊 Sub-Status Name:', subStatus?.name || 'Unknown');
+          }
+          console.log('🎯 Final Status ID to Use (deepest/last):', finalStatusId);
+          console.log('🔄 Using Sub-Status?', selectedSubStatusId ? 'YES ✅' : 'NO ❌');
+          if (selectedSubStatusId) {
+            console.log('🔗 This is the DEEPEST nested sub-status ID');
+          }
+          console.log('⚠️ STATUS CHANGED?', editingLead.currentStatus?._id !== finalStatusId ? 'YES ✅' : 'NO ❌');
+          console.log('═══════════════════════════════════════════════════════════');
+          console.log('');
+          
+          // ✅ Build newData with all standard fields + dynamic fields + lead's existing customData
+          // This ensures we don't lose any fields
+          const newData: { [key: string]: any } = {
+            "First Name": editingLead.customData?.["First Name"] || editingLead.customData?.name || editingLead.name || 'N/A',
+            "Email": editingLead.customData?.["Email"] || editingLead.customData?.email || editingLead.email || 'N/A',
+            "Phone": editingLead.customData?.["Phone"] || editingLead.customData?.phone || editingLead.customData?.contact || editingLead.phone || 'N/A',
+            "Notes": editingLead.customData?.["Notes"] || editingLead.customData?.notes || editingLead.notes || '',
+            "Lead Priority": editingLead.customData?.["Lead Priority"] || editingLead.customData?.leadPriority || '',
+            "Property Type": editingLead.customData?.["Property Type"] || editingLead.customData?.propertyType || '',
+            "Configuration": editingLead.customData?.["Configuration"] || editingLead.customData?.configuration || '',
+            "Funding Mode": editingLead.customData?.["Funding Mode"] || editingLead.customData?.fundingMode || '',
+            "Gender": editingLead.customData?.["Gender"] || editingLead.customData?.gender || '',
+            "Budget": editingLead.customData?.["Budget"] || editingLead.customData?.budget || '',
+            "Remark": formData.remark || 'Status updated',
+          };
+          
+          // ✅ Add all dynamic fields
+          Object.keys(dynamicFields).forEach(key => {
+            newData[key] = dynamicFields[key];
+            
+            // ✅ Also add plain field name version if this is a namespaced key
+            // Format: "Select Status_Interested_Next Meeting Date Time" -> "Next Meeting Date Time"
+            // This ensures backend can find fields by their plain names
+            if (finalStatus && finalStatus.formFields) {
+              finalStatus.formFields.forEach(field => {
+                if (field.name && key.endsWith(`_${field.name}`)) {
+                  newData[field.name] = dynamicFields[key];
+                }
+              });
+            }
+          });
+          
+          // ✅ Also preserve any existing customData that might not be in dynamicFields
+          // This prevents losing data from previous statuses
+          Object.keys(editingLead.customData || {}).forEach(key => {
+            if (!newData.hasOwnProperty(key)) {
+              newData[key] = editingLead.customData?.[key];
+            }
+          });
+          
           // Use status update API with the format you specified
           const statusUpdateBody = {
-            newStatusId: formData.status, // new status id
-            newData: {
-              "First Name": editingLead.customData?.["First Name"] || editingLead.customData?.name || editingLead.name || 'N/A',
-              "Email": editingLead.customData?.["Email"] || editingLead.customData?.email || editingLead.email || 'N/A',
-              "Phone": editingLead.customData?.["Phone"] || editingLead.customData?.phone || editingLead.customData?.contact || editingLead.phone || 'N/A',
-              "Notes": editingLead.customData?.["Notes"] || editingLead.customData?.notes || editingLead.notes || '',
-              "Lead Priority": editingLead.customData?.["Lead Priority"] || editingLead.customData?.leadPriority || '',
-              "Property Type": editingLead.customData?.["Property Type"] || editingLead.customData?.propertyType || '',
-              "Configuration": editingLead.customData?.["Configuration"] || editingLead.customData?.configuration || '',
-              "Funding Mode": editingLead.customData?.["Funding Mode"] || editingLead.customData?.fundingMode || '',
-              "Gender": editingLead.customData?.["Gender"] || editingLead.customData?.gender || '',
-              "Budget": editingLead.customData?.["Budget"] || editingLead.customData?.budget || '',
-              "Remark": formData.remark || 'Status updated',
-              ...dynamicFields // Include dynamic fields
-            } // form data
+            newStatusId: finalStatusId, // ✅ Use finalStatusId (sub-status if selected, otherwise parent status)
+            newData // form data with all fields
           };
 
-          console.log('Status update request:', {
-            url: `${API_BASE_URL}/api/leads/${editingLead._id}/status/`,
-            method: 'PUT',
-            body: statusUpdateBody
-          });
-          console.log('Dynamic fields being sent:', dynamicFields);
+          console.log('🚀 [API REQUEST]');
+          console.log('Endpoint:', `${API_BASE_URL}/api/leads/${editingLead._id}/status/`);
+          console.log('Method: PUT');
+          console.log('Payload:', JSON.stringify(statusUpdateBody, null, 2));
+          console.log('');
+          console.log('📋 [VALIDATION CHECK]');
+          console.log('Final Status ID:', finalStatusId);
+          const finalStatusForLog = leadStatuses.find(s => s._id === finalStatusId);
+          console.log('Final Status Name:', finalStatusForLog?.name);
+          console.log('Final Status Form Fields:', finalStatusForLog?.formFields?.map(f => ({
+            name: f.name,
+            nameLength: f.name?.length,
+            nameBytes: f.name ? Array.from(f.name).map(c => c.charCodeAt(0)) : [],
+            type: f.type,
+            required: f.required
+          })));
+          console.log('Required Field Names (exact):', finalStatusForLog?.formFields?.filter(f => f.required).map(f => `"${f.name}"`));
+          console.log('Dynamic Fields Keys (exact):', Object.keys(dynamicFields).map(k => `"${k}"`));
+          console.log('Dynamic Fields:', dynamicFields);
+          console.log('newData keys being sent:', Object.keys(statusUpdateBody.newData).map(k => `"${k}"`));
+          console.log('newData being sent:', statusUpdateBody.newData);
+          console.log('');
 
           const response = await fetch(`${API_BASE_URL}/api/leads/${editingLead._id}/status/`, {
             method: 'PUT',
@@ -1153,25 +1333,91 @@ const LeadsPage = () => {
             body: JSON.stringify(statusUpdateBody),
           });
 
+          console.log('📡 [API RESPONSE]');
+          console.log('Status:', response.status);
+          console.log('OK:', response.ok);
+
           if (response.ok) {
+            const responseData = await response.json();
+            console.log('✅ [SUCCESS] Response:', responseData);
+            
             setAlertMessage({ type: 'success', message: 'Lead status updated successfully!' });
+            setSelectedSubStatusId(null); // ✅ Clear selected sub-status
             handleCloseModal();
             fetchLeads();
           } else {
+            console.log('');
+            console.log('❌❌❌ [STATUS UPDATE ERROR] ❌❌❌');
+            console.log('Status Code:', response.status);
+            
             let errorMessage = 'Failed to update lead status';
+            let errorData;
             try {
-              const errorData = await response.json();
-              errorMessage = errorData.message || errorMessage;
+              errorData = await response.json();
+              errorMessage = errorData.message || errorData.error || errorMessage;
+              console.log('Error Response:', JSON.stringify(errorData, null, 2));
             } catch (parseError) {
               errorMessage = `Status update failed: ${response.status} ${response.statusText}`;
+              console.log('Could not parse error response');
             }
+            
+            console.log('Error Message:', errorMessage);
+            console.log('');
+            
             setAlertMessage({ type: 'error', message: errorMessage });
           }
         } else {
-          // Regular lead update (no status change)
+          // Regular lead update (no status change - only dynamic fields changed)
           // Check if the selected source is a channel partner
           const isChannelPartnerSource = formData.source === 'channel-partner' ||
             leadSources.some(source => source._id === formData.source && source.name.toLowerCase() === 'channel partner');
+
+          // ✅ Prepare customData with all dynamic fields (including namespaced ones)
+          const customDataToSend: { [key: string]: any } = {
+            "First Name": editingLead.customData?.["First Name"] || editingLead.name || formData.name,
+            "Email": editingLead.customData?.["Email"] || editingLead.email || formData.email,
+            "Phone": editingLead.customData?.["Phone"] || editingLead.phone || formData.phone,
+            "Notes": editingLead.customData?.["Notes"] || editingLead.notes || formData.notes,
+            "Lead Priority": editingLead.customData?.["Lead Priority"] || formData.leadPriority,
+            "Property Type": editingLead.customData?.["Property Type"] || formData.propertyType,
+            "Configuration": editingLead.customData?.["Configuration"] || formData.configuration,
+            "Funding Mode": editingLead.customData?.["Funding Mode"] || formData.fundingMode,
+            "Gender": editingLead.customData?.["Gender"] || formData.gender,
+            "Budget": editingLead.customData?.["Budget"] || formData.budget,
+            // Only add channel partner to customData if the source is channel partner
+            ...(isChannelPartnerSource && formData.channelPartner ? { "Channel Partner": formData.channelPartner } : {}),
+            ...(isChannelPartnerSource && formData.cpSourcingId ? { "Channel Partner Sourcing": formData.cpSourcingId } : {})
+          };
+
+          // ✅ Add all dynamic fields (including namespaced ones)
+          const currentStatus = leadStatuses.find(s => s._id === formData.status);
+          Object.keys(dynamicFields).forEach(key => {
+            customDataToSend[key] = dynamicFields[key];
+            
+            // ✅ Also add plain field name version for namespaced fields
+            if (currentStatus && currentStatus.formFields) {
+              currentStatus.formFields.forEach(field => {
+                if (field.name && key.endsWith(`_${field.name}`)) {
+                  customDataToSend[field.name] = dynamicFields[key];
+                }
+              });
+            }
+          });
+
+          // ✅ Preserve any existing customData not in dynamicFields
+          Object.keys(editingLead.customData || {}).forEach(key => {
+            if (!customDataToSend.hasOwnProperty(key)) {
+              customDataToSend[key] = editingLead.customData?.[key];
+            }
+          });
+
+          console.log('📝 [REGULAR UPDATE - No Status Change]', {
+            editingLeadId: editingLead._id,
+            currentStatusId: formData.status,
+            dynamicFieldsKeys: Object.keys(dynamicFields),
+            customDataKeys: Object.keys(customDataToSend),
+            customDataToSend
+          });
 
           const response = await fetch(API_ENDPOINTS.UPDATE_LEAD(editingLead._id), {
             method: 'PUT',
@@ -1186,28 +1432,17 @@ const LeadsPage = () => {
               // Only send CP details if the source is channel partner
               ...(isChannelPartnerSource && formData.channelPartner ? { channelPartner: formData.channelPartner } : {}),
               ...(isChannelPartnerSource && formData.cpSourcingId ? { cpSourcingId: formData.cpSourcingId } : {}),
-              customData: {
-                "First Name": formData.name.split(' ')[0] || formData.name,
-                "Email": formData.email,
-                "Phone": formData.phone,
-                "Notes": formData.notes,
-                "Lead Priority": formData.leadPriority,
-                "Property Type": formData.propertyType,
-                "Configuration": formData.configuration,
-                "Funding Mode": formData.fundingMode,
-                "Gender": formData.gender,
-                "Budget": formData.budget,
-                // Only add channel partner to customData if the source is channel partner
-                ...(isChannelPartnerSource && formData.channelPartner ? { "Channel Partner": formData.channelPartner } : {}),
-                ...(isChannelPartnerSource && formData.cpSourcingId ? { "Channel Partner Sourcing": formData.cpSourcingId } : {}),
-                ...dynamicFields // Include dynamic fields
-              },
+              customData: customDataToSend,
               userId: formData.userId
             }),
           });
 
           if (response.ok) {
+            const responseData = await response.json();
+            console.log('✅ [REGULAR UPDATE SUCCESS] Response:', responseData);
+            
             setAlertMessage({ type: 'success', message: 'Lead updated successfully!' });
+            setSelectedSubStatusId(null); // ✅ Clear selected sub-status
             handleCloseModal();
             fetchLeads();
           } else {
@@ -2231,6 +2466,8 @@ const LeadsPage = () => {
 
     // Populate dynamic fields from lead's customData
     const newDynamicFields: { [key: string]: any } = {};
+    let detectedSubStatusId: string | null = null;
+    
     if (lead.currentStatus?._id) {
       const requiredFields = getRequiredFieldsForStatus(lead.currentStatus._id);
       const currentLeadStatus = leadStatuses.find(s => s._id === lead.currentStatus?._id);
@@ -2243,6 +2480,12 @@ const LeadsPage = () => {
           } else {
             newDynamicFields[field.name] = lead.customData?.[field.name] || ''; // Keep existing or clear
           }
+        } else if (field.type === 'datetime') {
+          // Initialize datetime fields with existing value or empty (will be filled by user)
+          newDynamicFields[field.name] = lead.customData?.[field.name] || '';
+        } else if (field.type === 'time') {
+          // Initialize time fields with existing value or empty (will be filled by user)
+          newDynamicFields[field.name] = lead.customData?.[field.name] || '';
         } else if (field.type === 'checkbox') {
           // Initialize checkbox fields as arrays
           const existingValue = lead.customData?.[field.name];
@@ -2251,9 +2494,79 @@ const LeadsPage = () => {
           // Initialize other fields as strings
           newDynamicFields[field.name] = lead.customData?.[field.name] || '';
         }
+        
+        // ✅ CRITICAL: Detect and restore nested sub-status fields
+        if (field.type === 'select' && field.statusIds && field.statusIds.length > 0) {
+          const selectedOption = lead.customData?.[field.name];
+          if (selectedOption) {
+            // Match by status name instead of index to avoid misalignment
+            const selectedStatus = leadStatuses.find(status => 
+              status.name === selectedOption && 
+              field.statusIds?.includes(status._id)
+            );
+            
+            if (selectedStatus) {
+              detectedSubStatusId = selectedStatus._id; // Track for later use
+              
+              if (selectedStatus.formFields) {
+                // Initialize nested fields with namespaced names
+                const namespacedPrefix = `${field.name}_${selectedOption}_`;
+                
+                selectedStatus.formFields.forEach((nestedField: FormField) => {
+                  const namespacedFieldName = `${namespacedPrefix}${nestedField.name}`;
+                  const existingValue = lead.customData?.[namespacedFieldName];
+                  
+                  if (nestedField.type === 'checkbox') {
+                    newDynamicFields[namespacedFieldName] = Array.isArray(existingValue) ? existingValue : [];
+                  } else {
+                    newDynamicFields[namespacedFieldName] = existingValue || '';
+                  }
+                });
+              }
+            }
+          }
+        }
+      });
+      
+      // ✅ IMPORTANT: Also load ALL customData fields to handle any extra fields
+      // This ensures fields from nested statuses are preserved even if not in current status definition
+      Object.keys(lead.customData || {}).forEach(key => {
+        if (!newDynamicFields.hasOwnProperty(key)) {
+          const value = lead.customData[key];
+          newDynamicFields[key] = value;
+        }
       });
     }
     setDynamicFields(newDynamicFields);
+    setSelectedSubStatusId(detectedSubStatusId); // Restore detected sub-status
+    
+    // ✅ Track which fields are initially auto-filled from API
+    const autoFilledFieldNames = new Set<string>();
+    Object.keys(newDynamicFields).forEach(fieldName => {
+      const fieldValue = newDynamicFields[fieldName];
+      const hasValue = fieldValue && (
+        (typeof fieldValue === 'string' && fieldValue.trim() !== '') ||
+        (Array.isArray(fieldValue) && fieldValue.length > 0) ||
+        (typeof fieldValue !== 'string' && !Array.isArray(fieldValue))
+      );
+      if (hasValue) {
+        autoFilledFieldNames.add(fieldName);
+      }
+    });
+    setInitialAutoFilledFields(autoFilledFieldNames);
+    setUserModifiedFields(new Set()); // Reset user modifications
+    
+    console.log('🔄 [EDIT MODAL OPENED]', {
+      leadId: lead._id,
+      currentStatus: lead.currentStatus?.name,
+      currentStatusId: lead.currentStatus?._id,
+      detectedSubStatusId,
+      loadedDynamicFields: Object.keys(newDynamicFields).length,
+      dynamicFieldsPreview: newDynamicFields,
+      leadCustomDataKeys: Object.keys(lead.customData || {}),
+      allFieldsWithValues: Object.keys(newDynamicFields).filter(k => newDynamicFields[k] && newDynamicFields[k] !== ''),
+      initialAutoFilledFields: Array.from(autoFilledFieldNames)
+    });
 
     setIsModalOpen(true);
   };
@@ -2261,6 +2574,8 @@ const LeadsPage = () => {
   const handleCloseModal = () => {
     setIsModalOpen(false);
     setEditingLead(null);
+    setInitialAutoFilledFields(new Set()); // ✅ Reset auto-filled tracking
+    setUserModifiedFields(new Set()); // ✅ Reset user modifications
 
     // Find default status (check for default field, then "New", then first status)
     const defaultStatus = leadStatuses.find((status: LeadStatus) =>
@@ -2311,10 +2626,12 @@ const LeadsPage = () => {
       cpSourcingId: ""
     });
     setDynamicFields(newDynamicFields);
+    setSelectedSubStatusId(null); // ✅ Clear selected sub-status when closing modal
   };
 
   const handleAddNew = () => {
     setEditingLead(null);
+    setSelectedSubStatusId(null); // ✅ Clear selected sub-status when opening new lead modal
 
     // Find default status (check for default field, then "New", then first status)
     console.log('handleAddNew - Available statuses:', leadStatuses.map((s: LeadStatus) => ({
@@ -3385,7 +3702,7 @@ const LeadsPage = () => {
                       onChange={(e) => handleStatusChange(e.target.value)}
                       required
                       className="w-full"
-                      disabled={!!editingLead}
+                      disabled={true}
                     >
                       <option value="">Select lead status</option>
                       {leadStatuses.map(status => (
@@ -3396,7 +3713,7 @@ const LeadsPage = () => {
                     </Select>
                     <p className="text-xs text-blue-600 dark:text-blue-400 flex items-center gap-1">
                       <Icon icon="solar:info-circle-line-duotone" className="w-3 h-3" />
-                      {editingLead ? "Status cannot be changed when editing a lead" : "Status is automatically set to default"}
+                      {editingLead ? "Status cannot be changed when editing a lead" : "Status is locked to default when adding a new lead"}
                     </p>
                   </div>
                 </div>
@@ -3484,8 +3801,8 @@ const LeadsPage = () => {
 
               </div>
 
-              {/* Dynamic Fields based on selected status */}
-              {formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
+              {/* Dynamic Fields based on selected status - Only show when editing lead, not when adding new lead */}
+              {editingLead && formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
                 <div className="bg-gradient-to-r from-blue-50 to-indigo-50 dark:from-blue-900/10 dark:to-indigo-900/10 rounded-xl border border-blue-200 dark:border-blue-700 p-6">
                   <div className="flex items-center mb-6">
                     <div className="bg-blue-100 dark:bg-blue-900/20 p-2 rounded-lg mr-3">
@@ -3496,14 +3813,59 @@ const LeadsPage = () => {
                         Additional Required Fields
                       </h3>
                       <p className="text-sm text-gray-600 dark:text-gray-400">
-                        for "{leadStatuses.find(s => s._id === formData.status)?.name}" Status
+                        for "{leadStatuses.find(s => s._id === formData.status)?.name}" Status ({getRequiredFieldsForStatus(formData.status).length} field{getRequiredFieldsForStatus(formData.status).length !== 1 ? 's' : ''})
                       </p>
                     </div>
                   </div>
+                  {/* Debug Info */}
+                  {(() => {
+                    const fields = getRequiredFieldsForStatus(formData.status);
+                    console.log('📋 [RENDERING DYNAMIC FIELDS]', {
+                      statusId: formData.status,
+                      statusName: leadStatuses.find(s => s._id === formData.status)?.name,
+                      totalFields: fields.length,
+                      filteredFields: fields.filter(f => f.name && f.name.trim() !== '').length,
+                      allFields: fields.map(f => ({
+                        name: f.name,
+                        type: f.type,
+                        required: f.required,
+                        hasOptions: (f.options?.length ?? 0) > 0,
+                        hasStatusIds: (f.statusIds?.length ?? 0) > 0
+                      }))
+                    });
+                    return null;
+                  })()}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                     {getRequiredFieldsForStatus(formData.status)
                       .filter(field => field.name && field.name.trim() !== '') // Filter out empty field names
-                      .map((field) => (
+                      .map((field) => {
+                        // ✅ Check if field should be disabled
+                        // Disable ONLY if: field was initially auto-filled AND user hasn't modified it yet
+                        // EXCEPTION: Fields with statusIds (sub-status selectors) should NEVER be disabled
+                        const wasInitiallyAutoFilled = initialAutoFilledFields.has(field.name);
+                        const hasUserModified = userModifiedFields.has(field.name);
+                        const hasStatusIds = field.statusIds && field.statusIds.length > 0;
+                        const isFieldDisabled = !!editingLead && wasInitiallyAutoFilled && !hasUserModified && !hasStatusIds;
+                        
+                        console.log('🎨 [RENDERING FIELD]', {
+                          name: field.name,
+                          type: field.type,
+                          required: field.required,
+                          currentValue: dynamicFields[field.name],
+                          wasInitiallyAutoFilled,
+                          hasUserModified,
+                          isFieldDisabled,
+                          isEditMode: !!editingLead
+                        });
+                        
+                        // ✅ Helper function to mark field as modified by user
+                        const handleFieldChange = (fieldName: string, value: any) => {
+                          setDynamicFields(prev => ({ ...prev, [fieldName]: value }));
+                          // Mark this field as modified by user
+                          setUserModifiedFields(prev => new Set(prev).add(fieldName));
+                        };
+                        
+                        return (
                         <div key={field.name} className="space-y-2">
                           <Label
                             htmlFor={field.name}
@@ -3516,9 +3878,10 @@ const LeadsPage = () => {
                               type="text"
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'email' ? (
                             <TextInput
@@ -3526,9 +3889,10 @@ const LeadsPage = () => {
                               type="email"
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'tel' || field.type === 'phone' ? (
                             <TextInput
@@ -3536,9 +3900,10 @@ const LeadsPage = () => {
                               type="tel"
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'number' ? (
                             <TextInput
@@ -3546,9 +3911,10 @@ const LeadsPage = () => {
                               type="number"
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'date' ? (
                             <TextInput
@@ -3556,12 +3922,13 @@ const LeadsPage = () => {
                               type="date"
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               required={field.required}
                               className="w-full"
                               disabled={(() => {
                                 const currentStatus = leadStatuses.find(s => s._id === formData.status);
-                                return currentStatus?.is_final_status === true;
+                                // Disable if final status OR if auto-filled
+                                return currentStatus?.is_final_status === true || isFieldDisabled;
                               })()}
                             />
                           ) : field.type === 'datetime' ? (
@@ -3569,30 +3936,33 @@ const LeadsPage = () => {
                               id={field.name}
                               type="datetime"
                               value={dynamicFields[field.name] || ''}
-                              onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
+                              onChange={(value) => handleFieldChange(field.name, value)}
                               placeholder={`Select ${field.name.toLowerCase()}...`}
                               className="w-full"
                               required={field.required}
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'time' ? (
                             <DateTimePicker
                               id={field.name}
                               type="time"
                               value={dynamicFields[field.name] || ''}
-                              onChange={(value) => setDynamicFields(prev => ({ ...prev, [field.name]: value }))}
+                              onChange={(value) => handleFieldChange(field.name, value)}
                               placeholder={`Select ${field.name.toLowerCase()}...`}
                               className="w-full"
                               required={field.required}
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'textarea' ? (
                             <Textarea
                               id={field.name}
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               rows={3}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             />
                           ) : field.type === 'select' && field.options && field.options.length > 0 ? (
                             <div className="space-y-2">
@@ -3601,26 +3971,51 @@ const LeadsPage = () => {
                               value={dynamicFields[field.name] || ''}
                                 onChange={(e) => {
                                   const selectedValue = e.target.value;
-                                  setDynamicFields(prev => ({ ...prev, [field.name]: selectedValue }));
+                                  handleFieldChange(field.name, selectedValue); // ✅ Mark as modified
                                   
                                   // If this field has statusIds, find which status was selected and load its fields
                                   if (field.statusIds && field.statusIds.length > 0) {
-                                    const selectedIndex = field.options.indexOf(selectedValue);
-                                    if (selectedIndex >= 0 && selectedIndex < field.statusIds.length) {
-                                      const selectedStatusId = field.statusIds[selectedIndex];
-                                      const selectedStatus = leadStatuses.find(s => s._id === selectedStatusId);
+                                    // ✅ If user selects empty/"none", reset to parent status
+                                    if (!selectedValue || selectedValue === '') {
+                                      setSelectedSubStatusId(formData.status); // Reset to main status
+                                      console.log('🔄 [LEADS PAGE] Reset to main status:', formData.status);
+                                      return;
+                                    }
+                                    
+                                    // Match by status name instead of index to avoid misalignment
+                                    const matchedStatus = leadStatuses.find(status => 
+                                      status.name === selectedValue && 
+                                      field.statusIds?.includes(status._id)
+                                    );
+                                    
+                                    if (matchedStatus) {
+                                      // ✅ Always update to the latest/deepest sub-status ID (nested support)
+                                      setSelectedSubStatusId(matchedStatus._id);
                                       
-                                      if (selectedStatus && selectedStatus.formFields) {
+                                      console.log('🟢 [LEADS PAGE] Sub-status selected:', {
+                                        fieldName: field.name,
+                                        selectedOption: selectedValue,
+                                        matchedStatusName: matchedStatus.name,
+                                        subStatusId: matchedStatus._id,
+                                        allStatusIds: field.statusIds
+                                      });
+                                      
+                                      // Use the matched status we already found
+                                      if (matchedStatus && matchedStatus.formFields) {
                                         const nestedFields: { [key: string]: any } = { ...dynamicFields, [field.name]: selectedValue };
                                         
                                         // Use namespaced field names to avoid collisions
                                         const namespacedPrefix = `${field.name}_${selectedValue}_`;
                                         
-                                        selectedStatus.formFields.forEach((nestedField: FormField) => {
+                                        // ✅ Check nested fields for deeper nesting (recursive sub-status detection)
+                                        // ✅ Filter out status-related fields from nested sub-status fields
+                                        matchedStatus.formFields
+                                          .filter((nestedField: FormField) => !nestedField.name.toLowerCase().includes('status'))
+                                          .forEach((nestedField: FormField) => {
                                           const namespacedFieldName = `${namespacedPrefix}${nestedField.name}`;
                                           
                                           if (nestedField.type === 'date') {
-                                            if (selectedStatus.is_final_status) {
+                                            if (matchedStatus.is_final_status) {
                                               const today = new Date();
                                               nestedFields[namespacedFieldName] = nestedFields[namespacedFieldName] || formatDateToYYYYMMDD(today);
                                             } else {
@@ -3631,15 +4026,28 @@ const LeadsPage = () => {
                                           } else {
                                             nestedFields[namespacedFieldName] = nestedFields[namespacedFieldName] || '';
                                           }
+                                          
+                                          // Note: We don't check for statusIds in nested fields anymore
+                                          // since we filtered out status-related fields above
                                         });
                                         
                                         setDynamicFields(nestedFields);
+                                      } else {
+                                        // If no nested fields, but matchedStatus._id exists, it's the final one
+                                        setSelectedSubStatusId(matchedStatus._id);
                                       }
+                                    } else {
+                                      // No valid selection, clear sub-status
+                                      setSelectedSubStatusId(null);
                                     }
+                                  } else {
+                                    // No statusIds in this field, clear sub-status
+                                    setSelectedSubStatusId(null);
                                   }
                                 }}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             >
                               <option value="">Select {field.name}</option>
                               {field.options.map((option: string, index: number) => (
@@ -3677,8 +4085,9 @@ const LeadsPage = () => {
                                           newValues = e.target.checked ? [option] : [];
                                         }
 
-                                        setDynamicFields(prev => ({ ...prev, [field.name]: newValues }));
+                                        handleFieldChange(field.name, newValues); // ✅ Mark as modified
                                       }}
+                                      disabled={isFieldDisabled}
                                       className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                                     />
                                     <label htmlFor={`${field.name}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
@@ -3694,19 +4103,21 @@ const LeadsPage = () => {
                               type="text"
                               placeholder={`Enter ${field.name.toLowerCase()}...`}
                               value={dynamicFields[field.name] || ''}
-                              onChange={(e) => setDynamicFields(prev => ({ ...prev, [field.name]: e.target.value }))}
+                              onChange={(e) => handleFieldChange(field.name, e.target.value)}
                               required={field.required}
                               className="w-full"
+                              disabled={isFieldDisabled}
                             />
                           )}
                         </div>
-                      ))}
+                      );
+                      })}
                   </div>
                 </div>
               )}
 
-              {/* Nested Dynamic Fields from Selected Status in Select Options */}
-              {formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
+              {/* Nested Dynamic Fields from Selected Status in Select Options - Only show when editing lead */}
+              {editingLead && formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
                 <>
                   {getRequiredFieldsForStatus(formData.status)
                     .filter(field => field.type === 'select' && field.statusIds && field.statusIds.length > 0)
@@ -3714,12 +4125,15 @@ const LeadsPage = () => {
                       const selectedOption = dynamicFields[parentField.name];
                       if (!selectedOption) return null;
                       
-                      const selectedIndex = parentField.options.indexOf(selectedOption);
-                      if (selectedIndex < 0 || selectedIndex >= (parentField.statusIds?.length || 0)) return null;
+                      // Match by status name instead of index to avoid misalignment
+                      const selectedStatus = leadStatuses.find(status => 
+                        status.name === selectedOption && 
+                        parentField.statusIds?.includes(status._id)
+                      );
                       
-                      const selectedStatusId = parentField.statusIds![selectedIndex];
-                      const selectedStatus = leadStatuses.find(s => s._id === selectedStatusId);
                       if (!selectedStatus || !selectedStatus.formFields || selectedStatus.formFields.length === 0) return null;
+                      
+                      console.log('🔍 [NESTED FIELDS] Selected option:', selectedOption, 'Matched status:', selectedStatus.name, 'Status ID:', selectedStatus._id);
                       
                       return (
                         <div key={`nested-${parentField.name}`} className="bg-gradient-to-r from-green-50 to-emerald-50 dark:from-green-900/10 dark:to-emerald-900/10 rounded-xl border border-green-200 dark:border-green-700 p-6">
@@ -3739,8 +4153,23 @@ const LeadsPage = () => {
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                             {selectedStatus.formFields
                               .filter(nestedField => nestedField.name && nestedField.name.trim() !== '')
+                              .filter(nestedField => nestedField.type !== 'select') // Stop recursion - no more select fields in nested level
                               .map(nestedField => {
                                 const namespacedFieldName = `${parentField.name}_${selectedOption}_${nestedField.name}`;
+                                
+                                // ✅ Check if nested field should be disabled (same logic as main fields)
+                                // EXCEPTION: Fields with statusIds (sub-status selectors) should NEVER be disabled
+                                const wasInitiallyAutoFilled = initialAutoFilledFields.has(namespacedFieldName);
+                                const hasUserModified = userModifiedFields.has(namespacedFieldName);
+                                const hasStatusIds = nestedField.statusIds && nestedField.statusIds.length > 0;
+                                const isNestedFieldDisabled = !!editingLead && wasInitiallyAutoFilled && !hasUserModified && !hasStatusIds;
+                                
+                                // ✅ Helper function to mark nested field as modified
+                                const handleNestedFieldChange = (fieldName: string, value: any) => {
+                                  setDynamicFields(prev => ({ ...prev, [fieldName]: value }));
+                                  setUserModifiedFields(prev => new Set(prev).add(fieldName));
+                                };
+                                
                                 return (
                                   <div key={namespacedFieldName} className="space-y-2">
                                     <Label
@@ -3754,36 +4183,154 @@ const LeadsPage = () => {
                                         type="text"
                                         placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
                                         value={dynamicFields[namespacedFieldName] || ''}
-                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
                                         required={nestedField.required}
                                         className="w-full"
+                                        disabled={isNestedFieldDisabled}
+                                      />
+                                    ) : nestedField.type === 'email' ? (
+                                      <TextInput
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="email"
+                                        placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                        disabled={isNestedFieldDisabled}
+                                      />
+                                    ) : nestedField.type === 'tel' || nestedField.type === 'phone' ? (
+                                      <TextInput
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="tel"
+                                        placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                        disabled={isNestedFieldDisabled}
+                                      />
+                                    ) : nestedField.type === 'number' ? (
+                                      <TextInput
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="number"
+                                        placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
+                                        required={nestedField.required}
+                                        className="w-full"
+                                        disabled={isNestedFieldDisabled}
                                       />
                                     ) : nestedField.type === 'date' ? (
                                       <TextInput
                                         id={`nested-${namespacedFieldName}`}
                                         type="date"
                                         value={dynamicFields[namespacedFieldName] || ''}
-                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
                                         required={nestedField.required}
                                         className="w-full"
+                                        disabled={isNestedFieldDisabled}
+                                      />
+                                    ) : nestedField.type === 'datetime' ? (
+                                      <DateTimePicker
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="datetime"
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(value) => handleNestedFieldChange(namespacedFieldName, value)}
+                                        placeholder={`Select ${nestedField.name.toLowerCase()}...`}
+                                        className="w-full"
+                                        required={nestedField.required}
+                                        disabled={isNestedFieldDisabled}
+                                      />
+                                    ) : nestedField.type === 'time' ? (
+                                      <DateTimePicker
+                                        id={`nested-${namespacedFieldName}`}
+                                        type="time"
+                                        value={dynamicFields[namespacedFieldName] || ''}
+                                        onChange={(value) => handleNestedFieldChange(namespacedFieldName, value)}
+                                        placeholder={`Select ${nestedField.name.toLowerCase()}...`}
+                                        className="w-full"
+                                        required={nestedField.required}
+                                        disabled={isNestedFieldDisabled}
                                       />
                                     ) : nestedField.type === 'textarea' ? (
                                       <Textarea
                                         id={`nested-${namespacedFieldName}`}
                                         placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
                                         value={dynamicFields[namespacedFieldName] || ''}
-                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
                                         rows={3}
                                         required={nestedField.required}
                                         className="w-full"
+                                        disabled={isNestedFieldDisabled}
                                       />
                                     ) : nestedField.type === 'select' && nestedField.options && nestedField.options.length > 0 ? (
                                       <Select
                                         id={`nested-${namespacedFieldName}`}
                                         value={dynamicFields[namespacedFieldName] || ''}
-                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        onChange={(e) => {
+                                          const selectedValue = e.target.value;
+                                          handleNestedFieldChange(namespacedFieldName, selectedValue);
+                                          
+                                          // ✅ Check if nested field has statusIds (deeper nesting)
+                                          if (nestedField.statusIds && nestedField.statusIds.length > 0) {
+                                            // ✅ If user selects empty/"none", reset to parent level status
+                                            if (!selectedValue || selectedValue === '') {
+                                              const parentStatusId = parentField.statusIds?.[parentField.options.indexOf(selectedOption)];
+                                              setSelectedSubStatusId(parentStatusId || formData.status);
+                                              console.log('🔄 [LEADS PAGE] Level 2 Reset to parent status:', parentStatusId);
+                                              return;
+                                            }
+                                            
+                                            const nestedSelectedIndex = nestedField.options.indexOf(selectedValue);
+                                            if (nestedSelectedIndex >= 0 && nestedSelectedIndex < nestedField.statusIds.length) {
+                                              const nestedSelectedStatusId = nestedField.statusIds[nestedSelectedIndex];
+                                              
+                                              // ✅ Always update to the deepest/last sub-status ID
+                                              setSelectedSubStatusId(nestedSelectedStatusId);
+                                              
+                                              console.log('🟢🟢 [LEADS PAGE] Nested sub-status selected (level 2+):', {
+                                                fieldName: nestedField.name,
+                                                selectedOption: selectedValue,
+                                                selectedIndex: nestedSelectedIndex,
+                                                subStatusId: nestedSelectedStatusId,
+                                                allStatusIds: nestedField.statusIds,
+                                                parentField: parentField.name,
+                                                parentOption: selectedOption
+                                              });
+                                              
+                                              // ✅ Recursively check for even deeper nesting
+                                              const nestedSelectedStatus = leadStatuses.find(s => s._id === nestedSelectedStatusId);
+                                              if (nestedSelectedStatus && nestedSelectedStatus.formFields) {
+                                                nestedSelectedStatus.formFields.forEach((deeperField: FormField) => {
+                                                  const deeperFieldName = `${namespacedFieldName}_${selectedValue}_${deeperField.name}`;
+                                                  const deeperSelectedValue = dynamicFields[deeperFieldName];
+                                                  
+                                                  // ✅ Check if deeper field also has statusIds (level 3+)
+                                                  if (deeperField.statusIds && deeperField.statusIds.length > 0 && deeperSelectedValue) {
+                                                    const deeperSelectedIndex = deeperField.options.indexOf(deeperSelectedValue);
+                                                    if (deeperSelectedIndex >= 0 && deeperSelectedIndex < deeperField.statusIds.length) {
+                                                      const deeperSelectedStatusId = deeperField.statusIds[deeperSelectedIndex];
+                                                      // ✅ Update to deepest sub-status (this is the last one)
+                                                      setSelectedSubStatusId(deeperSelectedStatusId);
+                                                      console.log('🟢🟢🟢 [LEADS PAGE] Deeper sub-status selected (level 3+):', {
+                                                        fieldName: deeperField.name,
+                                                        selectedOption: deeperSelectedValue,
+                                                        subStatusId: deeperSelectedStatusId
+                                                      });
+                                                    }
+                                                  }
+                                                });
+                                              }
+                                            } else {
+                                              // No valid selection, fall back to parent sub-status
+                                              setSelectedSubStatusId(parentField.statusIds?.[parentField.options.indexOf(selectedOption)] || null);
+                                            }
+                                          }
+                                        }}
                                         required={nestedField.required}
                                         className="w-full"
+                                        disabled={isNestedFieldDisabled}
                                       >
                                         <option value="">Select {nestedField.name}</option>
                                         {nestedField.options.map((option: string, index: number) => (
@@ -3792,15 +4339,56 @@ const LeadsPage = () => {
                                           </option>
                                         ))}
                                       </Select>
+                                    ) : nestedField.type === 'checkbox' && nestedField.options && nestedField.options.length > 0 ? (
+                                      <div className="space-y-2">
+                                        {nestedField.options.map((option: string, index: number) => {
+                                          const currentValues = dynamicFields[namespacedFieldName] || [];
+                                          const isChecked = Array.isArray(currentValues)
+                                            ? currentValues.includes(option)
+                                            : currentValues === option;
+
+                                          return (
+                                            <div key={index} className="flex items-center">
+                                              <input
+                                                type="checkbox"
+                                                id={`nested-${namespacedFieldName}_${index}`}
+                                                checked={isChecked}
+                                                onChange={(e) => {
+                                                  const currentValues = dynamicFields[namespacedFieldName] || [];
+                                                  let newValues;
+
+                                                  if (Array.isArray(currentValues)) {
+                                                    if (e.target.checked) {
+                                                      newValues = [...currentValues, option];
+                                                    } else {
+                                                      newValues = currentValues.filter((v: string) => v !== option);
+                                                    }
+                                                  } else {
+                                                    newValues = e.target.checked ? [option] : [];
+                                                  }
+
+                                                  handleNestedFieldChange(namespacedFieldName, newValues);
+                                                }}
+                                                disabled={isNestedFieldDisabled}
+                                                className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                              />
+                                              <label htmlFor={`nested-${namespacedFieldName}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                {option}
+                                              </label>
+                                            </div>
+                                          );
+                                        })}
+                                      </div>
                                     ) : (
                                       <TextInput
                                         id={`nested-${namespacedFieldName}`}
                                         type="text"
                                         placeholder={`Enter ${nestedField.name.toLowerCase()}...`}
                                         value={dynamicFields[namespacedFieldName] || ''}
-                                        onChange={(e) => setDynamicFields(prev => ({ ...prev, [namespacedFieldName]: e.target.value }))}
+                                        onChange={(e) => handleNestedFieldChange(namespacedFieldName, e.target.value)}
                                         required={nestedField.required}
                                         className="w-full"
+                                        disabled={isNestedFieldDisabled}
                                       />
                                     )}
                                   </div>
@@ -3809,6 +4397,274 @@ const LeadsPage = () => {
                           </div>
                         </div>
                       );
+                    })}
+                </>
+              )}
+
+              {/* Level 3+ Nested Dynamic Fields (Recursive Nesting) - Only show when editing lead */}
+              {editingLead && formData.status && getRequiredFieldsForStatus(formData.status).length > 0 && (
+                <>
+                  {getRequiredFieldsForStatus(formData.status)
+                    .filter(field => field.type === 'select' && field.statusIds && field.statusIds.length > 0)
+                    .map(level1Field => {
+                      const level1SelectedOption = dynamicFields[level1Field.name];
+                      if (!level1SelectedOption) return null;
+                      
+                      // Match by status name instead of index to avoid misalignment
+                      const level1Status = leadStatuses.find(status => 
+                        status.name === level1SelectedOption && 
+                        level1Field.statusIds?.includes(status._id)
+                      );
+                      
+                      if (!level1Status || !level1Status.formFields) return null;
+                      
+                      // Find level 2 fields that have statusIds (sub-sub-statuses)
+                      return level1Status.formFields
+                        .filter(level2Field => level2Field.type === 'select' && level2Field.statusIds && level2Field.statusIds.length > 0)
+                        .map(level2Field => {
+                          const level2FieldName = `${level1Field.name}_${level1SelectedOption}_${level2Field.name}`;
+                          const level2SelectedOption = dynamicFields[level2FieldName];
+                          if (!level2SelectedOption) return null;
+                          
+                          // Match by status name instead of index to avoid misalignment
+                          const level2Status = leadStatuses.find(status => 
+                            status.name === level2SelectedOption && 
+                            level2Field.statusIds?.includes(status._id)
+                          );
+                          
+                          if (!level2Status || !level2Status.formFields || level2Status.formFields.length === 0) return null;
+                          
+                          return (
+                            <div key={`nested-level3-${level2FieldName}`} className="bg-gradient-to-r from-purple-50 to-pink-50 dark:from-purple-900/10 dark:to-pink-900/10 rounded-xl border border-purple-200 dark:border-purple-700 p-6">
+                              <div className="flex items-center mb-6">
+                                <div className="bg-purple-100 dark:bg-purple-900/20 p-2 rounded-lg mr-3">
+                                  <Icon icon="solar:layers-line-duotone" className="text-purple-600 dark:text-purple-400 text-xl" />
+                                </div>
+                                <div>
+                                  <h3 className="text-xl font-semibold text-gray-900 dark:text-white">
+                                    Additional Fields for "{level2Status.name}"
+                                  </h3>
+                                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                                    Selected from "{level2Field.name}" → "{level2SelectedOption}"
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                                {level2Status.formFields
+                                  .filter(level3Field => level3Field.name && level3Field.name.trim() !== '')
+                                  .map(level3Field => {
+                                    const level3FieldName = `${level2FieldName}_${level2SelectedOption}_${level3Field.name}`;
+                                    
+                                    // ✅ Check if level 3 field should be disabled
+                                    // EXCEPTION: Fields with statusIds (sub-status selectors) should NEVER be disabled (but level 3+ are explicitly disabled elsewhere)
+                                    const wasInitiallyAutoFilled = initialAutoFilledFields.has(level3FieldName);
+                                    const hasUserModified = userModifiedFields.has(level3FieldName);
+                                    const hasStatusIds = level3Field.statusIds && level3Field.statusIds.length > 0;
+                                    const isLevel3FieldDisabled = !!editingLead && wasInitiallyAutoFilled && !hasUserModified && !hasStatusIds;
+                                    
+                                    // ✅ Helper function to mark level 3 field as modified
+                                    const handleLevel3FieldChange = (fieldName: string, value: any) => {
+                                      setDynamicFields(prev => ({ ...prev, [fieldName]: value }));
+                                      setUserModifiedFields(prev => new Set(prev).add(fieldName));
+                                    };
+                                    
+                                    return (
+                                      <div key={level3FieldName} className="space-y-2">
+                                        <Label
+                                          htmlFor={`level3-${level3FieldName}`}
+                                          value={`${level3Field.name} ${level3Field.required ? '*' : ''}`}
+                                          className="text-sm font-medium text-gray-700 dark:text-gray-300"
+                                        />
+                                        {level3Field.type === 'text' ? (
+                                          <TextInput
+                                            id={`level3-${level3FieldName}`}
+                                            type="text"
+                                            placeholder={`Enter ${level3Field.name.toLowerCase()}...`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'email' ? (
+                                          <TextInput
+                                            id={`level3-${level3FieldName}`}
+                                            type="email"
+                                            placeholder={`Enter ${level3Field.name.toLowerCase()}...`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'tel' || level3Field.type === 'phone' ? (
+                                          <TextInput
+                                            id={`level3-${level3FieldName}`}
+                                            type="tel"
+                                            placeholder={`Enter ${level3Field.name.toLowerCase()}...`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'number' ? (
+                                          <TextInput
+                                            id={`level3-${level3FieldName}`}
+                                            type="number"
+                                            placeholder={`Enter ${level3Field.name.toLowerCase()}...`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'date' ? (
+                                          <TextInput
+                                            id={`level3-${level3FieldName}`}
+                                            type="date"
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'datetime' ? (
+                                          <DateTimePicker
+                                            id={`level3-${level3FieldName}`}
+                                            type="datetime"
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(value) => handleLevel3FieldChange(level3FieldName, value)}
+                                            placeholder={`Select ${level3Field.name.toLowerCase()}...`}
+                                            className="w-full"
+                                            required={level3Field.required}
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'time' ? (
+                                          <DateTimePicker
+                                            id={`level3-${level3FieldName}`}
+                                            type="time"
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(value) => handleLevel3FieldChange(level3FieldName, value)}
+                                            placeholder={`Select ${level3Field.name.toLowerCase()}...`}
+                                            className="w-full"
+                                            required={level3Field.required}
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'textarea' ? (
+                                          <Textarea
+                                            id={`level3-${level3FieldName}`}
+                                            placeholder={`Enter ${level3Field.name.toLowerCase()}...`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            rows={3}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        ) : level3Field.type === 'select' && level3Field.options && level3Field.options.length > 0 ? (
+                                          <Select
+                                            id={`level3-${level3FieldName}`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => {
+                                              const selectedValue = e.target.value;
+                                              handleLevel3FieldChange(level3FieldName, selectedValue);
+                                              
+                                              // ✅ Track level 4+ if this field has statusIds (but field should be disabled)
+                                              if (level3Field.statusIds && level3Field.statusIds.length > 0) {
+                                                // ✅ If user selects empty/"none", reset to parent level (level 2) status
+                                                if (!selectedValue || selectedValue === '') {
+                                                  setSelectedSubStatusId(level2Status._id); // Reset to level 2 status
+                                                  console.log('🔄 [LEADS PAGE] Level 3 Reset to level 2 status:', level2Status._id);
+                                                  return;
+                                                }
+                                                
+                                                const level3SelectedIndex = level3Field.options.indexOf(selectedValue);
+                                                if (level3SelectedIndex >= 0 && level3SelectedIndex < level3Field.statusIds.length) {
+                                                  const level3StatusId = level3Field.statusIds[level3SelectedIndex];
+                                                  setSelectedSubStatusId(level3StatusId);
+                                                  console.log('🟢🟢🟢 [LEADS PAGE] Level 3 sub-status selected (auto-tracked):', {
+                                                    fieldName: level3Field.name,
+                                                    selectedOption: selectedValue,
+                                                    subStatusId: level3StatusId,
+                                                    note: 'Level 3+ dropdowns with statusIds are disabled but auto-tracked'
+                                                  });
+                                                }
+                                              }
+                                            }}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={
+                                              isLevel3FieldDisabled || 
+                                              (level3Field.statusIds && level3Field.statusIds.length > 0) // ✅ Disable if has sub-status (would lead to level 4)
+                                            }
+                                          >
+                                            <option value="">Select {level3Field.name}</option>
+                                            {level3Field.options.map((option: string, index: number) => (
+                                              <option key={index} value={option}>
+                                                {option}
+                                              </option>
+                                            ))}
+                                          </Select>
+                                        ) : level3Field.type === 'checkbox' && level3Field.options && level3Field.options.length > 0 ? (
+                                          <div className="space-y-2">
+                                            {level3Field.options.map((option: string, index: number) => {
+                                              const currentValues = dynamicFields[level3FieldName] || [];
+                                              const isChecked = Array.isArray(currentValues)
+                                                ? currentValues.includes(option)
+                                                : currentValues === option;
+
+                                              return (
+                                                <div key={index} className="flex items-center">
+                                                  <input
+                                                    type="checkbox"
+                                                    id={`level3-${level3FieldName}_${index}`}
+                                                    checked={isChecked}
+                                                    onChange={(e) => {
+                                                      const currentValues = dynamicFields[level3FieldName] || [];
+                                                      let newValues;
+
+                                                      if (Array.isArray(currentValues)) {
+                                                        if (e.target.checked) {
+                                                          newValues = [...currentValues, option];
+                                                        } else {
+                                                          newValues = currentValues.filter((v: string) => v !== option);
+                                                        }
+                                                      } else {
+                                                        newValues = e.target.checked ? [option] : [];
+                                                      }
+
+                                                      handleLevel3FieldChange(level3FieldName, newValues);
+                                                    }}
+                                                    disabled={isLevel3FieldDisabled}
+                                                    className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
+                                                  />
+                                                  <label htmlFor={`level3-${level3FieldName}_${index}`} className="ml-2 text-sm text-gray-700 dark:text-gray-300">
+                                                    {option}
+                                                  </label>
+                                                </div>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : (
+                                          <TextInput
+                                            id={`level3-${level3FieldName}`}
+                                            type="text"
+                                            placeholder={`Enter ${level3Field.name.toLowerCase()}...`}
+                                            value={dynamicFields[level3FieldName] || ''}
+                                            onChange={(e) => handleLevel3FieldChange(level3FieldName, e.target.value)}
+                                            required={level3Field.required}
+                                            className="w-full"
+                                            disabled={isLevel3FieldDisabled}
+                                          />
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                              </div>
+                            </div>
+                          );
+                        });
                     })}
                 </>
               )}
