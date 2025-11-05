@@ -8,7 +8,6 @@ import { useRouter } from "next/navigation";
 import { PERMISSIONS } from "@/app/types/permissions";
 import { usePermissions } from "@/app/context/PermissionContext";
 import LeadStatusChart from "./LeadStatusChart";
-import ChartJSLineChart from "@/app/components/charts/ChartJSLineChart";
 import LeadAnalyticsChart from "./LeadAnalyticsChart";
 import dynamic from "next/dynamic";
 import DateTimePicker from "@/components/DateTimePicker";

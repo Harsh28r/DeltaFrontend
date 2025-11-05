@@ -1,4 +1,3 @@
-import ChatsApp from "@/app/components/apps/chat";
 import BreadcrumbComp from "../../layout/shared/breadcrumb/BreadcrumbComp";
 import type { Metadata } from "next";
 export const metadata: Metadata = {
@@ -18,7 +17,12 @@ const Chats = () => {
   return (
     <>
       <BreadcrumbComp title="Chat App" items={BCrumb} />
-      <ChatsApp />
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center">
+          <h2 className="text-2xl font-semibold mb-2">Chat</h2>
+          <p className="text-muted-foreground">Chat coming soon</p>
+        </div>
+      </div>
     </>
   );
 };

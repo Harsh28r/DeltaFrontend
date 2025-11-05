@@ -6,13 +6,13 @@ import { Flowbite, ThemeModeScript } from "flowbite-react";
 import customTheme from "@/utils/theme/custom-theme";
 import "../utils/i18n";
 import NextTopLoader from "nextjs-toploader";
-import { Toaster } from "@/app/components/shadcn-ui/Default-Ui/toaster";
 import { CustomizerContextProvider } from "./context/CustomizerContext";
 import { AuthProvider } from "./context/AuthContext";
 import { PermissionProvider } from "./context/PermissionContext";
 import { WebSocketProvider } from "./context/WebSocketContext";
 import { NotificationProvider } from "./context/NotificationContext";
 import NotificationToast from "./components/NotificationToast";
+import { Toaster } from "@/app/components/shadcn-ui/Default-Ui/toaster";
 
 const inter = Inter({ subsets: ["latin"] });
 

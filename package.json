@@ -4,9 +4,11 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "cross-env NODE_OPTIONS=--max-old-space-size=768 next build",
-    "build:analyze": "cross-env ANALYZE=true NODE_OPTIONS=--max-old-space-size=768 next build",
-    "build:windows": "set NODE_OPTIONS=--max-old-space-size=768 && next build",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:analyze": "cross-env ANALYZE=true NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:windows": "set NODE_OPTIONS=--max-old-space-size=4096 && next build",
+    "build:nocache": "cross-env NODE_OPTIONS=--max-old-space-size=4096 NEXT_BUILD_NO_WEBPACK_CACHE=1 next build",
+    "clean": "rmdir /s /q .next 2>nul || echo Cleaned",
     "start": "next start",
     "lint": "next lint"
   },
@@ -83,7 +85,7 @@
     "react-day-picker": "^8.10.1",
     "react-dnd": "^16.0.1",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2",
+    "react-hook-form": "^7.66.0",
     "react-i18next": "^15.0.0",
     "react-leaflet": "^5.0.0",
     "react-slick": "^0.29.0",
@@ -97,6 +99,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^10.0.0",
     "vaul": "^1.1.2",
+    "ws": "^8.18.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
