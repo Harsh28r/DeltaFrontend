@@ -1,6 +1,57 @@
-// API Configuration
-// export const API_BASE_URL = 'http://localhost:5000'; // Hardcoded for now - fixed undefined issue
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+/**
+ * API Configuration
+ * 
+ * Automatically detects production environment and uses the correct API URL:
+ * 
+ * Priority order:
+ * 1. NEXT_PUBLIC_API_BASE_URL environment variable (if set)
+ * 2. Client-side: Checks if running on production domain (realtechmktg.com)
+ *    - If on production domain → uses https://api.realtechmktg.com (or http:// if SSL not configured)
+ *    - Otherwise → uses http://localhost:5000
+ * 3. Server-side: Uses production API if NODE_ENV=production, else localhost
+ * 
+ * For production deployment:
+ * - Set NEXT_PUBLIC_API_BASE_URL=https://api.realtechmktg.com in your build environment
+ * - Or let it auto-detect based on the domain (recommended)
+ * 
+ * For local development:
+ * - Don't set NEXT_PUBLIC_API_BASE_URL, it will default to http://localhost:5000
+ */
+const getApiBaseUrl = (): string => {
+  // If environment variable is explicitly set, use it (highest priority)
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  // Check if we're in the browser (client-side)
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    
+    // Production domain detection
+    const productionDomains = ['realtechmktg.com', 'www.realtechmktg.com'];
+    const isProduction = productionDomains.some(domain => 
+      hostname === domain || hostname.endsWith(`.${domain}`)
+    );
+
+    if (isProduction) {
+      // Use HTTPS in production (or HTTP if SSL not yet configured)
+      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+      return `${protocol}//api.realtechmktg.com`;
+    }
+  }
+
+  // Check NODE_ENV for server-side rendering
+  if (process.env.NODE_ENV === 'production') {
+    // In production build, default to production API
+    // This will be overridden by client-side detection above
+    return 'https://api.realtechmktg.com';
+  }
+
+  // Development fallback
+  return 'http://localhost:5000';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
 
 // Google Maps Configuration
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';

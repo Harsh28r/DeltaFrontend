@@ -1,6 +1,22 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: false,
+    // Enable standalone output for Docker deployment
+    output: 'standalone',
+    // Image configuration
+    images: {
+        unoptimized: true, // Disable image optimization for simpler deployment
+        remotePatterns: [
+            {
+                protocol: 'https',
+                hostname: '**',
+            },
+            {
+                protocol: 'http',
+                hostname: '**',
+            },
+        ],
+    },
     // Remove deprecated appDir option (App Router is default in Next.js 13+)
     // Add webpack configuration to handle memory issues
     webpack: (config, { isServer }) => {

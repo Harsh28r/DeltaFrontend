@@ -1,4 +1,4 @@
-import { API_ENDPOINTS } from '@/lib/config';
+import { API_ENDPOINTS, API_BASE_URL } from '@/lib/config';
 
 /**
  * Fetches a selfie image from the CP sourcing API
@@ -69,8 +69,7 @@ export const getSelfieUrl = async (
   }
 
   // Fallback to direct URL construction
-  const baseUrl = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
-  return `${baseUrl}/${selfiePath}`;
+  return `${API_BASE_URL}/${selfiePath}`;
 };
 
 /**
