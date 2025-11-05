@@ -145,6 +145,8 @@ interface FormField {
 
   _id: string;
 
+  statusIds?: string[]; // Optional: IDs of statuses for nested status selection fields
+
 }
 
 
@@ -284,6 +286,18 @@ const LeadDetailPage = () => {
   
   // Dynamic form fields based on selected status
   const [dynamicFields, setDynamicFields] = useState<{[key: string]: any}>({});
+  
+  // Counter to force remount of dynamic fields when status changes
+  const [fieldResetKey, setFieldResetKey] = useState<number>(0);
+
+  // Reset dynamic fields when status changes in the modal
+  useEffect(() => {
+    if (isStatusModalOpen && statusFormData.newStatusId) {
+      console.log('🔄 Status changed to:', statusFormData.newStatusId);
+      // Reset dynamic fields when a new status is selected
+      setDynamicFields({});
+    }
+  }, [statusFormData.newStatusId, isStatusModalOpen]);
 
   // Function to resolve status name from various possible identifiers
   const resolveStatusName = (statusId: string, statuses: any[]) => {
@@ -1339,6 +1353,11 @@ const LeadDetailPage = () => {
 
     }
 
+    // Reset status form and dynamic fields when opening the modal to ensure clean state
+    setStatusFormData({ newStatusId: '', statusRemark: '' });
+    setDynamicFields({});
+    setFieldResetKey(prev => prev + 1);
+
     setIsStatusModalOpen(true);
 
   };
@@ -1350,6 +1369,10 @@ const LeadDetailPage = () => {
     setIsStatusModalOpen(false);
 
     setStatusFormData({ newStatusId: lead?.currentStatus?._id || '', statusRemark: '' });
+
+    setDynamicFields({}); // Reset dynamic fields when closing modal
+    
+    setFieldResetKey(prev => prev + 1); // Increment reset key to force remount on next open
 
   };
 
@@ -1472,9 +1495,34 @@ const LeadDetailPage = () => {
 
       setIsSubmitting(true);
 
+      // ⚠️ CRITICAL: STRICT FILTER - Remove ANY status-related fields from submission
+      // RULE: ONLY 1-level status update allowed (Current → New, NO third status)
+      // This prevents nested/recursive status updates completely
+      const cleanedDynamicFields = Object.keys(dynamicFields).reduce((acc, key) => {
+        const keyLower = key.toLowerCase();
+        
+        // STRICT BLOCKING - Check multiple patterns:
+        const hasStatusInKey = keyLower.includes('status') || keyLower.includes('statues');
+        const isExactStatusMatch = keyLower === 'status' || keyLower === 'select status' || keyLower === 'statues';
+        const isStatusRelated = hasStatusInKey || isExactStatusMatch;
+        
+        if (!isStatusRelated) {
+          acc[key] = dynamicFields[key];
+        } else {
+          console.log('🚫 REJECTED from submission:', key, '=', dynamicFields[key], 'Reason: Status field detected');
+        }
+        
+        return acc;
+      }, {} as {[key: string]: any});
 
+      console.log('📤 Submitting status update:', {
+        newStatusId: statusFormData.newStatusId,
+        statusName: leadStatuses.find(s => s._id === statusFormData.newStatusId)?.name,
+        cleanedFields: Object.keys(cleanedDynamicFields),
+        blockedFields: Object.keys(dynamicFields).filter(k => !Object.keys(cleanedDynamicFields).includes(k))
+      });
 
-      // Use the status update API endpoint with current lead data
+      // Use the status update API endpoint with current lead data and cleaned dynamic fields
 
       const response = await fetch(`${API_BASE_URL}/api/leads/${lead._id}/status/`, {
 
@@ -1489,7 +1537,7 @@ const LeadDetailPage = () => {
         },
 
         body: JSON.stringify({
-          newStatusId: statusFormData.newStatusId,
+          newStatusId: statusFormData.newStatusId, // ONLY this status ID is used, no nested status
           newData: {
 
             "First Name": lead.customData?.["First Name"] || lead.customData?.name || '',
@@ -1513,17 +1561,12 @@ const LeadDetailPage = () => {
             "Budget": lead.customData?.["Budget"] || lead.customData?.budget || '',
 
 
-            "Remark": statusFormData.statusRemark || 'Status updated'
+            "Remark": statusFormData.statusRemark || 'Status updated',
+
+            // Include ONLY cleaned dynamic fields (no status fields)
+            ...cleanedDynamicFields
 
           },
-
-          // Include all dynamic fields in newData instead of separate statusFields
-          ...Object.keys(lead.customData || {}).reduce((acc, key) => {
-            if (!["First Name", "Email", "Phone", "Notes", "Lead Priority", "Property Type", "Configuration", "Funding Mode", "Gender", "Budget", "Remark", "name", "email", "phone", "contact", "notes", "leadPriority", "propertyType", "configuration", "fundingMode", "gender", "budget"].includes(key)) {
-              acc[key] = lead.customData?.[key];
-            }
-            return acc;
-          }, {} as any)
 
         }),
 
@@ -1536,6 +1579,10 @@ const LeadDetailPage = () => {
         setAlertMessage({ type: 'success', message: 'Lead status updated successfully!' });
 
         setIsStatusModalOpen(false);
+
+        setDynamicFields({}); // Reset dynamic fields after successful update
+        
+        setFieldResetKey(prev => prev + 1); // Increment reset key
 
         fetchLeadDetails(); // Refresh the lead data
 
@@ -3090,11 +3137,11 @@ const LeadDetailPage = () => {
 
 
 
-                        <p className="text-sm text-gray-600 dark:text-gray-400 mb-3">
+                        <div className="text-sm text-gray-600 dark:text-gray-400 mb-3">
 
                           {formatDetails(activity)}
 
-                        </p>
+                        </div>
 
                         {/* Lead Status Fields for this activity */}
                         {/* {lead?.currentStatus?.formFields && lead.currentStatus.formFields.length > 0 && (
@@ -3992,8 +4039,8 @@ const LeadDetailPage = () => {
 
 
 
-            {/* Lead Details Preview */}
-
+            {/* Lead Details Preview - Commented out for simpler UI, uncomment if needed in future */}
+            {/* 
             <div className="bg-gray-50 dark:bg-gray-700 rounded-lg p-4">
 
               <h5 className="text-sm font-medium text-gray-900 dark:text-white mb-3">Current Lead Details</h5>
@@ -4093,6 +4140,7 @@ const LeadDetailPage = () => {
               </div>
 
             </div>
+            */}
 
 
 
@@ -4108,7 +4156,14 @@ const LeadDetailPage = () => {
 
                   id="newStatusId"
                   value={statusFormData.newStatusId}
-                  onChange={(e) => setStatusFormData({ ...statusFormData, newStatusId: e.target.value })}
+                  onChange={(e) => {
+                    const newStatusId = e.target.value;
+                    console.log('🔄 onChange: Status changed from', statusFormData.newStatusId, 'to', newStatusId);
+                    // Reset dynamic fields and increment reset key to force remount
+                    setDynamicFields({});
+                    setFieldResetKey(prev => prev + 1);
+                    setStatusFormData({ newStatusId, statusRemark: statusFormData.statusRemark });
+                  }}
 
                   className="w-full mt-2"
 
@@ -4157,8 +4212,10 @@ const LeadDetailPage = () => {
               {/* Dynamic Fields for Selected Status */}
               {statusFormData.newStatusId && (() => {
                 const selectedStatus = leadStatuses.find(status => status._id === statusFormData.newStatusId);
-                return selectedStatus?.formFields && selectedStatus.formFields.length > 0 ? (
-                  <div className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl border border-green-200 dark:border-green-700 p-6">
+                const filteredFields = selectedStatus?.formFields || [];
+                
+                return filteredFields.length > 0 ? (
+                  <div key={`status-fields-${statusFormData.newStatusId}-${fieldResetKey}`} className="bg-gradient-to-r from-green-50 to-blue-50 dark:from-green-900/20 dark:to-blue-900/20 rounded-xl border border-green-200 dark:border-green-700 p-6">
                     <div className="flex items-center mb-6">
                       <div className="bg-gradient-to-r from-green-500 to-blue-500 p-3 rounded-lg mr-4">
                         <Icon icon="solar:settings-line-duotone" className="text-white text-2xl" />
@@ -4169,8 +4226,12 @@ const LeadDetailPage = () => {
                       </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                      {selectedStatus.formFields.map((field: FormField) => (
-                        <div key={field._id} className="space-y-2">
+                      {filteredFields.map((field: FormField) => {
+                        return (
+                          <div 
+                            key={field._id} 
+                            className="space-y-2"
+                          >
                           <Label
                             htmlFor={`statusField_${field._id}`}
                             value={field.name}
@@ -4184,14 +4245,9 @@ const LeadDetailPage = () => {
                           {field.type === 'select' && field.options && field.options.length > 0 ? (
                             <Select
                               id={`statusField_${field._id}`}
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(e) => {
-                                // Update the lead's customData temporarily for preview
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: e.target.value });
                               }}
                               className="w-full"
                               required={field.required}
@@ -4207,7 +4263,7 @@ const LeadDetailPage = () => {
                             <div className="space-y-2">
                               {field.options.map((option: any, index: number) => {
                                 const optionValue = option.value || option;
-                                const currentValues = lead.customData?.[field.name] || '';
+                                const currentValues = dynamicFields[field.name] || [];
                                 const isChecked = Array.isArray(currentValues) 
                                   ? currentValues.includes(optionValue)
                                   : currentValues === optionValue;
@@ -4219,24 +4275,20 @@ const LeadDetailPage = () => {
                                       id={`${field._id}_${index}`}
                                       checked={isChecked}
                                       onChange={(e) => {
-                                        const updatedLead = { ...lead };
-                                        if (updatedLead) {
-                                          const currentValues = updatedLead.customData?.[field.name] || '';
-                                          let newValues;
-                                          
-                                          if (Array.isArray(currentValues)) {
-                                            if (e.target.checked) {
-                                              newValues = [...currentValues, optionValue];
-                                            } else {
-                                              newValues = currentValues.filter((v: string) => v !== optionValue);
-                                            }
+                                        const currentValues = dynamicFields[field.name] || [];
+                                        let newValues;
+                                        
+                                        if (Array.isArray(currentValues)) {
+                                          if (e.target.checked) {
+                                            newValues = [...currentValues, optionValue];
                                           } else {
-                                            newValues = e.target.checked ? [optionValue] : [];
+                                            newValues = currentValues.filter((v: string) => v !== optionValue);
                                           }
-                                          
-                                          updatedLead.customData = { ...updatedLead.customData, [field.name]: newValues };
-                                          setLead(updatedLead);
+                                        } else {
+                                          newValues = e.target.checked ? [optionValue] : [];
                                         }
+                                        
+                                        setDynamicFields({ ...dynamicFields, [field.name]: newValues });
                                       }}
                                       className="w-4 h-4 text-blue-600 bg-gray-100 border-gray-300 rounded focus:ring-blue-500 dark:focus:ring-blue-600 dark:ring-offset-gray-800 focus:ring-2 dark:bg-gray-700 dark:border-gray-600"
                                     />
@@ -4250,13 +4302,9 @@ const LeadDetailPage = () => {
                           ) : field.type === 'textarea' ? (
                             <Textarea
                               id={`statusField_${field._id}`}
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(e) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: e.target.value });
                               }}
                               placeholder={`Enter ${field.name.toLowerCase()}`}
                               rows={3}
@@ -4267,13 +4315,9 @@ const LeadDetailPage = () => {
                             <TextInput
                               id={`statusField_${field._id}`}
                               type="number"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(e) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: e.target.value });
                               }}
                               placeholder={`Enter ${field.name.toLowerCase()}`}
                               className="w-full"
@@ -4283,13 +4327,9 @@ const LeadDetailPage = () => {
                             <DateTimePicker
                               id={`statusField_${field._id}`}
                               type="date"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(value) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: value });
                               }}
                               placeholder={`Select ${field.name.toLowerCase()}`}
                               className="w-full"
@@ -4299,13 +4339,9 @@ const LeadDetailPage = () => {
                             <DateTimePicker
                               id={`statusField_${field._id}`}
                               type="datetime"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(value) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: value });
                               }}
                               placeholder={`Select ${field.name.toLowerCase()}`}
                               className="w-full"
@@ -4315,13 +4351,9 @@ const LeadDetailPage = () => {
                             <DateTimePicker
                               id={`statusField_${field._id}`}
                               type="time"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(value) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: value });
                               }}
                               placeholder={`Select ${field.name.toLowerCase()}`}
                               className="w-full"
@@ -4331,13 +4363,9 @@ const LeadDetailPage = () => {
                             <TextInput
                               id={`statusField_${field._id}`}
                               type="email"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(e) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: e.target.value });
                               }}
                               placeholder={`Enter ${field.name.toLowerCase()}`}
                               className="w-full"
@@ -4347,13 +4375,9 @@ const LeadDetailPage = () => {
                             <TextInput
                               id={`statusField_${field._id}`}
                               type="tel"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(e) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: e.target.value });
                               }}
                               placeholder={`Enter ${field.name.toLowerCase()}`}
                               className="w-full"
@@ -4363,21 +4387,18 @@ const LeadDetailPage = () => {
                             <TextInput
                               id={`statusField_${field._id}`}
                               type="text"
-                              value={lead.customData?.[field.name] || ''}
+                              value={dynamicFields[field.name] || ''}
                               onChange={(e) => {
-                                const updatedLead = { ...lead };
-                                if (updatedLead) {
-                                  updatedLead.customData = { ...updatedLead.customData, [field.name]: e.target.value };
-                                  setLead(updatedLead);
-                                }
+                                setDynamicFields({ ...dynamicFields, [field.name]: e.target.value });
                               }}
                               placeholder={`Enter ${field.name.toLowerCase()}`}
                               className="w-full"
                               required={field.required}
                             />
                           )}
-                        </div>
-                      ))}
+                          </div>
+                        );
+                      })}
                     </div>
                   </div>
                 ) : null;
@@ -4491,4 +4512,3 @@ const LeadDetailPage = () => {
 
 
 export default LeadDetailPage;
-

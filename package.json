@@ -4,8 +4,13 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "set NODE_OPTIONS=--max-old-space-size=4096 && next build",
-    "build:analyze": "set ANALYZE=true && set NODE_OPTIONS=--max-old-space-size=4096 && next build",
+    "dev:clean": "npm run clean && next dev",
+    "build": "cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:clean": "npm run clean && cross-env NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:analyze": "cross-env ANALYZE=true NODE_OPTIONS=--max-old-space-size=4096 next build",
+    "build:windows": "set NODE_OPTIONS=--max-old-space-size=4096 && next build",
+    "build:nocache": "cross-env NODE_OPTIONS=--max-old-space-size=4096 NEXT_BUILD_NO_WEBPACK_CACHE=1 next build",
+    "clean": "rimraf .next",
     "start": "next start",
     "lint": "next lint"
   },
@@ -82,7 +87,7 @@
     "react-day-picker": "^8.10.1",
     "react-dnd": "^16.0.1",
     "react-dom": "^19.0.0",
-    "react-hook-form": "^7.54.2",
+    "react-hook-form": "^7.66.0",
     "react-i18next": "^15.0.0",
     "react-leaflet": "^5.0.0",
     "react-slick": "^0.29.0",
@@ -96,6 +101,7 @@
     "tailwindcss-animate": "^1.0.7",
     "uuid": "^10.0.0",
     "vaul": "^1.1.2",
+    "ws": "^8.18.3",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -110,7 +116,9 @@
     "@types/react-is": "18.3.0",
     "@types/react-slick": "^0.23.10",
     "@types/react-syntax-highlighter": "^15.5.13",
+    "cross-env": "^7.0.3",
     "postcss": "8",
+    "rimraf": "^6.1.0",
     "tailwindcss": "3.4.4",
     "typescript": "5"
   }

@@ -1,26 +1,14 @@
 "use client";
-import GalleryCards from "@/app/components/apps/userprofile/Gallery/GalleryCards";
-import ProfileBanner from "@/app/components/apps/userprofile/profile/ProfileBanner";
 import React from "react";
-import { UserDataProvider } from '@/app/context/UserDataContext/index';
-
 
 const GalleryApp = () => {
   return (
-    <>
-      <UserDataProvider>
-        <div className="grid grid-cols-12 gap-6">
-          {/* Banner */}
-          <div className="col-span-12">
-            <ProfileBanner />
-          </div>
-          {/* GalleryCards */}
-          <div className="col-span-12">
-            <GalleryCards />
-          </div>
-        </div>
-      </UserDataProvider>
-    </>
+    <div className="flex items-center justify-center min-h-[400px]">
+      <div className="text-center">
+        <h2 className="text-2xl font-semibold mb-2">Gallery</h2>
+        <p className="text-muted-foreground">Coming soon</p>
+      </div>
+    </div>
   );
 };
 

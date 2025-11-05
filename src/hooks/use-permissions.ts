@@ -68,6 +68,23 @@ export const useNotificationPermissions = () => {
   };
 };
 
+export const useLeadManagementPermissions = () => {
+  const { hasPermission, isLoading, error } = usePermissions();
+
+  return {
+    canReadLeadSources: hasPermission(PERMISSIONS.LEAD_SOURCES_READ),
+    canCreateLeadSources: hasPermission(PERMISSIONS.LEAD_SOURCES_CREATE),
+    canUpdateLeadSources: hasPermission(PERMISSIONS.LEAD_SOURCES_UPDATE),
+    canDeleteLeadSources: hasPermission(PERMISSIONS.LEAD_SOURCES_DELETE),
+    canReadLeadStatuses: hasPermission(PERMISSIONS.LEAD_STATUSES_READ),
+    canCreateLeadStatuses: hasPermission(PERMISSIONS.LEAD_STATUSES_CREATE),
+    canUpdateLeadStatuses: hasPermission(PERMISSIONS.LEAD_STATUSES_UPDATE),
+    canDeleteLeadStatuses: hasPermission(PERMISSIONS.LEAD_STATUSES_DELETE),
+    isLoading,
+    error,
+  };
+};
+
 // Hook for checking specific permissions
 export const useHasPermission = (permission: Permission) => {
   const { hasPermission, isLoading, error } = usePermissions();

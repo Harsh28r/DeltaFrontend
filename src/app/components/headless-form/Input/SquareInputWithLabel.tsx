@@ -1,14 +1,14 @@
 import React from "react";
 import CardBox from "../../shared/CardBox";
 import { Field, Input, Label } from "@headlessui/react";
-import SquareInputsCodes from "../../form-components/Form-Elements/Codes/SquareInputs";
+
 const SquareInputWithLabel = () => {
   return (
     <div>
       <CardBox>
         <div className="flex items-center justify-between mb-2">
           <h4 className="text-lg font-semibold">Square Input With Label</h4>
-          <SquareInputsCodes />
+          {/* <SquareInputsCodes /> */}
         </div>
         <Field className="w-full mb-3">
           <Label className="mb-2 block text-ld">Name</Label>

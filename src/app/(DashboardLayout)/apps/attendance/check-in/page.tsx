@@ -657,7 +657,7 @@ const CheckInPage = () => {
 
       {/* Action Buttons */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {attendanceStatus?.canCheckIn && !capturedSelfie && (
+        {attendanceStatus?.canCheckIn && (
           <Button
             size="xl"
             color="success"
@@ -669,23 +669,7 @@ const CheckInPage = () => {
           </Button>
         )}
 
-        {attendanceStatus?.canCheckIn && capturedSelfie && (
-          <Button
-            size="xl"
-            color="success"
-            onClick={handleCheckIn}
-            disabled={actionLoading || !currentLocation}
-          >
-            {actionLoading ? (
-              <Spinner size="sm" className="mr-2" />
-            ) : (
-              <IconLogin className="mr-2" size={20} />
-            )}
-            Confirm Check In
-          </Button>
-        )}
-
-        {attendanceStatus?.canCheckOut && !capturedSelfie && (
+        {attendanceStatus?.canCheckOut && (
           <Button
             size="xl"
             color="failure"
@@ -694,22 +678,6 @@ const CheckInPage = () => {
           >
             <IconCamera className="mr-2" size={20} />
             Take Selfie & Check Out
-          </Button>
-        )}
-
-        {attendanceStatus?.canCheckOut && capturedSelfie && (
-          <Button
-            size="xl"
-            color="failure"
-            onClick={handleCheckOut}
-            disabled={actionLoading || !currentLocation}
-          >
-            {actionLoading ? (
-              <Spinner size="sm" className="mr-2" />
-            ) : (
-              <IconLogout className="mr-2" size={20} />
-            )}
-            Confirm Check Out
           </Button>
         )}
 
@@ -739,7 +707,7 @@ const CheckInPage = () => {
               </Button>
             )}
 
-            <Button
+            {/* <Button
               size="xl"
               color="purple"
               onClick={() => setShowWorkLocationModal(true)}
@@ -747,7 +715,7 @@ const CheckInPage = () => {
             >
               <IconMapPin className="mr-2" size={20} />
               Add Work Location
-            </Button>
+            </Button> */}
           </>
         )}
       </div>
@@ -889,23 +857,100 @@ const CheckInPage = () => {
                     <img
                       src={capturedSelfie}
                       alt="Captured selfie"
-                      className="w-full h-auto max-h-[60vh] rounded-lg object-cover"
+                      className="w-full h-auto max-h-[40vh] rounded-lg object-cover"
                     />
+                    
+                    {/* Location Info with Map */}
+                    {currentLocation && (
+                      <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-700">
+                        <div className="flex items-start space-x-2 mb-3">
+                          <IconMapPinFilled className="text-green-600 dark:text-green-400 mt-0.5 flex-shrink-0" size={18} />
+                          <div className="flex-1">
+                            <p className="text-xs font-semibold text-green-900 dark:text-green-100 mb-1">
+                              ✅ Live Location Captured Automatically
+                            </p>
+                            <p className="text-sm text-green-800 dark:text-green-200 font-medium mb-1">
+                              {currentLocation.address}
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-300">
+                              Coordinates: {currentLocation.latitude.toFixed(6)}, {currentLocation.longitude.toFixed(6)}
+                            </p>
+                            <p className="text-xs text-green-700 dark:text-green-300 mt-1">
+                              Accuracy: {currentLocation.accuracy.toFixed(0)}m
+                            </p>
+                          </div>
+                        </div>
+                        
+                        {/* Map Preview - Read Only */}
+                        <div className="mt-3 rounded-lg overflow-hidden border border-green-300 dark:border-green-700 relative">
+                          <iframe
+                            width="100%"
+                            height="200"
+                            style={{ border: 0, pointerEvents: 'none' }}
+                            loading="lazy"
+                            allowFullScreen={false}
+                            src={`https://www.google.com/maps?q=${currentLocation.latitude},${currentLocation.longitude}&z=15&output=embed`}
+                          />
+                          <div className="absolute inset-0 bg-transparent cursor-not-allowed" 
+                               title="Map preview - read only" />
+                        </div>
+                      </div>
+                    )}
+                    
                     <div className="flex space-x-2">
                       <Button
                         color="success"
-                        onClick={() => {
-                          setShowCameraModal(false);
-                          if (actionType === 'checkin') {
-                            // handleCheckIn will be called when user clicks confirm button
-                          } else {
-                            // handleCheckOut will be called when user clicks confirm button
+                        onClick={async () => {
+                          try {
+                            setActionLoading(true);
+                            setShowCameraModal(false);
+                            setError('');
+                            
+                            // Get fresh location before check-in/out
+                            const location = await getCurrentLocation();
+                            const address = await reverseGeocode(location.latitude, location.longitude);
+                            setCurrentLocation({
+                              ...location,
+                              address,
+                            });
+                            
+                            if (actionType === 'checkin') {
+                              await checkIn({
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                                address: address,
+                                accuracy: location.accuracy,
+                                selfie: capturedSelfie,
+                                platform: getPlatformInfo(),
+                              });
+                              setSuccess('Checked in successfully!');
+                            } else {
+                              await checkOut({
+                                latitude: location.latitude,
+                                longitude: location.longitude,
+                                address: address,
+                                accuracy: location.accuracy,
+                                selfie: capturedSelfie,
+                              });
+                              setSuccess('Checked out successfully!');
+                            }
+                            setCapturedSelfie(null);
+                            await fetchAttendanceStatus();
+                          } catch (err: any) {
+                            setError(err.message || 'Action failed');
+                          } finally {
+                            setActionLoading(false);
                           }
                         }}
                         className="flex-1"
+                        disabled={actionLoading}
                       >
-                        <IconCamera size={18} className="mr-2" />
-                        Use This Photo
+                        {actionLoading ? (
+                          <Spinner size="sm" className="mr-2" />
+                        ) : (
+                          <IconCamera size={18} className="mr-2" />
+                        )}
+                        {actionLoading ? 'Checking In...' : actionType === 'checkin' ? 'Confirm Check In' : 'Confirm Check Out'}
                       </Button>
                       <Button
                         color="light"
@@ -914,6 +959,7 @@ const CheckInPage = () => {
                           setTimeout(() => startCamera(), 100);
                         }}
                         className="flex-1"
+                        disabled={actionLoading}
                       >
                         <IconRefresh size={18} className="mr-2" />
                         Retake
@@ -923,10 +969,19 @@ const CheckInPage = () => {
                 )}
 
                 {/* Instructions */}
-                <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
-                  <p className="text-sm text-blue-900 dark:text-blue-100">
-                    <strong>Instructions:</strong> Position your face within the frame and click "Capture Photo"
-                  </p>
+                <div className="space-y-2">
+                  <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg">
+                    <p className="text-sm text-blue-900 dark:text-blue-100">
+                      <strong>Instructions:</strong> Position your face within the frame and click "Capture Photo"
+                    </p>
+                  </div>
+                  {!capturedSelfie && (
+                    <div className="bg-green-50 dark:bg-green-900/20 p-3 rounded-lg border border-green-200 dark:border-green-700">
+                      <p className="text-sm text-green-900 dark:text-green-100">
+                        <strong>📍 Automatic:</strong> Your live GPS location will be captured along with the photo
+                      </p>
+                    </div>
+                  )}
                 </div>
               </div>
             </Card>

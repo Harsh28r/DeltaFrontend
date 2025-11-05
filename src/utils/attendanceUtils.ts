@@ -1,6 +1,6 @@
 // Attendance Utility Functions
 
-import { API_BASE_URL } from '@/lib/config';
+import { API_BASE_URL, GOOGLE_MAPS_API_KEY } from '@/lib/config';
 
 /**
  * Get user's current GPS location
@@ -49,22 +49,35 @@ export const getCurrentLocation = (): Promise<{
 };
 
 /**
- * Reverse geocode coordinates to get address
+ * Reverse geocode coordinates to get address using Google Maps API
  */
 export const reverseGeocode = async (
   latitude: number,
   longitude: number
 ): Promise<string> => {
   try {
-    // Using OpenStreetMap Nominatim (free, no API key required)
-    const response = await fetch(
-      `https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}`
-    );
-    const data = await response.json();
-    return data.display_name || `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    // Use Google Maps Geocoding API
+    if (GOOGLE_MAPS_API_KEY) {
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        // Return the first formatted address
+        return data.results[0].formatted_address;
+      } else {
+        console.error('Google Maps API error:', data.status);
+        return `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+      }
+    } else {
+      // No API key configured, return GPS coordinates
+      return `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    }
   } catch (error) {
     console.error('Reverse geocoding failed:', error);
-    return `${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
+    return `GPS: ${latitude.toFixed(4)}, ${longitude.toFixed(4)}`;
   }
 };
 
@@ -307,6 +320,11 @@ export const getDateRange = (
     endDate: formatDateForAPI(endDate),
   };
 };
+
+
+
+
+
 
 
 

@@ -2,6 +2,9 @@
 // export const API_BASE_URL = 'http://localhost:5000'; // Hardcoded for now - fixed undefined issue
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
+// Google Maps Configuration
+export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
 // API Endpoints
 export const API_ENDPOINTS = {
   // Auth
@@ -14,6 +17,8 @@ export const API_ENDPOINTS = {
   // Users - TEMPORARY: Using projects endpoint until backend implements users API
   USERS: `${API_BASE_URL}/api/projects`, // Temporary: will extract users from projects
   USERS_BY_ROLE: (roleName: string) => `${API_BASE_URL}/api/projects`, // Temporary: will filter by role
+  // Total users count endpoint (for dashboards/reports)
+  TOTAL_USERS: `${API_BASE_URL}/api/totalusers`,
   CREATE_USER: `${API_BASE_URL}/api/superadmin/create-user`,
   CREATE_USER_WITH_PROJECTS: `${API_BASE_URL}/api/superadmin/create-user-with-projects`,
   UPDATE_USER_PROJECTS: `${API_BASE_URL}/api/superadmin/update-user-projects`,
@@ -60,8 +65,8 @@ export const API_ENDPOINTS = {
   
   // Permissions
   ALL_USERS_PERMISSIONS: `${API_BASE_URL}/api/permissions/all-users`,
-  USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/superadmin/users/${userId}/permissions`,
-  UPDATE_USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/superadmin/users/${userId}/permissions`,
+  USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}`,
+  UPDATE_USER_PERMISSIONS: (userId: string) => `${API_BASE_URL}/api/permissions/user/${userId}`,
   ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
   UPDATE_ROLE_PERMISSIONS: (roleId: string) => `${API_BASE_URL}/api/permissions/role/${roleId}/permissions`,
   

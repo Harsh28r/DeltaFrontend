@@ -166,7 +166,10 @@ const LeadReportsGraphsPage = () => {
         {/* Charts Grid */}
         <div className="space-y-6">
           <Suspense fallback={<ChartLoadingPlaceholder />}>
-            <StatusDistributionChart data={reportData.leadStatusSummary || []} />
+            <StatusDistributionChart 
+              data={reportData.leadStatusSummary || []} 
+              availableStatuses={reportData.availableStatuses || []}
+            />
           </Suspense>
 
           <Suspense fallback={<ChartLoadingPlaceholder />}>
