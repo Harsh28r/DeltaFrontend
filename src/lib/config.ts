@@ -2,6 +2,9 @@
 // export const API_BASE_URL = 'http://localhost:5000'; // Hardcoded for now - fixed undefined issue
 export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
 
+// Google Maps Configuration
+export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+
 // API Endpoints
 export const API_ENDPOINTS = {
   // Auth

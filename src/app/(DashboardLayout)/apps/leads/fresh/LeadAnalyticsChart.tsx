@@ -20,7 +20,7 @@ interface Lead {
     leadSource?: {
         _id: string;
         name: string;
-    };
+    } | null;
     [key: string]: any;
 }
 
