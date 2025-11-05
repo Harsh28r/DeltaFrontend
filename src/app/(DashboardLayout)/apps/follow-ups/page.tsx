@@ -197,9 +197,18 @@ const FollowUpsPage = () => {
   // Filtered follow-ups functions
   const getFilteredTodaysFollowUps = () => {
     const todaysFollowUps = getTodaysFollowUps();
+    console.log('🔍 DEBUG - Today Filter:', todayFilter);
+    console.log('🔍 DEBUG - All Today Follow-ups:', todaysFollowUps);
+    console.log('🔍 DEBUG - Today Follow-ups Count:', todaysFollowUps.length);
+    console.log('🔍 DEBUG - Follow-ups with leads:', todaysFollowUps.filter(f => f.lead).length);
+    console.log('🔍 DEBUG - Follow-ups without leads:', todaysFollowUps.filter(f => !f.lead).length);
+    
     const filtered = todayFilter === 'all' ? todaysFollowUps : todaysFollowUps.filter(followUp =>
       followUp.lead && (followUp.lead.status || followUp.lead.currentStatus?.name) === todayFilter
     );
+    console.log('🔍 DEBUG - Filtered Today Follow-ups:', filtered);
+    console.log('🔍 DEBUG - Filtered Count:', filtered.length);
+    
     return showMoreToday ? filtered : filtered.slice(0, 2);
   };
 
@@ -420,7 +429,14 @@ const FollowUpsPage = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200 dark:divide-gray-700">
-                  {getFilteredTodaysFollowUps().filter(followUp => followUp.lead).map(followUp => (
+                  {(() => {
+                    const filtered = getFilteredTodaysFollowUps();
+                    const withLeads = filtered.filter(followUp => followUp.lead);
+                    console.log('🎯 RENDER - Filtered Today:', filtered.length);
+                    console.log('🎯 RENDER - With Leads:', withLeads.length);
+                    console.log('🎯 RENDER - Items to display:', withLeads);
+                    return withLeads;
+                  })().map(followUp => (
                     <tr
                       key={followUp.id}
                       className="hover:bg-gray-50 dark:hover:bg-gray-800 cursor-pointer"
