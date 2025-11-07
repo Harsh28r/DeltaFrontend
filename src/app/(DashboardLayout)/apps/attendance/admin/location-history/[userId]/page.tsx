@@ -24,17 +24,30 @@ import type { LocationHistoryResponse, LocationHistoryItem } from '@/app/(Dashbo
 import { formatDateForAPI, formatCoordinates } from '@/utils/attendanceUtils';
 import Link from 'next/link';
 
-const LocationHistoryPage = ({ params }: { params: { userId: string } }) => {
-  const { userId: routeUserId } = params;
-  const [userId, setUserId] = useState<string>(routeUserId ?? '');
+const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }) => {
+  const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [locationHistory, setLocationHistory] = useState<LocationHistoryResponse | null>(null);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
 
   useEffect(() => {
-    setUserId(routeUserId ?? '');
-  }, [routeUserId]);
+    let isMounted = true;
+    params
+      .then((resolved) => {
+        if (isMounted) {
+          setUserId(resolved?.userId ?? '');
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUserId('');
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [params]);
 
   const normalizeLocationType = (type?: string) => type?.toLowerCase?.() ?? '';
 
