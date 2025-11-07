@@ -42,9 +42,8 @@ import {
 } from '@/utils/attendanceUtils';
 import Link from 'next/link';
 
-const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) => {
-  const { userId: routeUserId } = params;
-  const [userId, setUserId] = useState<string>(routeUserId ?? '');
+const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string }> }) => {
+  const [userId, setUserId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [userDetail, setUserDetail] = useState<UserAttendanceDetailResponse | null>(null);
   const [error, setError] = useState('');
@@ -64,8 +63,22 @@ const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) =>
 
   // Update user ID if the route param changes
   useEffect(() => {
-    setUserId(routeUserId ?? '');
-  }, [routeUserId]);
+    let isMounted = true;
+    params
+      .then((resolved) => {
+        if (isMounted) {
+          setUserId(resolved?.userId ?? '');
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUserId('');
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, [params]);
 
   // Set default date range (last 30 days)
   useEffect(() => {
