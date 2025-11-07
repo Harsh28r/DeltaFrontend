@@ -57,6 +57,43 @@ const getApiBaseUrl = (): string => {
 
 export const API_BASE_URL = getApiBaseUrl();
 
+/**
+ * Runtime function to get API URL (for client-side dynamic detection)
+ * This ensures the URL is current at runtime, especially useful for client-side code
+ */
+export const getApiBaseUrlRuntime = (): string => {
+  // If environment variable is set, use it
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  // Only works client-side
+  if (typeof window !== 'undefined' && window.location) {
+    try {
+      const hostname = window.location.hostname;
+      const productionDomains = ['realtechmktg.com', 'www.realtechmktg.com'];
+      const isProduction = productionDomains.some(domain => 
+        hostname === domain || hostname.endsWith(`.${domain}`)
+      );
+
+      if (isProduction) {
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        return `${protocol}//api.realtechmktg.com`;
+      }
+      
+      // Development - check for localhost
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+        return 'http://localhost:5000';
+      }
+    } catch (error) {
+      console.warn('Failed to access window.location in runtime function');
+    }
+  }
+
+  // Fallback to module-level constant
+  return API_BASE_URL;
+};
+
 // Google Maps Configuration
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
