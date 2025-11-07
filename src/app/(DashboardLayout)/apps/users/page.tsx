@@ -384,15 +384,26 @@ const UsersPage = () => {
   console.log("1 Existing User:", users[0]);
 
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (user.mobile && user.mobile.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesRole = filterRole === "all" || user.currentRole.name === filterRole;
-    
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+  const filteredUsers = users.filter((user) => {
+    const name = user.name?.toLowerCase?.() ?? "";
+    const email = user.email?.toLowerCase?.() ?? "";
+    const mobile = user.mobile ? String(user.mobile).toLowerCase() : "";
+
+    const matchesSearch =
+      normalizedSearchTerm === "" ||
+      name.includes(normalizedSearchTerm) ||
+      email.includes(normalizedSearchTerm) ||
+      mobile.includes(normalizedSearchTerm);
+
+    const matchesRole =
+      filterRole === "all" || user.currentRole?.name === filterRole;
+
     // Check project filter against user's project assignments
-    const assignments = Array.isArray(user.projectAssignments) ? user.projectAssignments : [];
+    const assignments = Array.isArray(user.projectAssignments)
+      ? user.projectAssignments
+      : [];
 
     let matchesProject = true;
 
