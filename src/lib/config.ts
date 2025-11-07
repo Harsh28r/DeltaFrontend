@@ -24,26 +24,30 @@ const getApiBaseUrl = (): string => {
   }
 
   // Check if we're in the browser (client-side)
-  if (typeof window !== 'undefined') {
-    const hostname = window.location.hostname;
-    
-    // Production domain detection
-    const productionDomains = ['realtechmktg.com', 'www.realtechmktg.com'];
-    const isProduction = productionDomains.some(domain => 
-      hostname === domain || hostname.endsWith(`.${domain}`)
-    );
+  if (typeof window !== 'undefined' && window.location) {
+    try {
+      const hostname = window.location.hostname;
+      
+      // Production domain detection
+      const productionDomains = ['realtechmktg.com', 'www.realtechmktg.com'];
+      const isProduction = productionDomains.some(domain => 
+        hostname === domain || hostname.endsWith(`.${domain}`)
+      );
 
-    if (isProduction) {
-      // Use HTTPS in production (or HTTP if SSL not yet configured)
-      const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
-      return `${protocol}//api.realtechmktg.com`;
+      if (isProduction) {
+        // Use HTTPS in production (or HTTP if SSL not yet configured)
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        return `${protocol}//api.realtechmktg.com`;
+      }
+    } catch (error) {
+      // If window.location access fails, fall through to server-side logic
+      console.warn('Failed to access window.location, using server-side detection');
     }
   }
 
-  // Check NODE_ENV for server-side rendering
+  // Server-side: Check NODE_ENV for production
   if (process.env.NODE_ENV === 'production') {
     // In production build, default to production API
-    // This will be overridden by client-side detection above
     return 'https://api.realtechmktg.com';
   }
 

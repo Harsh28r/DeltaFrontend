@@ -1,8 +1,10 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
     reactStrictMode: false,
-    // Enable standalone output for Docker deployment
-    output: 'standalone',
+
+    // Speed optimizations
+    swcMinify: true, // Faster minification with SWC
+
     // Image configuration
     images: {
         unoptimized: true, // Disable image optimization for simpler deployment
@@ -16,6 +18,13 @@ const nextConfig = {
                 hostname: '**',
             },
         ],
+    },
+
+    // Compiler options for faster builds
+    compiler: {
+        removeConsole: process.env.NODE_ENV === 'production' ? {
+            exclude: ['error', 'warn'],
+        } : false,
     },
     // Remove deprecated appDir option (App Router is default in Next.js 13+)
     // Add webpack configuration to handle memory issues
@@ -47,9 +56,8 @@ const nextConfig = {
             config.resolve.fullySpecified = false;
         }
         
-        // DISABLE CACHE to prevent "no space left on device" errors
-        // This will make builds slower but won't fail when disk is full
-        config.cache = false;
+        // Enable cache for better performance
+        // config.cache = false;
         
         // Optimize memory usage
         config.optimization = {
@@ -68,10 +76,10 @@ const nextConfig = {
         
         return config;
     },
-    // Increase memory limit for build
+    // Experimental features for performance
     experimental: {
-        // Remove appDir as it's deprecated
-        esmExternals: true,
+        // optimizeCss: true, // Disabled - requires critters package
+        optimizePackageImports: ['@tabler/icons-react', 'lodash', 'date-fns'], // Tree-shake heavy packages
     },
 };
 
