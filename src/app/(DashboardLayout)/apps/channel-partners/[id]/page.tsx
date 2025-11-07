@@ -4,7 +4,7 @@ import { Button, Card, Badge, Alert, Modal, Table } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter, useParams } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
 
 interface User {
   _id: string;
@@ -860,7 +860,7 @@ const ChannelPartnerDetailPage = () => {
               </div>
               <div className="text-center">
                 <img
-                  src={`http://localhost:5000/api/channel-partner/${partner._id}/photo`}
+                  src={`${API_BASE_URL}/api/channel-partner/${partner._id}/photo`}
                   alt={partner.name}
                   className="w-full h-48 object-cover rounded-lg border border-gray-300"
                   onError={(e) => {

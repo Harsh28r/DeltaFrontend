@@ -4,7 +4,7 @@ import { Button, Card, Label, Select, TextInput, Alert } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL, getApiBaseUrlRuntime } from "@/lib/config";
 
 interface Project {
   _id: string;
@@ -67,7 +67,18 @@ const AssignProjectPage = () => {
     try {
       setIsLoading(true);
       // Using the with-projects endpoint to get all users with their project assignments
-      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
+      // Use runtime function for client-side to ensure correct URL
+      let apiUrl: string;
+      try {
+        apiUrl = typeof window !== 'undefined' ? getApiBaseUrlRuntime() : API_BASE_URL;
+        if (!apiUrl || apiUrl === 'undefined') {
+          apiUrl = API_BASE_URL || 'https://api.realtechmktg.com';
+        }
+      } catch (error) {
+        console.warn('Error getting API URL, using fallback:', error);
+        apiUrl = API_BASE_URL || 'https://api.realtechmktg.com';
+      }
+      const response = await fetch(`${apiUrl}/api/superadmin/users/with-projects`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",

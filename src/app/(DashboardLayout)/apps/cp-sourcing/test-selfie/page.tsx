@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import { fetchSelfie } from "@/utils/cpSourcingUtils";
+import { API_ENDPOINTS } from "@/lib/config";
 
 const TestSelfiePage = () => {
   const router = useRouter();
@@ -37,7 +38,7 @@ const TestSelfiePage = () => {
     }
   };
 
-  const apiEndpoint = `http://localhost:5000/api/cp-sourcing/${testSourcingId}/selfie/${testSelfieIndex}`;
+  const apiEndpoint = API_ENDPOINTS.CP_SOURCING_SELFIE(testSourcingId, testSelfieIndex);
 
   return (
     <div className="p-6">

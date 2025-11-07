@@ -1,6 +1,7 @@
 import React from "react";
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+// Temporarily disabled Google Fonts to avoid network dependency during build
+// import { Inter } from "next/font/google";
 import "./css/globals.css";
 import { Flowbite, ThemeModeScript } from "flowbite-react";
 import customTheme from "@/utils/theme/custom-theme";
@@ -14,7 +15,9 @@ import { NotificationProvider } from "./context/NotificationContext";
 import NotificationToast from "./components/NotificationToast";
 import { Toaster } from "@/app/components/shadcn-ui/Default-Ui/toaster";
 
-const inter = Inter({ subsets: ["latin"] });
+// Use system fonts as fallback (no network required)
+// const inter = Inter({ subsets: ["latin"] });
+const inter = { className: "font-sans" };
 
 export const metadata: Metadata = {
   title: "DeltaYards",
