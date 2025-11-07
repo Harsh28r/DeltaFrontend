@@ -368,11 +368,14 @@ const UsersPage = () => {
     }
   };
 
+  console.log("1 Existing User:", users[0]);
+
+
   const filteredUsers = users.filter(user => {
     const matchesSearch = 
-      user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (user.mobile && user.mobile.includes(searchTerm));
+      (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (user.mobile && user.mobile.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesRole = filterRole === "all" || user.currentRole.name === filterRole;
     
     // Check project filter against user's project assignments
@@ -1016,5 +1019,7 @@ const UsersPage = () => {
     </div>
   );
 };
+
+
 
 export default UsersPage;
