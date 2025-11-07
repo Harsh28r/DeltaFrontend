@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import type { Metadata } from "next";
 import LeadAnalyticsChart from "../../apps/leads/fresh/LeadAnalyticsChart";
 import LeadStatusChart from "../../apps/leads/fresh/LeadStatusChart";
+import FollowUpDashboard from "../../apps/follow-ups/page";
 
 
 
@@ -1248,6 +1249,7 @@ const CrmDashboard = () => {
 
 
       {/* Follow-up Dashboard */}
+      <FollowUpDashboard />
 
     </div>
   );

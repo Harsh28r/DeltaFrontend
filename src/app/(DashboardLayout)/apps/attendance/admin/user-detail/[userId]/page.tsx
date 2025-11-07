@@ -42,8 +42,9 @@ import {
 } from '@/utils/attendanceUtils';
 import Link from 'next/link';
 
-const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string }> }) => {
-  const [userId, setUserId] = useState<string>('');
+const UserAttendanceDetailPage = ({ params }: { params: { userId: string } }) => {
+  const { userId: routeUserId } = params;
+  const [userId, setUserId] = useState<string>(routeUserId ?? '');
   const [loading, setLoading] = useState(true);
   const [userDetail, setUserDetail] = useState<UserAttendanceDetailResponse | null>(null);
   const [error, setError] = useState('');
@@ -61,10 +62,10 @@ const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string
     notes: string;
   } | null>(null);
 
-  // Unwrap params (Next.js 15+ async params)
+  // Update user ID if the route param changes
   useEffect(() => {
-    params.then((p) => setUserId(p.userId));
-  }, [params]);
+    setUserId(routeUserId ?? '');
+  }, [routeUserId]);
 
   // Set default date range (last 30 days)
   useEffect(() => {
