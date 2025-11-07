@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { API_BASE_URL } from '@/lib/config';
 
 export async function GET(
   request: NextRequest,
@@ -17,7 +18,7 @@ export async function GET(
 
     // Proxy the request to the backend
     // The backend should handle the actual image retrieval from S3
-    const backendUrl = `${process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000'}/api/cp-sourcing/selfie/${imagePath}`;
+    const backendUrl = `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
     
     const response = await fetch(backendUrl, {
       method: 'GET',

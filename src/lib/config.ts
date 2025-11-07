@@ -1,6 +1,98 @@
-// API Configuration
-// export const API_BASE_URL = 'http://localhost:5000'; // Hardcoded for now - fixed undefined issue
-export const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:5000';
+/**
+ * API Configuration
+ * 
+ * Automatically detects production environment and uses the correct API URL:
+ * 
+ * Priority order:
+ * 1. NEXT_PUBLIC_API_BASE_URL environment variable (if set)
+ * 2. Client-side: Checks if running on production domain (realtechmktg.com)
+ *    - If on production domain → uses https://api.realtechmktg.com (or http:// if SSL not configured)
+ *    - Otherwise → uses http://localhost:5000
+ * 3. Server-side: Uses production API if NODE_ENV=production, else localhost
+ * 
+ * For production deployment:
+ * - Set NEXT_PUBLIC_API_BASE_URL=https://api.realtechmktg.com in your build environment
+ * - Or let it auto-detect based on the domain (recommended)
+ * 
+ * For local development:
+ * - Don't set NEXT_PUBLIC_API_BASE_URL, it will default to http://localhost:5000
+ */
+const getApiBaseUrl = (): string => {
+  // If environment variable is explicitly set, use it (highest priority)
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  // Check if we're in the browser (client-side)
+  if (typeof window !== 'undefined' && window.location) {
+    try {
+      const hostname = window.location.hostname;
+      
+      // Production domain detection
+      const productionDomains = ['realtechmktg.com', 'www.realtechmktg.com'];
+      const isProduction = productionDomains.some(domain => 
+        hostname === domain || hostname.endsWith(`.${domain}`)
+      );
+
+      if (isProduction) {
+        // Use HTTPS in production (or HTTP if SSL not yet configured)
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        return `${protocol}//api.realtechmktg.com`;
+      }
+    } catch (error) {
+      // If window.location access fails, fall through to server-side logic
+      console.warn('Failed to access window.location, using server-side detection');
+    }
+  }
+
+  // Server-side: Check NODE_ENV for production
+  if (process.env.NODE_ENV === 'production') {
+    // In production build, default to production API
+    return 'https://api.realtechmktg.com';
+  }
+
+  // Development fallback
+  return 'http://localhost:5000';
+};
+
+export const API_BASE_URL = getApiBaseUrl();
+
+/**
+ * Runtime function to get API URL (for client-side dynamic detection)
+ * This ensures the URL is current at runtime, especially useful for client-side code
+ */
+export const getApiBaseUrlRuntime = (): string => {
+  // If environment variable is set, use it
+  if (process.env.NEXT_PUBLIC_API_BASE_URL) {
+    return process.env.NEXT_PUBLIC_API_BASE_URL;
+  }
+
+  // Only works client-side
+  if (typeof window !== 'undefined' && window.location) {
+    try {
+      const hostname = window.location.hostname;
+      const productionDomains = ['realtechmktg.com', 'www.realtechmktg.com'];
+      const isProduction = productionDomains.some(domain => 
+        hostname === domain || hostname.endsWith(`.${domain}`)
+      );
+
+      if (isProduction) {
+        const protocol = window.location.protocol === 'https:' ? 'https:' : 'http:';
+        return `${protocol}//api.realtechmktg.com`;
+      }
+      
+      // Development - check for localhost
+      if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.')) {
+        return 'http://localhost:5000';
+      }
+    } catch (error) {
+      console.warn('Failed to access window.location in runtime function');
+    }
+  }
+
+  // Fallback to module-level constant
+  return API_BASE_URL;
+};
 
 // Google Maps Configuration
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';

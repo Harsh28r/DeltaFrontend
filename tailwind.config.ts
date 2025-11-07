@@ -12,6 +12,9 @@ const config: Config = {
   ],
   theme: {
   	extend: {
+  		fontFamily: {
+  			sans: ['system-ui', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarell', 'sans-serif'],
+  		},
   		boxShadow: {
   			md: '0px 1px 4px 0px rgba(133, 146, 173, 0.2)',
   			lg: '0 1rem 3rem rgba(0, 0, 0, 0.175)',

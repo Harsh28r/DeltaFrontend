@@ -4,7 +4,7 @@ import { Button, Card, Table, Badge, Dropdown, Modal, Label, TextInput } from "f
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, API_BASE_URL, createRefreshEvent, subscribeToRefresh } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL, getApiBaseUrlRuntime, createRefreshEvent, subscribeToRefresh } from "@/lib/config";
 
 interface User {
   _id: string;
@@ -92,7 +92,20 @@ const UsersPage = () => {
       
       // Using the users/with-projects endpoint for user list
       console.log("Fetching users from /api/superadmin/users/with-projects...");
-      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
+      // Use runtime function for client-side to ensure correct URL
+      // This prevents SSR/client-side mismatch errors
+      let apiUrl: string;
+      try {
+        apiUrl = typeof window !== 'undefined' ? getApiBaseUrlRuntime() : API_BASE_URL;
+        // Ensure we have a valid URL
+        if (!apiUrl || apiUrl === 'undefined') {
+          apiUrl = API_BASE_URL || 'https://api.realtechmktg.com';
+        }
+      } catch (error) {
+        console.warn('Error getting API URL, using fallback:', error);
+        apiUrl = API_BASE_URL || 'https://api.realtechmktg.com';
+      }
+      const response = await fetch(`${apiUrl}/api/superadmin/users/with-projects`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
