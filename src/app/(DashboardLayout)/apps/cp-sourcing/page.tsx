@@ -300,9 +300,15 @@ const CPSourcingPage = () => {
 
     
     const loadAuthenticatedImage = async (url: string) => {
+      // Don't attempt to load if no token is available
+      if (!token) {
+        setImageError(true);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
-        console.log('Loading authenticated image:', url);
 
         const response = await fetch(url, {
           method: 'GET',
@@ -312,25 +318,43 @@ const CPSourcingPage = () => {
           credentials: 'include',
         });
 
-      console.log('Image response status:', response.status);
-      if (response.ok) {
-        const blob = await response.blob();
-        const objectUrl = URL.createObjectURL(blob);
-        console.log('Image loaded successfully, blob URL created');      
-        setImageSrc(objectUrl);
-      } else {
-        console.warn(`Failed to load authenticated image: ${url} -       
-  ${response.status}`);
+        if (response.ok) {
+          const blob = await response.blob();
+          const objectUrl = URL.createObjectURL(blob);
+          setImageSrc(objectUrl);
+        } else if (response.status === 404) {
+          // 404 is expected when images don't exist - handle gracefully without logging
+          setImageError(true);
+        } else if (response.status === 401) {
+          // 401 means unauthorized - log this as it's an authentication issue
+          console.warn('[Image Tracking] Unauthorized access to image:', {
+            url,
+            alt,
+            status: response.status
+          });
+          setImageError(true);
+        } else {
+          // Other errors (500, etc.) - log as unexpected
+          console.warn('[Image Tracking] Failed to load authenticated image:', {
+            url,
+            alt,
+            status: response.status,
+            statusText: response.statusText
+          });
+          setImageError(true);
+        }
+      } catch (error) {
+        // Network errors or other exceptions
+        console.warn('[Image Tracking] Error loading authenticated image:', {
+          url,
+          alt,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
         setImageError(true);
+      } finally {
+        setIsLoading(false);
       }
-    } catch (error) {
-      console.warn(`Error loading authenticated image: ${url}`,
-  error);
-      setImageError(true);
-    } finally {
-      setIsLoading(false);
-    }
-  };
+    };
 
     // Check if this is an authenticated API endpoint
     React.useEffect(() => {
@@ -341,6 +365,14 @@ const CPSourcingPage = () => {
       }
     }, [src, token]);
 
+    // Cleanup: Revoke object URLs when component unmounts or imageSrc changes
+    React.useEffect(() => {
+      return () => {
+        if (imageSrc && imageSrc.startsWith('blob:')) {
+          URL.revokeObjectURL(imageSrc);
+        }
+      };
+    }, [imageSrc]);
 
     if (isLoading) {
       return (
@@ -367,8 +399,15 @@ const CPSourcingPage = () => {
         className={className}
         crossOrigin="use-credentials"
         onError={(e) => {
-          console.warn(`Failed to load image: ${src}`);
-          console.log('Image error details:', e);
+          // Only log if it's not a blob URL (which we already handled in loadAuthenticatedImage)
+          if (!imageSrc?.startsWith('blob:')) {
+            console.warn('[Image Tracking] Failed to render image:', {
+              url: imageSrc,
+              originalSrc: src,
+              alt,
+              error: e.type
+            });
+          }
           setImageError(true);
         }}
         onLoad={() => {

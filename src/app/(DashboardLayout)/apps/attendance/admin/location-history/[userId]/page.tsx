@@ -24,17 +24,19 @@ import type { LocationHistoryResponse, LocationHistoryItem } from '@/app/(Dashbo
 import { formatDateForAPI, formatCoordinates } from '@/utils/attendanceUtils';
 import Link from 'next/link';
 
-const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }) => {
-  const [userId, setUserId] = useState<string>('');
+const LocationHistoryPage = ({ params }: { params: { userId: string } }) => {
+  const { userId: routeUserId } = params;
+  const [userId, setUserId] = useState<string>(routeUserId ?? '');
   const [loading, setLoading] = useState(true);
   const [locationHistory, setLocationHistory] = useState<LocationHistoryResponse | null>(null);
   const [error, setError] = useState('');
   const [selectedDate, setSelectedDate] = useState('');
 
-  // Unwrap params (Next.js 15+ async params)
   useEffect(() => {
-    params.then((p) => setUserId(p.userId));
-  }, [params]);
+    setUserId(routeUserId ?? '');
+  }, [routeUserId]);
+
+  const normalizeLocationType = (type?: string) => type?.toLowerCase?.() ?? '';
 
   // Set default date to today
   useEffect(() => {
@@ -66,8 +68,8 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
   }, [selectedDate, userId]);
 
   // Get icon for location type
-  const getLocationIcon = (type: string) => {
-    switch (type) {
+  const getLocationIcon = (type?: string) => {
+    switch (normalizeLocationType(type)) {
       case 'check-in':
         return IconLogin;
       case 'check-out':
@@ -80,8 +82,8 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
   };
 
   // Get badge color for location type
-  const getLocationBadgeColor = (type: string): 'success' | 'failure' | 'purple' | 'gray' => {
-    switch (type) {
+  const getLocationBadgeColor = (type?: string): 'success' | 'failure' | 'purple' | 'gray' => {
+    switch (normalizeLocationType(type)) {
       case 'check-in':
         return 'success';
       case 'check-out':
@@ -94,8 +96,8 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
   };
 
   // Get location type label
-  const getLocationTypeLabel = (type: string): string => {
-    switch (type) {
+  const getLocationTypeLabel = (type?: string): string => {
+    switch (normalizeLocationType(type)) {
       case 'check-in':
         return 'Check-In';
       case 'check-out':
@@ -103,7 +105,7 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
       case 'work-location':
         return 'Work Location';
       default:
-        return type;
+        return type || 'Unknown Activity';
     }
   };
 
@@ -249,10 +251,12 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
                             <IconMapPin size={16} className="text-gray-400 flex-shrink-0 mt-0.5" />
                             <div>
                               <p className="text-sm font-medium text-gray-900 dark:text-white">
-                                {location.address}
+                                {location.address || 'Address unavailable'}
                               </p>
                               <p className="text-xs text-gray-500">
-                                {formatCoordinates(location.latitude, location.longitude)}
+                                {typeof location.latitude === 'number' && typeof location.longitude === 'number'
+                                  ? formatCoordinates(location.latitude, location.longitude)
+                                  : 'Coordinates unavailable'}
                               </p>
                               {location.accuracy && (
                                 <p className="text-xs text-gray-400">
@@ -319,9 +323,17 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
                   onClick={() => {
                     // Create URL with multiple markers
                     const markers = locationHistory.locationHistory
+                      .filter((loc) => typeof loc.latitude === 'number' && typeof loc.longitude === 'number')
                       .map((loc, idx) => `&markers=color:blue%7Clabel:${idx + 1}%7C${loc.latitude},${loc.longitude}`)
                       .join('');
-                    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${locationHistory.locationHistory[0].latitude},${locationHistory.locationHistory[0].longitude}${markers}`;
+                    const firstLocation = locationHistory.locationHistory.find(
+                      (loc) => typeof loc.latitude === 'number' && typeof loc.longitude === 'number'
+                    );
+                    if (!firstLocation) {
+                      setError('No valid coordinates available to open in Google Maps.');
+                      return;
+                    }
+                    const mapUrl = `https://www.google.com/maps/search/?api=1&query=${firstLocation.latitude},${firstLocation.longitude}${markers}`;
                     window.open(mapUrl, '_blank');
                   }}
                 >

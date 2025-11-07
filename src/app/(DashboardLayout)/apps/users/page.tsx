@@ -392,14 +392,18 @@ const UsersPage = () => {
     const matchesRole = filterRole === "all" || user.currentRole.name === filterRole;
     
     // Check project filter against user's project assignments
+    const assignments = Array.isArray(user.projectAssignments) ? user.projectAssignments : [];
+
     let matchesProject = true;
-    
+
     if (filterProject === "unassigned") {
-      matchesProject = user.projectAssignments.length === 0;
+      matchesProject = assignments.length === 0;
     } else if (filterProject !== "all") {
-      matchesProject = user.projectAssignments.some(assignment => assignment.projectName === filterProject);
+      matchesProject = assignments.some(
+        (assignment) => assignment?.projectName === filterProject
+      );
     }
-    
+
     return matchesSearch && matchesRole && matchesProject;
   });
 
@@ -428,34 +432,41 @@ const UsersPage = () => {
     }
   };
 
-  const getRoleBadge = (roleName: string) => {
+  const getRoleBadge = (roleName?: string | null) => {
+    const normalizedRole = roleName?.toLowerCase?.();
+
     const roleColors = {
-      "superadmin": "failure",
-      "admin": "failure",
-      "tl": "warning",
-      "developer": "info",
-      "tester": "success",
-      "manager": "purple",
-      "user": "gray",
-      "hr": "indigo"
+      superadmin: "failure",
+      admin: "failure",
+      tl: "warning",
+      developer: "info",
+      tester: "success",
+      manager: "purple",
+      user: "gray",
+      hr: "indigo",
     } as const;
-    
-    return (
-      <Badge color={roleColors[roleName as keyof typeof roleColors] || "gray"}>
-        {roleName.toUpperCase()}
-      </Badge>
-    );
+
+    const badgeColor =
+      (normalizedRole && roleColors[normalizedRole as keyof typeof roleColors]) || "gray";
+
+    return <Badge color={badgeColor}>{(normalizedRole ?? "unknown").toUpperCase()}</Badge>;
   };
 
   const getUniqueRoles = () => {
-    const roles = [...new Set(users.map(user => user.currentRole.name))];
-    return roles.filter(role => role);
+    const roles = [
+      ...new Set(
+        users
+          .map((user) => user.currentRole?.name)
+          .filter((roleName): roleName is string => Boolean(roleName))
+      ),
+    ];
+    return roles;
   };
 
   const getUniqueProjects = () => {
     // Get projects from user's project assignments
     const allProjects = users.flatMap(user => 
-      user.projectAssignments.map(assignment => assignment.projectName)
+      (Array.isArray(user.projectAssignments) ? user.projectAssignments : []).map(assignment => assignment.projectName)
     );
     return [...new Set(allProjects)].filter(Boolean);
   };
@@ -554,8 +565,10 @@ const UsersPage = () => {
               onChange={(e) => setFilterRole(e.target.value)}
             >
               <option value="all">All Roles</option>
-              {getUniqueRoles().map(role => (
-                <option key={role} value={role}>{role.toUpperCase()}</option>
+              {getUniqueRoles().map((role) => (
+                <option key={role} value={role}>
+                  {role.toUpperCase()}
+                </option>
               ))}
             </select>
             
@@ -712,19 +725,28 @@ const UsersPage = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Card className="text-center p-3">
             <div className="text-lg font-bold text-indigo-600">
-              {users.reduce((total, user) => total + user.projectSummary.totalProjects, 0)}
+              {users.reduce(
+                (total, user) => total + (user.projectSummary?.totalProjects ?? 0),
+                0
+              )}
             </div>
             <div className="text-xs text-gray-600">Total Project Assignments</div>
           </Card>
           <Card className="text-center p-3">
             <div className="text-lg font-bold text-emerald-600">
-              {users.reduce((total, user) => total + user.projectSummary.activeProjects, 0)}
+              {users.reduce(
+                (total, user) => total + (user.projectSummary?.activeProjects ?? 0),
+                0
+              )}
             </div>
             <div className="text-xs text-gray-600">Active Projects</div>
           </Card>
           <Card className="text-center p-3">
             <div className="text-lg font-bold text-amber-600">
-              {users.reduce((total, user) => total + user.projectSummary.completedProjects, 0)}
+              {users.reduce(
+                (total, user) => total + (user.projectSummary?.completedProjects ?? 0),
+                0
+              )}
             </div>
             <div className="text-xs text-gray-600">Completed Projects</div>
           </Card>
@@ -781,17 +803,20 @@ const UsersPage = () => {
                   </Table.Cell>
             <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
                     {(() => {
-                const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
+                const assignments = Array.isArray(user.projectAssignments)
+                  ? user.projectAssignments
+                  : [];
+                const hasProjects = assignments.length > 0;
                 console.log(
-                  `Project assignment cell for ${user.name}: isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
-                    user.projectAssignments?.length || 0
+                  `Project assignment cell for ${user.name} : isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
+                    assignments.length || 0
                   }, hasProjects=${hasProjects}`
                 );
 
                 if (hasProjects) {
                         return (
                     <div className="space-y-2">
-                            {user.projectAssignments.map((assignment, index) => (
+                            {assignments.map((assignment, index) => (
                               <div key={index} className="space-y-1">
                                 <Badge color="success" className="text-xs">
                                   ✓ {assignment.projectName}
@@ -873,10 +898,13 @@ const UsersPage = () => {
                         <Icon icon="solar:info-circle-line-duotone" />
                       </Button>
                 {(() => {
-                  const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
+                  const assignments = Array.isArray(user.projectAssignments)
+                    ? user.projectAssignments
+                    : [];
+                  const hasProjects = assignments.length > 0;
                   console.log(
                     `User ${user.name} (${user._id}): isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
-                      user.projectAssignments?.length || 0
+                      assignments.length || 0
                     }, hasProjects=${hasProjects}`
                   );
                   return (
@@ -994,9 +1022,12 @@ const UsersPage = () => {
             <div>
               <Label value="Project Assignments" />
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                {users.find(u => u._id === detailOpenUserId)?.projectAssignments?.length ? (
+                {(() => {
+                  const assignments = users.find((u) => u._id === detailOpenUserId)
+                    ?.projectAssignments;
+                  return Array.isArray(assignments) && assignments.length > 0 ? (
                   <div className="space-y-1">
-                    {users.find(u => u._id === detailOpenUserId)?.projectAssignments?.map((assignment, index) => (
+                    {assignments.map((assignment, index) => (
                       <div key={index} className="flex items-center gap-2">
                         <Badge color="success" className="text-xs">✓</Badge>
                         <span className="text-sm">{assignment.projectName}</span>
@@ -1004,9 +1035,10 @@ const UsersPage = () => {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No project assignments</p>
-                )}
+                  ) : (
+                    <p className="text-sm text-gray-500">No project assignments</p>
+                  );
+                })()}
               </div>
             </div>
             <div>
