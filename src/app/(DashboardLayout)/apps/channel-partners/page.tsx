@@ -4,7 +4,7 @@ import { Button, Card, Table, Badge, Modal, Alert } from "flowbite-react";
 import { Icon } from "@iconify/react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL } from "@/lib/config";
 import { getSelfieUrl, cleanupObjectUrl } from "@/utils/cpSourcingUtils";
 
 interface ChannelPartner {
@@ -314,7 +314,7 @@ const ChannelPartnersPage = () => {
                       <div className="flex items-center gap-3">
                         {partner.photo ? (
                           <img
-                            src={`http://localhost:5000/api/channel-partner/${partner._id}/photo`}
+                            src={`${API_BASE_URL}/api/channel-partner/${partner._id}/photo`}
                             alt={partner.name}
                             className="w-8 h-8 rounded-full object-cover"
                           />

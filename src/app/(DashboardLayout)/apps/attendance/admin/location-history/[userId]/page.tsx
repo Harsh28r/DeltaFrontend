@@ -140,20 +140,22 @@ const LocationHistoryPage = ({ params }: { params: Promise<{ userId: string }> }
       {locationHistory && (
         <>
           {/* User Info Card */}
-          <Card>
-            <div className="flex items-center space-x-4">
-              <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
-                <IconUser size={24} className="text-blue-600 dark:text-blue-300" />
+          {locationHistory.user && (
+            <Card>
+              <div className="flex items-center space-x-4">
+                <div className="w-12 h-12 bg-blue-100 dark:bg-blue-900 rounded-full flex items-center justify-center">
+                  <IconUser size={24} className="text-blue-600 dark:text-blue-300" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold">{locationHistory.user.name || 'Unknown User'}</h2>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">{locationHistory.user.email || 'No email'}</p>
+                  {locationHistory.user.mobile && (
+                    <p className="text-sm text-gray-600 dark:text-gray-400">{locationHistory.user.mobile}</p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold">{locationHistory.user.name}</h2>
-                <p className="text-sm text-gray-600 dark:text-gray-400">{locationHistory.user.email}</p>
-                {locationHistory.user.mobile && (
-                  <p className="text-sm text-gray-600 dark:text-gray-400">{locationHistory.user.mobile}</p>
-                )}
-              </div>
-            </div>
-          </Card>
+            </Card>
+          )}
 
           {/* Date Filter */}
           <Card>
