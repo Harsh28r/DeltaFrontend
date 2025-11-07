@@ -413,6 +413,9 @@ const CrmDashboard = () => {
           followUpsResponse.json(),
         ]);
 
+
+        console.log('followUpsData', followUpsData);
+        
         
 
         // Set channel partners and CP sourcing data
@@ -430,6 +433,8 @@ const CrmDashboard = () => {
           projectSummary: projectSummaryData.summary || [],
           followUps: followUpsData,
         };
+
+
 
         
 
