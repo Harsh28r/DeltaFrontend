@@ -451,7 +451,10 @@ const CrmDashboard = () => {
     const fetchLeaddata = async () => {
       setLoading(true);
       try {
-        const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
+        const leadsUrl = new URL(API_ENDPOINTS.LEAD_DATA());
+        leadsUrl.searchParams.set('all', 'true');
+
+        const response = await fetch(leadsUrl.toString(), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
