@@ -61,9 +61,23 @@ const UserAttendanceDetailPage = ({ params }: { params: Promise<{ userId: string
     notes: string;
   } | null>(null);
 
-  // Unwrap params (Next.js 15+ async params)
+  // Update user ID if the route param changes
   useEffect(() => {
-    params.then((p) => setUserId(p.userId));
+    let isMounted = true;
+    params
+      .then((resolved) => {
+        if (isMounted) {
+          setUserId(resolved?.userId ?? '');
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setUserId('');
+        }
+      });
+    return () => {
+      isMounted = false;
+    };
   }, [params]);
 
   // Set default date range (last 30 days)

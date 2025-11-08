@@ -51,11 +51,25 @@ const LeadStatusChart: React.FC<LeadStatusChartProps> = ({ leads }) => {
     }, [leads]);
 
     // Handle bar click manually
+    const navigateToLeads = (params: Record<string, string>) => {
+        const query = new URLSearchParams(params);
+        router.push(`/apps/leads?${query.toString()}`);
+    };
+
     const handleBarClick = (statusId: string, statusName: string) => {
+        const params: Record<string, string> = {
+            fromDashboard: 'crm',
+            filterMode: 'current',
+        };
+
         if (statusId && statusId !== 'N/A') {
-            const targetUrl = `/apps/leads?status=${encodeURIComponent(statusId)}`;
-            router.push(targetUrl);
+            params.status = statusId;
         }
+        if (statusName) {
+            params.statusName = statusName;
+        }
+
+        navigateToLeads(params);
     };
 
     const options: ApexCharts.ApexOptions = {

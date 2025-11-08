@@ -116,7 +116,42 @@ const FilteredLeadsComponent = () => {
 
 
             try {
-                const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
+                const url = new URL(API_ENDPOINTS.LEAD_DATA());
+
+                const statusIdParam = searchParams.get('statusId');
+                const projectIdParam = searchParams.get('projectId');
+                const userIdParam = searchParams.get('userId');
+                const startDateParam = searchParams.get('startDate');
+                const endDateParam = searchParams.get('endDate');
+                const leadTypeParam = searchParams.get('leadType');
+
+                url.searchParams.set('all', 'true');
+
+                if (statusIdParam && statusIdParam !== 'all') {
+                    url.searchParams.set('statusId', statusIdParam);
+                }
+
+                if (projectIdParam && projectIdParam !== 'all') {
+                    url.searchParams.set('projectId', projectIdParam);
+                }
+
+                if (userIdParam && userIdParam !== 'all') {
+                    url.searchParams.set('userId', userIdParam);
+                }
+
+                if (startDateParam) {
+                    url.searchParams.set('startDate', startDateParam);
+                }
+
+                if (endDateParam) {
+                    url.searchParams.set('endDate', endDateParam);
+                }
+
+                if (leadTypeParam && leadTypeParam !== 'all') {
+                    url.searchParams.set('leadType', leadTypeParam);
+                }
+
+                const response = await fetch(url.toString(), {
                     headers: { Authorization: `Bearer ${token}` },
                 });
 
