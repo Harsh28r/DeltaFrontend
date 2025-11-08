@@ -155,33 +155,30 @@ const CPSourcingDetailPage = () => {
     }
   };
 
-  const getImageUrl = (imagePath: string | undefined, index?: number) => {
+  const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) {
-      return '';
+      return undefined;
     }
-    
-    // For selfie images, use the specific selfie API endpoint first
-    if (typeof index === 'number') {
-      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
+
+    // If it's already a full URL, we still prefer to proxy through our API to include auth headers
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      try {
+        const url = new URL(imagePath);
+        const s3Key = url.pathname.substring(1); // remove leading slash
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(s3Key)}`;
+      } catch (error) {
+        console.warn('Failed to parse selfie URL:', imagePath, error);
+        return imagePath;
+      }
     }
-    
-    // If it's already a full URL, return as is
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('file://')) {
-      return imagePath;
+
+    // If it's a relative path (including ones with folders), proxy via API to ensure auth
+    if (imagePath.includes('/')) {
+      return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
     }
-    
-    // If it's a relative path, prepend the API base URL
-    if (imagePath.startsWith('/')) {
-      return `${API_BASE_URL}${imagePath}`;
-    }
-    
-    // For any other image path (including uploads), use the selfie API endpoint if we have an index
-    if (imagePath && typeof index === 'number') {
-      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
-    }
-    
-    // Default fallback - assume it's a relative path
-    return `${API_BASE_URL}/${imagePath}`;
+
+    // Legacy local filenames
+    return `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
   };
 
   // Component to handle image display with fallback
@@ -196,6 +193,7 @@ const CPSourcingDetailPage = () => {
     const [imageSrc, setImageSrc] = useState<string | undefined>(src);
     const [isLoading, setIsLoading] = useState(false);
     const [loadStartTime, setLoadStartTime] = useState<number | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // Handle authenticated image loading
     const loadAuthenticatedImage = async (url: string) => {
@@ -300,32 +298,64 @@ const CPSourcingDetailPage = () => {
     }
 
     return (
-      <img
-        src={imageSrc}
-        alt={alt}
-        className={className}
-        crossOrigin="anonymous"
-        onLoad={() => {
-          setImageLoaded(true);
-        }}
-        onError={(e) => {
-          // Only log if it's not a blob URL (which we already handled in loadAuthenticatedImage)
-          if (!imageSrc?.startsWith('blob:')) {
-            console.warn('[Image Tracking] Failed to render image:', {
-              url: imageSrc,
-              originalSrc: src,
-              alt,
-              error: e.type
-            });
-          }
-          setImageError(true);
-        }}
-        style={{ 
-          objectFit: 'cover',
-          borderRadius: '50%'
-        }}
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+      <>
+        <button
+          type="button"
+          className="relative"
+          onClick={() => setIsPreviewOpen(true)}
+          title="View full image"
+        >
+          <img
+            src={imageSrc}
+            alt={alt}
+            className={`${className} cursor-zoom-in`}
+            crossOrigin="anonymous"
+            onLoad={() => {
+              setImageLoaded(true);
+            }}
+            onError={(e) => {
+              // Only log if it's not a blob URL (which we already handled in loadAuthenticatedImage)
+              if (!imageSrc?.startsWith('blob:')) {
+                console.warn('[Image Tracking] Failed to render image:', {
+                  url: imageSrc,
+                  originalSrc: src,
+                  alt,
+                  error: e.type
+                });
+              }
+              setImageError(true);
+            }}
+            style={{ 
+              objectFit: 'cover',
+              borderRadius: '50%'
+            }}
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </button>
+
+        <Modal
+          show={isPreviewOpen}
+          size="xl"
+          onClose={() => setIsPreviewOpen(false)}
+        >
+          <Modal.Header>{alt}</Modal.Header>
+          <Modal.Body>
+            <div className="flex justify-center">
+              <img
+                src={imageSrc}
+                alt={alt}
+                className="max-h-[70vh] rounded-lg object-contain"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button color="gray" onClick={() => setIsPreviewOpen(false)}>
+              Close
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      </>
     );
   };
 
@@ -488,7 +518,7 @@ const CPSourcingDetailPage = () => {
                       <Table.Cell>
                         <div className="flex flex-col items-center gap-2">
                           <ImageDisplay
-                            src={getImageUrl(item.selfie, index)}
+                            src={getImageUrl(item.selfie)}
                             alt={`Selfie ${index + 1}`}
                             className="w-16 h-16 rounded-lg object-cover border border-gray-300"
                             fallbackIcon="lucide:camera"
@@ -519,7 +549,7 @@ const CPSourcingDetailPage = () => {
               </div>
               <div className="text-center">
                 <ImageDisplay
-                  src={getImageUrl(latestSourcing.selfie, sourcing.sourcingHistory.length - 1)}
+                  src={getImageUrl(latestSourcing.selfie)}
                   alt="Latest Selfie"
                   className="w-full h-48 object-cover rounded-lg border border-gray-300"
                   fallbackIcon="lucide:camera"

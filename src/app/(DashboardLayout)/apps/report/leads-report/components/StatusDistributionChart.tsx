@@ -1,5 +1,5 @@
 "use client";
-import React, { useMemo } from 'react';
+import React, { useMemo, useCallback } from 'react';
 import { Card } from 'flowbite-react';
 import { Icon } from '@iconify/react';
 import { useRouter } from 'next/navigation';
@@ -46,12 +46,12 @@ const StatusDistributionChart: React.FC<StatusDistributionChartProps> = ({ data,
   }, [data, statusNameToId]);
 
   // Handle status click to navigate to report page with filter
-  const handleStatusClick = (statusId: string, statusName: string) => {
+  const handleStatusClick = useCallback((statusId: string, statusName: string) => {
     if (statusId && statusId !== '') {
       const targetUrl = `/apps/report/leads-report?statusId=${encodeURIComponent(statusId)}`;
       router.push(targetUrl);
     }
-  };
+  }, [router]);
 
   // Memoize dynamic colors based on number of statuses
   const dynamicColors = useMemo(() => {
