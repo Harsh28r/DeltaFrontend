@@ -250,6 +250,7 @@ const CPSourcingPage = () => {
     const [imageSrc, setImageSrc] = useState<string | undefined>(src);
     const [isLoading, setIsLoading] = useState(false);
     const [isS3Url, setIsS3Url] = useState(false);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // Handle authenticated image loading
     // const loadAuthenticatedImage = async (url: string) => {
@@ -393,32 +394,64 @@ const CPSourcingPage = () => {
     }
 
     return (
-      <img
-        src={imageSrc}
-        alt={alt}
-        className={className}
-        crossOrigin="use-credentials"
-        onError={(e) => {
-          // Only log if it's not a blob URL (which we already handled in loadAuthenticatedImage)
-          if (!imageSrc?.startsWith('blob:')) {
-            console.warn('[Image Tracking] Failed to render image:', {
-              url: imageSrc,
-              originalSrc: src,
-              alt,
-              error: e.type
-            });
-          }
-          setImageError(true);
-        }}
-        onLoad={() => {
-          setImageLoaded(true);
-        }}
-        style={{ 
-          objectFit: 'cover',
-          borderRadius: '50%'
-        }}
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+      <>
+        <button
+          type="button"
+          className="relative"
+          onClick={() => setIsPreviewOpen(true)}
+          title="View full image"
+        >
+          <img
+            src={imageSrc}
+            alt={alt}
+            className={`${className} cursor-zoom-in`}
+            crossOrigin="use-credentials"
+            onError={(e) => {
+              // Only log if it's not a blob URL (which we already handled in loadAuthenticatedImage)
+              if (!imageSrc?.startsWith('blob:')) {
+                console.warn('[Image Tracking] Failed to render image:', {
+                  url: imageSrc,
+                  originalSrc: src,
+                  alt,
+                  error: e.type
+                });
+              }
+              setImageError(true);
+            }}
+            onLoad={() => {
+              setImageLoaded(true);
+            }}
+            style={{ 
+              objectFit: 'cover',
+              borderRadius: '50%'
+            }}
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </button>
+
+        <Modal
+          show={isPreviewOpen}
+          size="xl"
+          onClose={() => setIsPreviewOpen(false)}
+        >
+          <Modal.Header>{alt}</Modal.Header>
+          <Modal.Body>
+            <div className="flex justify-center">
+              <img
+                src={imageSrc}
+                alt={alt}
+                className="max-h-[70vh] rounded-lg object-contain"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button color="gray" onClick={() => setIsPreviewOpen(false)}>
+              Close
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      </>
     );
   };
 
