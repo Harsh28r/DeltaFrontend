@@ -141,6 +141,24 @@ export const PERMISSIONS = {
   USER_REPORTING_DELETE: 'user-reporting:delete',
   USER_REPORTING_BULK_UPDATE: 'user-reporting:bulk-update',
   USER_REPORTING_BULK_DELETE: 'user-reporting:bulk-delete',
+
+
+   // Notification permissions
+  FOLLOWUPS_READ: 'followups:read',
+  FOLLOWUPS_CREATE: 'followups:create',
+  FOLLOWUPS_UPDATE: 'followups:update',
+  FOLLOWUPS_DELETE: 'followups:delete',
+
+
+  // attendece permissions
+  ATTENDANCE_CREATE : 'attendance:create',
+  ATTENDANCE_READ : 'attendance:read',
+  ATTENDANCE_UPDATE : 'attendance:update',
+  ATTENDANCE_DELETE : 'attendance:delete',
+  ATTENDANCE_READ_ALL : 'attendance:read_all',
+
+
+
 } as const;
 
 export type Permission = typeof PERMISSIONS[keyof typeof PERMISSIONS];
