@@ -152,17 +152,63 @@ const LiveDashboardPage = () => {
   // Helper function to convert path to backend API URL
   const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) return null;
-    
-    // If path contains '/', it's an S3 key - route through backend API
-    if (imagePath.includes('/')) {
-      // S3 key format: "attendance/selfies/userId/filename.jpeg"        
-      // Backend endpoint: GET /api/attendance/selfie/:filename
-      return `${API_BASE_URL}/api/attendance/selfie/${encodeURIComponent(imagePath)}`;
+
+    // Normalize Windows paths to POSIX-style
+    let normalizedPath = imagePath.replace(/\\/g, '/');
+
+    // Strip absolute path prefixes if present
+    const attendanceIndex = normalizedPath.toLowerCase().indexOf('attendance/selfies/');
+    if (attendanceIndex !== -1) {
+      normalizedPath = normalizedPath.substring(attendanceIndex);
     }
 
-    // Legacy local file (just filename, no path)
-    // Route through backend API as well
-    return `${API_BASE_URL}/api/attendance/selfie/${imagePath}`;
+    if (normalizedPath.startsWith('http://') || normalizedPath.startsWith('https://')) {
+      return normalizedPath;
+    }
+
+    if (normalizedPath.includes('/')) {
+      return `${API_BASE_URL}/api/attendance/selfie/${encodeURIComponent(normalizedPath)}`;
+    }
+
+    return `${API_BASE_URL}/api/attendance/selfie/${normalizedPath}`;
+  };
+
+  const getLocationLabel = (location: any) => {
+    if (!location) return 'Location unavailable';
+
+    if (typeof location === 'string') {
+      const trimmed = location.trim();
+      if (!trimmed) return 'Location unavailable';
+
+      if (trimmed.toLowerCase().startsWith('gps:')) {
+        const coords = trimmed.substring(4).split(',').map((part) => parseFloat(part));
+        if (coords.length === 2 && coords.every((value) => !Number.isNaN(value))) {
+          return `${coords[0].toFixed(4)}, ${coords[1].toFixed(4)}`;
+        }
+      }
+
+      return trimmed;
+    }
+
+    const address = location.address || location.formattedAddress;
+    if (address && typeof address === 'string' && address.trim()) {
+      return address.trim();
+    }
+
+    const placeName = location.placeName || location.name;
+    if (placeName && typeof placeName === 'string' && placeName.trim()) {
+      return placeName.trim();
+    }
+
+    const { latitude, longitude, lat, lng } = location;
+    const resolvedLat = typeof latitude === 'number' ? latitude : lat;
+    const resolvedLng = typeof longitude === 'number' ? longitude : lng;
+
+    if (typeof resolvedLat === 'number' && typeof resolvedLng === 'number') {
+      return `${resolvedLat.toFixed(4)}, ${resolvedLng.toFixed(4)}`;
+    }
+
+    return 'Location unavailable';
   };
 
   if (loading) {
@@ -479,7 +525,7 @@ const LiveDashboardPage = () => {
                             <div className="flex items-start space-x-1 max-w-xs">
                               <IconMapPin size={16} className="text-gray-400 flex-shrink-0 mt-0.5" />
                               <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                                {item.checkInLocation.address}
+                                {getLocationLabel(item.checkInLocation || item.checkInAddress)}
                               </span>
                             </div>
                           </Table.Cell>
@@ -636,7 +682,7 @@ const LiveDashboardPage = () => {
                             <div className="flex items-start space-x-1 max-w-xs">
                               <IconMapPin size={16} className="text-gray-400 flex-shrink-0 mt-0.5" />
                               <span className="text-sm text-gray-600 dark:text-gray-400 truncate">
-                                {item.checkOutLocation.address}
+                                {getLocationLabel(item.checkOutLocation || item.checkOutAddress)}
                               </span>
                             </div>
                           </Table.Cell>
