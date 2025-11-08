@@ -68,6 +68,34 @@ export const useNotificationPermissions = () => {
   };
 };
 
+export const useFollowUpPermissions = () => {
+  const { hasPermission, isLoading, error } = usePermissions();
+
+  return {
+    canCreateFollowUps: hasPermission(PERMISSIONS.FOLLOWUPS_CREATE),
+    canReadFollowUps: hasPermission(PERMISSIONS.FOLLOWUPS_READ),
+    canUpdateFollowUps: hasPermission(PERMISSIONS.FOLLOWUPS_UPDATE),
+    canDeleteFollowUps: hasPermission(PERMISSIONS.FOLLOWUPS_DELETE),
+    isLoading,
+    error,
+  };
+};
+
+export const useAttendancePermissions = () => {
+  const { hasPermission, isLoading, error } = usePermissions();
+
+  return {
+    canCreateAttendance: hasPermission(PERMISSIONS.ATTENDANCE_CREATE),
+    canReadOwnAttendance: hasPermission(PERMISSIONS.ATTENDANCE_READ),
+    canUpdateAttendance: hasPermission(PERMISSIONS.ATTENDANCE_UPDATE),
+    canDeleteAttendance: hasPermission(PERMISSIONS.ATTENDANCE_DELETE),
+    canReadAllAttendance: hasPermission(PERMISSIONS.ATTENDANCE_READ_ALL),
+    isLoading,
+    error,
+  };
+};
+
+
 export const useLeadManagementPermissions = () => {
   const { hasPermission, isLoading, error } = usePermissions();
 
@@ -108,6 +136,3 @@ export const useHasPermissions = (permissions: Permission[], requireAll: boolean
     error,
   };
 };
-
-
-

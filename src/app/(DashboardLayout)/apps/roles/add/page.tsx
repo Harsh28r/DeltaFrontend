@@ -117,6 +117,19 @@ const AddRolePage = () => {
     { id: "user-reporting:bulk-update", name: "Bulk Update User Reporting", description: "Can update multiple user reporting structures", category: "User Reporting Management" },
     { id: "user-reporting:bulk-delete", name: "Bulk Delete User Reporting", description: "Can delete multiple user reporting structures", category: "User Reporting Management" },
     
+    // Follow-up Management
+    { id: "followups:create", name: "Create Follow-ups", description: "Can create new follow-ups", category: "Follow-up Management" },
+    { id: "followups:read", name: "Read Follow-ups", description: "Can view follow-up information", category: "Follow-up Management" },
+    { id: "followups:update", name: "Update Follow-ups", description: "Can update follow-up information", category: "Follow-up Management" },
+    { id: "followups:delete", name: "Delete Follow-ups", description: "Can delete follow-ups", category: "Follow-up Management" },
+
+    // Attendance Management
+    { id: "attendance:create", name: "Create Attendance", description: "Can create new attendance records", category: "Attendance Management" },
+    { id: "attendance:read", name: "Read Attendance", description: "Can view attendance information", category: "Attendance Management" },
+    { id: "attendance:update", name: "Update Attendance", description: "Can update attendance information", category: "Attendance Management" },
+    { id: "attendance:delete", name: "Delete Attendance", description: "Can delete attendance records", category: "Attendance Management" },
+    { id: "attendance:read_all", name: "Read All Attendance", description: "Can view all attendance records", category: "Attendance Management" },
+
     // Reporting
     { id: "reporting:read", name: "Read Reporting", description: "Can access reporting and analytics", category: "Reporting" }
   ];
