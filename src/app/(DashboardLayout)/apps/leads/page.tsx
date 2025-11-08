@@ -202,11 +202,18 @@ const LeadsPage = () => {
   const [datePreset, setDatePreset] = useState<string>("custom");
   const [filterLeadType, setFilterLeadType] = useState<string>("all"); // New state for lead type filter
   const [filterMode, setFilterMode] = useState<'current' | 'history'>('current'); // New state for filter mode (current/history)
+  const [dashboardSourceName, setDashboardSourceName] = useState<string | null>(null);
+  const [dashboardStatusName, setDashboardStatusName] = useState<string | null>(null);
+  const [dashboardUserName, setDashboardUserName] = useState<string | null>(null);
+  const [fromDashboard, setFromDashboard] = useState<string | null>(null);
 
   // Initialize filters from URL query parameters if present
   useEffect(() => {
     const statusParam = searchParams.get('status');
     const sourceParam = searchParams.get('source');
+    const sourceNameParam = searchParams.get('sourceName');
+    const statusNameParam = searchParams.get('statusName');
+    const userNameParam = searchParams.get('userName');
     const monthParam = searchParams.get('month');
     const yearParam = searchParams.get('year');
     const startDateParam = searchParams.get('startDate');
@@ -215,6 +222,7 @@ const LeadsPage = () => {
     const projectIdParam = searchParams.get('projectId');
     const userIdParam = searchParams.get('userId');
     const filterModeParam = searchParams.get('filterMode');
+    const fromDashboardParam = searchParams.get('fromDashboard');
 
     // Check if any analytics filters are being applied
     const hasAnalyticsFilters = monthParam || yearParam || startDateParam || endDateParam || leadTypeParam || projectIdParam || userIdParam || filterModeParam;
@@ -253,6 +261,10 @@ const LeadsPage = () => {
     if (leadTypeParam) {
       setFilterLeadType(leadTypeParam);
     }
+    setDashboardSourceName(sourceNameParam);
+    setDashboardStatusName(statusNameParam);
+    setDashboardUserName(userNameParam);
+    setFromDashboard(fromDashboardParam);
 
     // Handle project ID parameter
     if (projectIdParam) {
@@ -720,6 +732,41 @@ const LeadsPage = () => {
       fetchCPSourcingOptions(channelPartnerId, projectId);
     } else {
       setCPSourcingOptions([]);
+    }
+  };
+
+  const handleFilterSourceSelect = (value: string) => {
+    setFilterSource(value);
+    setFromDashboard(null);
+    if (value === "all") {
+      setDashboardSourceName(null);
+    } else {
+      const selectedSource = leadSources.find(source => source._id === value);
+      setDashboardSourceName(selectedSource?.name ?? null);
+    }
+  };
+
+  const handleFilterStatusSelect = (value: string) => {
+    setFilterStatus(value);
+    setFromDashboard(null);
+    if (value === "all") {
+      setDashboardStatusName(null);
+    } else {
+      const selectedStatus = leadStatuses.find(status => status._id === value);
+      setDashboardStatusName(selectedStatus?.name ?? null);
+    }
+  };
+
+  const handleFilterUserSelect = (value: string) => {
+    setFilterUser(value);
+    setFromDashboard(null);
+    if (value === "all") {
+      setDashboardUserName(null);
+    } else if (value === "unassigned") {
+      setDashboardUserName("Unassigned");
+    } else {
+      const selectedUser = users.find(user => user._id === value);
+      setDashboardUserName(selectedUser?.name ?? null);
     }
   };
 
@@ -2791,8 +2838,48 @@ const LeadsPage = () => {
         (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
         (lead.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase());
       
-      // Source filter (client-side - not in API)
-      const matchesSource = filterSource === "all" || lead.leadSource?._id === filterSource;
+      // Source filter (client-side - not in API, with dashboard fallback)
+      const matchesSource = (() => {
+        if (filterSource !== "all") {
+          return lead.leadSource?._id === filterSource;
+        }
+        if (dashboardSourceName) {
+          const normalized = dashboardSourceName.toLowerCase();
+          const leadSourceName = lead.leadSource?.name?.toLowerCase() || '';
+          const leadSourceText = typeof lead.source === 'string' ? lead.source.toLowerCase() : '';
+          return leadSourceName.includes(normalized) || leadSourceText.includes(normalized);
+        }
+        return true;
+      })();
+
+      // Status filter (ensure fallback if API doesn't apply)
+      const matchesStatus = (() => {
+        if (filterStatus !== "all") {
+          return lead.currentStatus?._id === filterStatus;
+        }
+        if (dashboardStatusName) {
+          const normalizedStatus = dashboardStatusName.toLowerCase();
+          return (lead.currentStatus?.name?.toLowerCase() || '') === normalizedStatus;
+        }
+        return true;
+      })();
+
+      // User filter (handle unassigned + dashboard fallback)
+      const matchesUser = (() => {
+        if (filterUser === "unassigned") {
+          return !lead.user?._id;
+        }
+        if (filterUser !== "all") {
+          return lead.user?._id === filterUser;
+        }
+        if (dashboardUserName) {
+          if (dashboardUserName.toLowerCase() === 'unassigned') {
+            return !lead.user?._id;
+          }
+          return (lead.user?.name?.toLowerCase() || '') === dashboardUserName.toLowerCase();
+        }
+        return true;
+      })();
       
       // Lead type filter (client-side - not in API)
       let matchesLeadType = true;
@@ -2811,7 +2898,7 @@ const LeadsPage = () => {
         }
       }
       
-      return matchesSearch && matchesSource && matchesLeadType;
+      return matchesSearch && matchesSource && matchesLeadType && matchesStatus && matchesUser;
     });
   };
 
@@ -3164,6 +3251,29 @@ const LeadsPage = () => {
         </Alert>
       )}
 
+      {fromDashboard && (dashboardSourceName || dashboardStatusName || dashboardUserName) && (
+        <Alert color="info" onDismiss={() => setFromDashboard(null)}>
+          <div className="flex items-start gap-2">
+            <Icon icon="solar:chart-line-duotone" className="text-lg mt-0.5" />
+            <div>
+              <p className="font-medium">Filtered from CRM Dashboard</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Showing leads filtered by
+                {dashboardSourceName && (
+                  <> <strong>Source:</strong> {dashboardSourceName}</>
+                )}
+                {dashboardStatusName && (
+                  <> {dashboardSourceName ? ' •' : ''} <strong>Status:</strong> {dashboardStatusName}</>
+                )}
+                {dashboardUserName && (
+                  <> {(dashboardSourceName || dashboardStatusName) ? ' •' : ''} <strong>Assigned To:</strong> {dashboardUserName}</>
+                )}
+              </p>
+            </div>
+          </div>
+        </Alert>
+      )}
+
       {/* Active Filters from Analytics */}
       {(filterLeadType !== "all" || (searchParams.get('projectId') && selectedProjectId !== 'all') || 
         (searchParams.get('userId') && filterUser !== 'all')) && (filterDateFrom || filterDateTo) && (
@@ -3248,7 +3358,7 @@ const LeadsPage = () => {
           <div>
             <Select
               value={filterSource}
-              onChange={(e) => setFilterSource(e.target.value)}
+              onChange={(e) => handleFilterSourceSelect(e.target.value)}
               disabled={projects.length === 0}
             >
               <option value="all">All Sources</option>
@@ -3262,7 +3372,7 @@ const LeadsPage = () => {
           <div>
             <Select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => handleFilterStatusSelect(e.target.value)}
               disabled={projects.length === 0}
             >
               <option value="all">All Statuses</option>
@@ -3276,7 +3386,7 @@ const LeadsPage = () => {
           <div>
             <Select
               value={filterUser}
-              onChange={(e) => setFilterUser(e.target.value)}
+              onChange={(e) => handleFilterUserSelect(e.target.value)}
               disabled={projects.length === 0}
             >
               <option value="all">All Users</option>
@@ -3354,6 +3464,10 @@ const LeadsPage = () => {
                 setFilterLeadType("all");
                 setFilterMode("current"); // Reset to current mode
                 setSelectedProjectId('all');
+              setDashboardSourceName(null);
+              setDashboardStatusName(null);
+              setDashboardUserName(null);
+              setFromDashboard(null);
                 router.push('/apps/leads'); // Clear URL parameters as well
               }}
               disabled={projects.length === 0}
