@@ -161,19 +161,42 @@ const LeadAnalyticsChart: React.FC<LeadAnalyticsChartProps> = ({ leads }) => {
     }, [leads]);
 
     // Handle source click to navigate to all-leads page with filter
+    const navigateToLeads = (params: Record<string, string>) => {
+        const query = new URLSearchParams(params);
+        router.push(`/apps/leads?${query.toString()}`);
+    };
+
     const handleSourceClick = (sourceId: string, sourceName: string) => {
+        const params: Record<string, string> = {
+            fromDashboard: 'crm',
+            filterMode: 'current',
+        };
+
         if (sourceId && sourceId !== '') {
-            const targetUrl = `/apps/leads?source=${encodeURIComponent(sourceId)}`;
-            router.push(targetUrl);
+            params.source = sourceId;
         }
+        if (sourceName) {
+            params.sourceName = sourceName;
+        }
+
+        navigateToLeads(params);
     };
 
     // Handle user click to navigate to all-leads page with user filter
     const handleUserClick = (userId: string, userName: string) => {
+        const params: Record<string, string> = {
+            fromDashboard: 'crm',
+            filterMode: 'current',
+        };
+
         if (userId && userId !== '') {
-            const targetUrl = `/apps/leads?userId=${encodeURIComponent(userId)}`;
-            router.push(targetUrl);
+            params.userId = userId;
         }
+        if (userName) {
+            params.userName = userName;
+        }
+
+        navigateToLeads(params);
     };
 
     return (
