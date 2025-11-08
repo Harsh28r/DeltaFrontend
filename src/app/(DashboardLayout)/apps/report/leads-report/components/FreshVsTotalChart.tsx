@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { Card } from 'flowbite-react';
 import ChartWrapper from './ChartWrapper';
+import { getToolbarConfig } from '@/utils/chartUtils';
 
 interface UserPerformance {
   userName: string;
@@ -22,7 +23,16 @@ const FreshVsTotalChart: React.FC<Props> = React.memo(({ data, limit = 15 }) => 
     
     // Return options directly - data is already cleaned upstream
     return {
-      chart: { id: 'fresh-vs-total', type: 'bar', toolbar: { show: true } },
+      chart: { 
+        id: 'fresh-vs-total', 
+        type: 'bar', 
+        toolbar: getToolbarConfig(true),
+        zoom: {
+          type: 'x',
+          enabled: true,
+          autoScaleYaxis: true
+        }
+      },
       plotOptions: { bar: { horizontal: false, columnWidth: '55%', borderRadius: 4 } },
       dataLabels: { enabled: false },
       xaxis: {

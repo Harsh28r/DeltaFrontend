@@ -50,6 +50,7 @@ const LeadReportsGraphsPage = () => {
           const data = await response.json();
           if (data.success) {
             setReportData(data.data);
+            console.log(data.data,'data.data');
           }
         }
       } catch (error) {
@@ -72,7 +73,7 @@ const LeadReportsGraphsPage = () => {
         <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-blue-600"></div>
       </div>
     );
-  }
+  } 
 
   if (!reportData) {
     return (
