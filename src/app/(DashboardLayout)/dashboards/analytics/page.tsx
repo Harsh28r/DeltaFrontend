@@ -182,12 +182,12 @@ const CPSitePerformance = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<CPSitePerformanceData | null>(null);
   const [error, setError] = useState('');
-
+  
   // Initialize with current month dates
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
+  
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(lastDay.toISOString().split('T')[0]);
 
@@ -252,7 +252,7 @@ const CPSitePerformance = () => {
 
       {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
-        <div
+        <div 
           className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 border-transparent hover:border-blue-300"
           onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&leadType=total`)}
           title="Click to view all leads"
@@ -260,7 +260,7 @@ const CPSitePerformance = () => {
           <div className="text-2xl font-bold text-blue-600">{data.totals.totalLeads}</div>
           <div className="text-sm text-blue-600">Total Leads</div>
         </div>
-        <div
+        <div 
           className="bg-green-50 dark:bg-green-900 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 border-transparent hover:border-green-300"
           onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&leadType=digital`)}
           title="Click to view digital leads"
@@ -268,7 +268,7 @@ const CPSitePerformance = () => {
           <div className="text-2xl font-bold text-green-600">{data.totals.digitalLeads}</div>
           <div className="text-sm text-green-600">Digital Leads</div>
         </div>
-        <div
+        <div 
           className="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-shadow duration-200 border-2 border-transparent hover:border-purple-300"
           onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&leadType=cp`)}
           title="Click to view CP leads"
@@ -296,8 +296,8 @@ const CPSitePerformance = () => {
           const centerY = 80;
 
           return (
-            <div
-              key={project._id}
+            <div 
+              key={project._id} 
               className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg cursor-pointer hover:shadow-lg transition-all duration-200 border-2 border-transparent hover:border-blue-300"
               onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}`)}
               title="Click to view leads for this project"
@@ -357,7 +357,7 @@ const CPSitePerformance = () => {
                 </svg>
               </div>
               <div className="mt-3 space-y-1 text-sm">
-                <div
+                <div 
                   className="flex justify-between hover:bg-green-100 dark:hover:bg-green-900/20 p-1 rounded cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -371,7 +371,7 @@ const CPSitePerformance = () => {
                   </span>
                   <span className="font-medium">{project.digitalPercentage.toFixed(1)}%</span>
                 </div>
-                <div
+                <div 
                   className="flex justify-between hover:bg-orange-100 dark:hover:bg-orange-900/20 p-1 rounded cursor-pointer"
                   onClick={(e) => {
                     e.stopPropagation();
@@ -412,7 +412,7 @@ const CPSitePerformance = () => {
           </Table.Head>
           <Table.Body>
             {data.data.map((project) => (
-              <Table.Row
+              <Table.Row 
                 key={project._id}
                 className="cursor-pointer hover:bg-gray-100 dark:hover:bg-gray-700"
                 onClick={() => router.push(`/apps/leads?startDate=${startDate}&endDate=${endDate}&projectId=${project.projectId}`)}
@@ -421,7 +421,7 @@ const CPSitePerformance = () => {
                 <Table.Cell className="font-medium">{project.projectName}</Table.Cell>
                 <Table.Cell>{project.location}</Table.Cell>
                 <Table.Cell>
-                  <Badge
+                  <Badge 
                     color="blue"
                     className="cursor-pointer"
                   >
@@ -429,7 +429,7 @@ const CPSitePerformance = () => {
                   </Badge>
                 </Table.Cell>
                 <Table.Cell>
-                  <Badge
+                  <Badge 
                     color="success"
                     className="cursor-pointer hover:opacity-80"
                     onClick={(e: any) => {
@@ -442,7 +442,7 @@ const CPSitePerformance = () => {
                   </Badge>
                 </Table.Cell>
                 <Table.Cell>
-                  <Badge
+                  <Badge 
                     color="purple"
                     className="cursor-pointer hover:opacity-80"
                     onClick={(e: any) => {
@@ -478,10 +478,38 @@ const TopPerformingSites = () => {
     return date;
   });
   const [endDate, setEndDate] = useState(new Date()); // Set to today
+  const [siteVisitStatusId, setSiteVisitStatusId] = useState<string | null>(null);
+  const [bookingStatusId, setBookingStatusId] = useState<string | null>(null);
+
+  useEffect(() => {
+    // This effect can remain if you need lead statuses for other purposes,
+    // but it's not directly related to the date change.
+    // For clarity, I'm keeping it as it was in the original code.
+    const fetchStatuses = async () => {
+      try {
+        const response = await fetch(API_ENDPOINTS.LEAD_STATUSES, {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
+          },
+        });
+        if (response.ok) {
+          const statuses = await response.json();
+          const siteVisitStatus = statuses.find((s: any) => s.is_site_visit_done);
+          const bookingStatus = statuses.find((s: any) => s.is_final_status);
+          if (siteVisitStatus) setSiteVisitStatusId(siteVisitStatus._id);
+          if (bookingStatus) setBookingStatusId(bookingStatus._id);
+        }
+      } catch (error) {
+        console.error("Failed to fetch lead statuses on analytics page", error);
+        // Handle error if necessary, e.g., show an alert
+      }
+    };
+
+    fetchStatuses();
+  }, []);
+
 
   const fetchData = async () => {
-
-
     try {
       setLoading(true);
       setError('');
@@ -490,7 +518,20 @@ const TopPerformingSites = () => {
       const formattedEndDate = endDate.toISOString().split('T')[0];
 
       // Try site-visit-performance first, fallback to top-performing-sites
-      const  response = await fetch(
+      let response = await fetch(
+        `${API_BASE_URL}/api/analytics/site-visit-performance?startDate=${formattedStartDate}&endDate=${formattedEndDate}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${localStorage.getItem('auth_token') || sessionStorage.getItem('auth_token') || ''}`,
+          },
+        }
+      );
+
+      // If site-visit-performance doesn't exist, use top-performing-sites
+      if (!response.ok) {
+        console.log('top-performing-sites called');
+
+        response = await fetch(
           `${API_BASE_URL}/api/analytics/top-performing-sites?startDate=${formattedStartDate}&endDate=${formattedEndDate}&limit=10`,
           {
             headers: {
@@ -498,284 +539,284 @@ const TopPerformingSites = () => {
             },
           }
         );
-    
+      }
 
       if (!response.ok) {
-      const errorText = await response.text();
-      console.error('API Error:', response.status, errorText);
-      throw new Error(`Failed to fetch data: ${response.status}`);
+        const errorText = await response.text();
+        console.error('API Error:', response.status, errorText);
+        throw new Error(`Failed to fetch data: ${response.status}`);
+      }
+
+      const result = await response.json();
+
+
+      console.log('Analytics Data:', result);
+
+      // Transform the data to match TopSitesData structure
+      setData({
+        success: result.success,
+        data: result.data.map((site: any) => {
+          return {
+            _id: site._id,
+            projectId: site.projectId || site._id,
+            projectName: site.projectName,
+            location: site.location,
+            totalLeads: site.totalLeads || 0,
+            bookedLeads: site.bookedLeads || 0,
+            conversionRate: site.conversionRate || 0,
+            leadsWithSiteVisit: site.leadsWithSiteVisit || 0,
+          };
+        }),
+        count: result.count || result.data?.length || 0
+      });
+    } catch (err: any) {
+      console.error('Fetch Error:', err);
+      setError(err.message || 'Failed to fetch data');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    const result = await response.json();
+  useEffect(() => {
+    fetchData();
+  }, [startDate, endDate]);
 
+  const getMaxBookingValue = () => {
+    if (!data || !data.data || data.data.length === 0) return 1;
+    const maxSiteVisits = Math.max(...data.data.map(site => site.leadsWithSiteVisit || 0), 0);
+    const maxBookings = Math.max(...data.data.map(site => site.bookedLeads || 0), 0);
+    return Math.max(maxSiteVisits, maxBookings, 1);
+  };
 
-    console.log('Analytics Data:', result);
+  const getTotalBookings = () => {
+    if (!data || !data.data || data.data.length === 0) return { siteVisits: 0, bookings: 0, conversionRate: 0 };
+    const totals = data.data.reduce((acc, site) => ({
+      siteVisits: acc.siteVisits + (site.leadsWithSiteVisit || 0),
+      bookings: acc.bookings + (site.bookedLeads || 0)
 
-    // Transform the data to match TopSitesData structure
-    setData({
-      success: result.success,
-      data: result.data.map((site: any) => {
-        return {
-          _id: site._id,
-          projectId: site.projectId || site._id,
-          projectName: site.projectName,
-          location: site.location,
-          totalLeads: site.totalLeads || 0,
-          bookedLeads: site.bookedLeads || 0,
-          conversionRate: site.conversionRate || 0,
-          leadsWithSiteVisit: site.leadsWithSiteVisit || 0,
-        };
-      }),
-      count: result.count || result.data?.length || 0
-    });
-  } catch (err: any) {
-    console.error('Fetch Error:', err);
-    setError(err.message || 'Failed to fetch data');
-  } finally {
-    setLoading(false);
-  }
-};
+    }), { siteVisits: 0, bookings: 0, });
 
-useEffect(() => {
-  fetchData();
-}, [startDate, endDate]);
+    const conversionRate = totals.siteVisits > 0
+      ? ((totals.bookings / totals.siteVisits) * 100).toFixed(2)
+      : '0.00';
 
-const getMaxBookingValue = () => {
-  if (!data || !data.data || data.data.length === 0) return 1;
-  const maxSiteVisits = Math.max(...data.data.map(site => site.leadsWithSiteVisit || 0), 0);
-  const maxBookings = Math.max(...data.data.map(site => site.bookedLeads || 0), 0);
-  return Math.max(maxSiteVisits, maxBookings, 1);
-};
+    return { ...totals, conversionRate };
+  };
 
-const getTotalBookings = () => {
-  if (!data || !data.data || data.data.length === 0) return { siteVisits: 0, bookings: 0, conversionRate: 0 };
-  const totals = data.data.reduce((acc, site) => ({
-    siteVisits: acc.siteVisits + (site.leadsWithSiteVisit || 0),
-    bookings: acc.bookings + (site.bookedLeads || 0)
+  if (loading) return <Spinner size="lg" />;
+  if (error) return <Alert color="failure">{error}</Alert>;
+  if (!data) return null;
 
-  }), { siteVisits: 0, bookings: 0, });
+  const bookingTotals = getTotalBookings();
 
-  const conversionRate = totals.siteVisits > 0
-    ? ((totals.bookings / totals.siteVisits) * 100).toFixed(2)
-    : '0.00';
-
-  return { ...totals, conversionRate };
-};
-
-if (loading) return <Spinner size="lg" />;
-if (error) return <Alert color="failure">{error}</Alert>;
-if (!data) return null;
-
-const bookingTotals = getTotalBookings();
-
-return (
-  <Card>
-    <div className="flex justify-between items-center mb-4">
-      <h3 className="text-lg font-semibold flex items-center">
-        <IconTarget className="mr-2 text-green-600" size={24} />
-        Site Visit Impact Analysis
-      </h3>
-      <div className="flex items-center gap-4 cursor-pointer">
-        <div className="flex items-center gap-2">
-          <Label htmlFor="start-date">From:</Label>
-          <Datepicker id="start-date" value={startDate.toLocaleDateString('en-CA')} onSelectedDateChanged={(date) => setStartDate(date)} />
-        </div>
-        <div className="flex items-center gap-2 cursor-pointer">
-          <Label htmlFor="end-date">To:</Label>
-          <Datepicker id="end-date" value={endDate.toLocaleDateString('en-CA')} onSelectedDateChanged={(date) => setEndDate(date)} />
+  return (
+    <Card>
+      <div className="flex justify-between items-center mb-4">
+        <h3 className="text-lg font-semibold flex items-center">
+          <IconTarget className="mr-2 text-green-600" size={24} />
+          Site Visit Impact Analysis
+        </h3>
+        <div className="flex items-center gap-4 cursor-pointer">
+          <div className="flex items-center gap-2">
+            <Label htmlFor="start-date">From:</Label>
+            <Datepicker id="start-date" value={startDate.toLocaleDateString('en-CA')} onSelectedDateChanged={(date) => setStartDate(date)} />
+          </div>
+          <div className="flex items-center gap-2 cursor-pointer">
+            <Label htmlFor="end-date">To:</Label>
+            <Datepicker id="end-date" value={endDate.toLocaleDateString('en-CA')} onSelectedDateChanged={(date) => setEndDate(date)} />
+          </div>
         </div>
       </div>
-    </div>
 
-    {/* Summary Cards */}
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" >
-      <div
-        className="bg-green-50 dark:bg-green-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow"
-        onClick={() => router.push(`/apps/leads/view?filter=siteVisits&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
-        title="View all leads with site visits in this period"
-      >
-        <div className="text-2xl font-bold text-green-600">{bookingTotals.siteVisits}</div>
-        <div className="text-sm text-green-600">Site Visits Done</div>
+      {/* Summary Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6" >
+        <div
+          className="bg-green-50 dark:bg-green-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push(`/apps/leads/view?filter=siteVisits&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
+          title="View all leads with site visits in this period"
+        >
+          <div className="text-2xl font-bold text-green-600">{bookingTotals.siteVisits}</div>
+          <div className="text-sm text-green-600">Site Visits Done</div>
+        </div>
+        <div
+          className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow"
+          onClick={() => router.push(`/apps/leads/view?filter=bookings&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
+          title="View all leads booked in this period"
+        >
+          <div className="text-2xl font-bold text-blue-600">{bookingTotals.bookings}</div>
+          <div className="text-sm text-blue-600">Total Bookings</div>
+        </div>
+        <div className="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg" title="This card is not clickable">
+          <div className="text-2xl font-bold text-purple-600">{bookingTotals.conversionRate}%</div>
+          <div className="text-sm text-purple-600">Conversion Rate (Booked/Site Visits)</div>
+        </div>
       </div>
-      <div
-        className="bg-blue-50 dark:bg-blue-900 p-4 rounded-lg cursor-pointer hover:shadow-md transition-shadow"
-        onClick={() => router.push(`/apps/leads/view?filter=bookings&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
-        title="View all leads booked in this period"
-      >
-        <div className="text-2xl font-bold text-blue-600">{bookingTotals.bookings}</div>
-        <div className="text-sm text-blue-600">Total Bookings</div>
-      </div>
-      <div className="bg-purple-50 dark:bg-purple-900 p-4 rounded-lg" title="This card is not clickable">
-        <div className="text-2xl font-bold text-purple-600">{bookingTotals.conversionRate}%</div>
-        <div className="text-sm text-purple-600">Conversion Rate (Booked/Site Visits)</div>
-      </div>
-    </div>
 
-    {/* Vertical Bar Chart with X-Y Coordinates */}
-    <div className="mb-6">
-      <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
-        {/* Chart Title */}
-        {/* <div className="text-center mb-8">
+      {/* Vertical Bar Chart with X-Y Coordinates */}
+      <div className="mb-6">
+        <div className="bg-white dark:bg-gray-800 rounded-lg p-6 border border-gray-200 dark:border-gray-700">
+          {/* Chart Title */}
+          {/* <div className="text-center mb-8">
             <h4 className="text-lg font-semibold text-gray-900 dark:text-white">Site Visits Done vs Bookings by Project</h4>
             <p className="text-sm text-gray-600 dark:text-gray-400 mt-2">
               Conversion Rate = Bookings ÷ Site Visits Done × 100
             </p>
           </div> */}
 
-        {/* Chart Container with Axes */}
-        <div className="relative">
-          {/* Y-Axis Labels */}
-          <div className="absolute left-0 top-2 h-80 flex flex-col justify-between text-xs text-gray-500 dark:text-gray-400">
-            {(() => {
-              const maxValue = getMaxBookingValue();
-              const steps = 5;
-              const stepValue = Math.ceil(maxValue / steps);
-              return Array.from({ length: steps + 1 }, (_, i) => {
-                const value = stepValue * (steps - i); // Reverse the order so 0 is at bottom
-                return (
-                  <div key={i} className="flex items-center">
-                    <div className="w-2 h-px bg-gray-300 dark:bg-gray-600 mr-2"></div>
-                    <span className="font-medium">{value}</span>
-                  </div>
-                );
-              });
-            })()}
-          </div>
-
-          {/* Chart Area */}
-          <div className="ml-8 mr-4 mt-2">
-            {/* Grid Lines */}
-            <div className="absolute inset-0 ml-8 mr-4">
+          {/* Chart Container with Axes */}
+          <div className="relative">
+            {/* Y-Axis Labels */}
+            <div className="absolute left-0 top-2 h-80 flex flex-col justify-between text-xs text-gray-500 dark:text-gray-400">
               {(() => {
                 const maxValue = getMaxBookingValue();
                 const steps = 5;
                 const stepValue = Math.ceil(maxValue / steps);
                 return Array.from({ length: steps + 1 }, (_, i) => {
-                  const percentage = (i / steps) * 100;
+                  const value = stepValue * (steps - i); // Reverse the order so 0 is at bottom
                   return (
-                    <div
-                      key={i}
-                      className="absolute w-full border-t border-gray-200 dark:border-gray-600"
-                      style={{ top: `${100 - percentage}%` }}
-                    ></div>
+                    <div key={i} className="flex items-center">
+                      <div className="w-2 h-px bg-gray-300 dark:bg-gray-600 mr-2"></div>
+                      <span className="font-medium">{value}</span>
+                    </div>
                   );
                 });
               })()}
             </div>
 
-            {/* Bars */}
-            <div className="flex items-end justify-center h-80 space-x-6 relative z-10">
-              {data.data.map((site) => {
-                const maxValue = getMaxBookingValue();
-                const steps = 5;
-                const stepValue = Math.ceil(maxValue / steps);
-                const maxYValue = stepValue * steps;
-
-                const siteVisitPercentage = ((site.leadsWithSiteVisit || 0) / maxYValue) * 100;
-                const bookingPercentage = ((site.bookedLeads || 0) / maxYValue) * 100;
-
-                return (
-                  <div key={site._id} className="flex flex-col items-center w-24">
-                    {/* Side-by-side Bars */}
-                    <div className="w-full h-64 flex justify-center items-end relative space-x-1">
-                      {/* Site Visits Done (Green) */}
+            {/* Chart Area */}
+            <div className="ml-8 mr-4 mt-2">
+              {/* Grid Lines */}
+              <div className="absolute inset-0 ml-8 mr-4">
+                {(() => {
+                  const maxValue = getMaxBookingValue();
+                  const steps = 5;
+                  const stepValue = Math.ceil(maxValue / steps);
+                  return Array.from({ length: steps + 1 }, (_, i) => {
+                    const percentage = (i / steps) * 100;
+                    return (
                       <div
-                        className="w-1/2 bg-gradient-to-t from-green-600 to-green-400 transition-all duration-500 relative shadow-md hover:shadow-lg cursor-pointer"
-                        style={{ height: `${Math.max(siteVisitPercentage, 1)}%` }}
-                        title={`Site Visits: ${site.leadsWithSiteVisit}`}
-                        onClick={() => router.push(`/apps/leads/view?filter=siteVisits&projectId=${site.projectId}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
-                      >
-                        <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs font-bold text-green-700 dark:text-green-300">
-                          {site.leadsWithSiteVisit || 0}
+                        key={i}
+                        className="absolute w-full border-t border-gray-200 dark:border-gray-600"
+                        style={{ top: `${100 - percentage}%` }}
+                      ></div>
+                    );
+                  });
+                })()}
+              </div>
+
+              {/* Bars */}
+              <div className="flex items-end justify-center h-80 space-x-6 relative z-10">
+                {data.data.map((site) => {
+                  const maxValue = getMaxBookingValue();
+                  const steps = 5;
+                  const stepValue = Math.ceil(maxValue / steps);
+                  const maxYValue = stepValue * steps;
+
+                  const siteVisitPercentage = ((site.leadsWithSiteVisit || 0) / maxYValue) * 100;
+                  const bookingPercentage = ((site.bookedLeads || 0) / maxYValue) * 100;
+
+                  return (
+                    <div key={site._id} className="flex flex-col items-center w-24">
+                      {/* Side-by-side Bars */}
+                      <div className="w-full h-64 flex justify-center items-end relative space-x-1">
+                        {/* Site Visits Done (Green) */}
+                        <div
+                          className="w-1/2 bg-gradient-to-t from-green-600 to-green-400 transition-all duration-500 relative shadow-md hover:shadow-lg cursor-pointer"
+                          style={{ height: `${Math.max(siteVisitPercentage, 1)}%` }}
+                          title={`Site Visits: ${site.leadsWithSiteVisit}`}
+                          onClick={() => router.push(`/apps/leads/view?filter=siteVisits&projectId=${site.projectId}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
+                        >
+                          <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs font-bold text-green-700 dark:text-green-300">
+                            {site.leadsWithSiteVisit || 0}
+                          </div>
+                        </div>
+
+                        {/* Bookings (Blue) */}
+                        <div
+                          className="w-1/2 bg-gradient-to-t from-blue-600 to-blue-400 transition-all duration-500 relative shadow-md hover:shadow-lg cursor-pointer"
+                          style={{ height: `${Math.max(bookingPercentage, 1)}%` }}
+                          title={`Bookings: ${site.bookedLeads}`}
+                          onClick={() => router.push(`/apps/leads/view?filter=bookings&projectId=${site.projectId}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
+                        >
+                          <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs font-bold text-blue-700 dark:text-blue-300">
+                            {site.bookedLeads}
+                          </div>
                         </div>
                       </div>
 
-                      {/* Bookings (Blue) */}
-                      <div
-                        className="w-1/2 bg-gradient-to-t from-blue-600 to-blue-400 transition-all duration-500 relative shadow-md hover:shadow-lg cursor-pointer"
-                        style={{ height: `${Math.max(bookingPercentage, 1)}%` }}
-                        title={`Bookings: ${site.bookedLeads}`}
-                        onClick={() => router.push(`/apps/leads/view?filter=bookings&projectId=${site.projectId}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
-                      >
-                        <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 text-xs font-bold text-blue-700 dark:text-blue-300">
-                          {site.bookedLeads}
+                      {/* Project Name */}
+                      <div className="mt-3 text-center w-full">
+                        <div className="text-xs font-semibold text-gray-900 dark:text-white truncate" title={site.projectName}>
+                          {site.projectName}
+                        </div>
+                        <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
+                          {((site.bookedLeads / (site.leadsWithSiteVisit || 1)) * 100).toFixed(1)}% conversion
                         </div>
                       </div>
                     </div>
+                  );
+                })}
+              </div>
+            </div>
 
-                    {/* Project Name */}
-                    <div className="mt-3 text-center w-full">
-                      <div className="text-xs font-semibold text-gray-900 dark:text-white truncate" title={site.projectName}>
-                        {site.projectName}
-                      </div>
-                      <div className="text-xs text-purple-600 dark:text-purple-400 mt-1 font-medium">
-                        {((site.bookedLeads / (site.leadsWithSiteVisit || 1)) * 100).toFixed(1)}% conversion
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
+            {/* X-Axis Label */}
+            <div className="text-center mt-4">
+              <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Projects</span>
             </div>
           </div>
 
-          {/* X-Axis Label */}
-          <div className="text-center mt-4">
-            <span className="text-sm font-medium text-gray-600 dark:text-gray-400">Projects</span>
-          </div>
-        </div>
-
-        {/* Chart Legend */}
-        <div className="flex justify-center mt-6 space-x-4">
-          <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border">
-            <div className="w-4 h-4 bg-gradient-to-t from-green-600 to-green-400 rounded"></div>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Site Visits Done</span>
-          </div>
-          <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border">
-            <div className="w-4 h-4 bg-gradient-to-t from-blue-600 to-blue-400 rounded"></div>
-            <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bookings</span>
+          {/* Chart Legend */}
+          <div className="flex justify-center mt-6 space-x-4">
+            <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border">
+              <div className="w-4 h-4 bg-gradient-to-t from-green-600 to-green-400 rounded"></div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Site Visits Done</span>
+            </div>
+            <div className="flex items-center space-x-2 bg-gray-50 dark:bg-gray-700 px-4 py-2 rounded-lg border">
+              <div className="w-4 h-4 bg-gradient-to-t from-blue-600 to-blue-400 rounded"></div>
+              <span className="text-sm font-medium text-gray-700 dark:text-gray-300">Bookings</span>
+            </div>
           </div>
         </div>
       </div>
-    </div>
 
-    {/* Table */}
-    <div className="overflow-x-auto">
-      <Table hoverable>
-        <Table.Head>
-          <Table.HeadCell>Project</Table.HeadCell>
-          <Table.HeadCell>Location</Table.HeadCell>
-          <Table.HeadCell>Total Leads</Table.HeadCell>
-          <Table.HeadCell>Site Visits Done</Table.HeadCell>
-          <Table.HeadCell>Bookings</Table.HeadCell>
-          <Table.HeadCell>Conv. Rate (Booked/Visits)</Table.HeadCell>
-        </Table.Head>
-        <Table.Body>
-          {data.data.map((site) => {
-            // Calculate conversion rate: Bookings / Site Visits Done
-            const siteVisitConversionRate = (site.leadsWithSiteVisit || 0) > 0
-              ? ((site.bookedLeads / (site.leadsWithSiteVisit || 1)) * 100).toFixed(1)
-              : '0.0';
+      {/* Table */}
+      <div className="overflow-x-auto">
+        <Table hoverable>
+          <Table.Head>
+            <Table.HeadCell>Project</Table.HeadCell>
+            <Table.HeadCell>Location</Table.HeadCell>
+            <Table.HeadCell>Total Leads</Table.HeadCell>
+            <Table.HeadCell>Site Visits Done</Table.HeadCell>
+            <Table.HeadCell>Bookings</Table.HeadCell>
+            <Table.HeadCell>Conv. Rate (Booked/Visits)</Table.HeadCell>
+          </Table.Head>
+          <Table.Body>
+            {data.data.map((site) => {
+              // Calculate conversion rate: Bookings / Site Visits Done
+              const siteVisitConversionRate = (site.leadsWithSiteVisit || 0) > 0
+                ? ((site.bookedLeads / (site.leadsWithSiteVisit || 1)) * 100).toFixed(1)
+                : '0.0';
 
-            return (
-              <Table.Row
-                key={site._id}
-                className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
-                onClick={() => router.push(`/apps/leads/view?filter=projectImpact&projectId=${site.projectId}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
-                title={`View all site visits and bookings for ${site.projectName} in this period`}>
-                <Table.Cell className="font-medium">{site.projectName}</Table.Cell>
-                <Table.Cell>{site.location}</Table.Cell>
-                <Table.Cell><Badge color="blue">{site.totalLeads}</Badge></Table.Cell>
-                <Table.Cell><Badge color="success">{site.leadsWithSiteVisit || 0}</Badge></Table.Cell>
-                <Table.Cell><Badge color="info">{site.bookedLeads}</Badge></Table.Cell>
-                <Table.Cell><Badge color="purple">{siteVisitConversionRate}%</Badge></Table.Cell>
-              </Table.Row>
-            );
-          })}
-        </Table.Body>
-      </Table>
-    </div>
-  </Card>
-);
+              return (
+                <Table.Row
+                  key={site._id}
+                  className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
+                  onClick={() => router.push(`/apps/leads/view?filter=projectImpact&projectId=${site.projectId}&startDate=${startDate.toISOString().split('T')[0]}&endDate=${endDate.toISOString().split('T')[0]}`)}
+                  title={`View all site visits and bookings for ${site.projectName} in this period`}>
+                  <Table.Cell className="font-medium">{site.projectName}</Table.Cell>
+                  <Table.Cell>{site.location}</Table.Cell>
+                  <Table.Cell><Badge color="blue">{site.totalLeads}</Badge></Table.Cell>
+                  <Table.Cell><Badge color="success">{site.leadsWithSiteVisit || 0}</Badge></Table.Cell>
+                  <Table.Cell><Badge color="info">{site.bookedLeads}</Badge></Table.Cell>
+                  <Table.Cell><Badge color="purple">{siteVisitConversionRate}%</Badge></Table.Cell>
+                </Table.Row>
+              );
+            })}
+          </Table.Body>
+        </Table>
+      </div>
+    </Card>
+  );
 };
 
 // Top Sourcing Performers Component
@@ -783,12 +824,12 @@ const TopSourcingPerformers = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TopSourcingPerformersData | null>(null);
   const [error, setError] = useState('');
-
+  
   // Initialize with current month dates
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
+  
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(lastDay.toISOString().split('T')[0]);
   const [currentPage, setCurrentPage] = useState(1);
@@ -943,12 +984,12 @@ const TopBookingPerformers = () => {
   const [loading, setLoading] = useState(true);
   const [data, setData] = useState<TopPerformersData | null>(null);
   const [error, setError] = useState('');
-
+  
   // Initialize with current month dates
   const now = new Date();
   const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
   const lastDay = new Date(now.getFullYear(), now.getMonth() + 1, 0);
-
+  
   const [startDate, setStartDate] = useState(firstDay.toISOString().split('T')[0]);
   const [endDate, setEndDate] = useState(lastDay.toISOString().split('T')[0]);
   const router = useRouter();
@@ -968,8 +1009,6 @@ const TopBookingPerformers = () => {
 
       if (!response.ok) throw new Error('Failed to fetch data');
       const result = await response.json();
-      console.log('result for top booking performer ', result);
-      
       setData(result);
     } catch (err: any) {
       setError(err.message);
@@ -1031,9 +1070,9 @@ const TopBookingPerformers = () => {
             {/* <Table.HeadCell>Conversion Rate</Table.HeadCell> */}
           </Table.Head>
           <Table.Body>
-            {data?.data?.map((performer, index) => (
-              <Table.Row
-                key={performer._id}
+            {data.data.map((performer, index) => (
+              <Table.Row 
+                key={performer._id} 
                 className="cursor-pointer hover:bg-gray-50 dark:hover:bg-gray-700"
                 onClick={() => handleUserClick(performer.userId)}
                 title={`Click to view all leads for ${performer.userName}`}

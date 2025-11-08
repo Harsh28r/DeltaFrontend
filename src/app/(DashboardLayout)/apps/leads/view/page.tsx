@@ -249,7 +249,7 @@ const FilteredLeadsComponent = () => {
             }
         }
 
-        const startTimestamp = startDate ? extractTimestamp(startDate) : null;
+            const startTimestamp = startDate ? extractTimestamp(startDate) : null;
         const endTimestamp = endDate ? extractTimestamp(endDate) : null;
         const hasDateRange = startTimestamp !== null || endTimestamp !== null;
 
