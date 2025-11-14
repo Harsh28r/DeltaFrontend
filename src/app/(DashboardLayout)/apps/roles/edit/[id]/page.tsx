@@ -46,38 +46,110 @@ const EditRolePage = () => {
 
   // Available permissions grouped by category
   const availablePermissions: Permission[] = [
-    // Project Management
-    { id: "manage_project", name: "Manage Project", description: "Can create, edit, and delete projects", category: "Project Management" },
-    { id: "view_project", name: "View Project", description: "Can view project details", category: "Project Management" },
-    
-    // Team Management
-    { id: "manage_team", name: "Manage Team", description: "Can manage team members and assignments", category: "Team Management" },
-    { id: "view_team", name: "View Team", description: "Can view team information", category: "Team Management" },
-    { id: "view_team_dashboard", name: "View Team Dashboard", description: "Can access team dashboard", category: "Team Management" },
-    
-    // Sales & Analytics
-    { id: "view_sales_data", name: "View Sales Data", description: "Can view sales reports and analytics", category: "Sales & Analytics" },
-    { id: "manage_sales", name: "Manage Sales", description: "Can manage sales operations", category: "Sales & Analytics" },
-    
     // User Management
-    { id: "manage_users", name: "Manage Users", description: "Can create, edit, and delete users", category: "User Management" },
-    { id: "view_users", name: "View Users", description: "Can view user information", category: "User Management" },
+    { id: "users:manage", name: "Manage Users", description: "Can create, edit, and delete users", category: "User Management" },
+    { id: "users:read", name: "View Users", description: "Can view user information", category: "User Management" },
+    { id: "users:create", name: "Create Users", description: "Can create new users", category: "User Management" },
+    { id: "users:update", name: "Update Users", description: "Can update user information", category: "User Management" },
+    { id: "users:delete", name: "Delete Users", description: "Can delete users", category: "User Management" },
     
     // Role Management
-    { id: "manage_roles", name: "Manage Roles", description: "Can create, edit, and delete roles", category: "Role Management" },
-    { id: "view_roles", name: "View Roles", description: "Can view role information", category: "Role Management" },
+    { id: "roles:read", name: "View Roles", description: "Can view role information", category: "Role Management" },
+    { id: "roles:create", name: "Create Roles", description: "Can create new roles", category: "Role Management" },
+    { id: "roles:update", name: "Update Roles", description: "Can update role information", category: "Role Management" },
+    { id: "roles:delete", name: "Delete Roles", description: "Can delete roles", category: "Role Management" },
     
-    // Content Management
-    { id: "manage_content", name: "Manage Content", description: "Can create, edit, and delete content", category: "Content Management" },
-    { id: "view_content", name: "View Content", description: "Can view content", category: "Content Management" },
+    // Project Management
+    { id: "projects:read", name: "View Projects", description: "Can view project details", category: "Project Management" },
+    { id: "projects:create", name: "Create Projects", description: "Can create new projects", category: "Project Management" },
+    { id: "projects:update", name: "Update Projects", description: "Can update project information", category: "Project Management" },
+    { id: "projects:delete", name: "Delete Projects", description: "Can delete projects", category: "Project Management" },
     
-    // Reports
-    { id: "view_reports", name: "View Reports", description: "Can view system reports", category: "Reports" },
-    { id: "export_reports", name: "Export Reports", description: "Can export reports", category: "Reports" },
+    // User Projects
+    { id: "user-projects:read", name: "Read User Projects", description: "Can view user project assignments", category: "User Projects" },
+    { id: "user-projects:assign", name: "Assign User Projects", description: "Can assign users to projects", category: "User Projects" },
+    { id: "user-projects:remove", name: "Remove User Projects", description: "Can remove users from projects", category: "User Projects" },
+    { id: "user-projects:bulk-update", name: "Bulk Update User Projects", description: "Can update multiple user project assignments", category: "User Projects" },
+    { id: "user-projects:bulk-delete", name: "Bulk Delete User Projects", description: "Can delete multiple user project assignments", category: "User Projects" },
     
-    // System Settings
-    { id: "manage_settings", name: "Manage Settings", description: "Can modify system settings", category: "System Settings" },
-    { id: "view_settings", name: "View Settings", description: "Can view system settings", category: "System Settings" }
+    // Notifications
+    { id: "notifications:read", name: "Read Notifications", description: "Can read notifications", category: "Notifications" },
+    { id: "notifications:create", name: "Create Notifications", description: "Can create notifications", category: "Notifications" },
+    { id: "notifications:update", name: "Update Notifications", description: "Can update notifications", category: "Notifications" },
+    { id: "notifications:delete", name: "Delete Notifications", description: "Can delete notifications", category: "Notifications" },
+    { id: "notifications:bulk-update", name: "Bulk Update Notifications", description: "Can update multiple notifications", category: "Notifications" },
+    { id: "notifications:bulk-delete", name: "Bulk Delete Notifications", description: "Can delete multiple notifications", category: "Notifications" },
+    
+    // Leads Management
+    { id: "leads:create", name: "Create Leads", description: "Can create new leads", category: "Leads Management" },
+    { id: "leads:read", name: "Read Leads", description: "Can view lead information", category: "Leads Management" },
+    { id: "leads:update", name: "Update Leads", description: "Can update lead information", category: "Leads Management" },
+    { id: "leads:delete", name: "Delete Leads", description: "Can delete leads", category: "Leads Management" },
+    { id: "leads:bulk", name: "Bulk Leads Operations", description: "Can perform bulk operations on leads", category: "Leads Management" },
+    { id: "leads:transfer", name: "Transfer Leads", description: "Can transfer leads between users", category: "Leads Management" },
+    { id: "leads:bulk-delete", name: "Bulk Delete Leads", description: "Can delete multiple leads", category: "Leads Management" },
+    
+    // Lead Sources Management
+    { id: "leadssource:create", name: "Create Lead Sources", description: "Can create new lead sources (Superadmin only)", category: "Lead Sources Management" },
+    { id: "leadssource:read_all", name: "Read All Lead Sources", description: "Can view all lead sources", category: "Lead Sources Management" },
+    { id: "leadssource:read", name: "Read Lead Sources", description: "Can view lead source information", category: "Lead Sources Management" },
+    { id: "leadssource:update", name: "Update Lead Sources", description: "Can update lead source information (Superadmin only)", category: "Lead Sources Management" },
+    { id: "leadssource:delete", name: "Delete Lead Sources", description: "Can delete lead sources (Superadmin only)", category: "Lead Sources Management" },
+    
+    // Lead Status Management
+    { id: "leadsstatus:create", name: "Create Lead Statuses", description: "Can create new lead statuses (Superadmin only)", category: "Lead Status Management" },
+    { id: "leadsstatus:read_all", name: "Read All Lead Statuses", description: "Can view all lead statuses", category: "Lead Status Management" },
+    { id: "leadsstatus:read", name: "Read Lead Statuses", description: "Can view lead status information", category: "Lead Status Management" },
+    { id: "leadsstatus:update", name: "Update Lead Statuses", description: "Can update lead status information (Superadmin only)", category: "Lead Status Management" },
+    { id: "leadsstatus:delete", name: "Delete Lead Statuses", description: "Can delete lead statuses (Superadmin only)", category: "Lead Status Management" },
+    
+    // Channel Partners Management
+    { id: "channel-partner:create", name: "Create Channel Partners", description: "Can create new channel partners (Superadmin only)", category: "Channel Partners Management" },
+    { id: "channel-partner:read_all", name: "Read All Channel Partners", description: "Can view all channel partners", category: "Channel Partners Management" },
+    { id: "channel-partner:read", name: "Read Channel Partners", description: "Can view channel partner information", category: "Channel Partners Management" },
+    { id: "channel-partner:update", name: "Update Channel Partners", description: "Can update channel partner information (Superadmin only)", category: "Channel Partners Management" },
+    { id: "channel-partner:delete", name: "Delete Channel Partners", description: "Can delete channel partners (Superadmin only)", category: "Channel Partners Management" },
+    { id: "channel-partner:bulk-create", name: "Bulk Create Channel Partners", description: "Can create multiple channel partners (Superadmin only)", category: "Channel Partners Management" },
+    { id: "channel-partner:bulk-update", name: "Bulk Update Channel Partners", description: "Can update multiple channel partners (Superadmin only)", category: "Channel Partners Management" },
+    { id: "channel-partner:bulk-delete", name: "Bulk Delete Channel Partners", description: "Can delete multiple channel partners (Superadmin only)", category: "Channel Partners Management" },
+    { id: "leads:status:update", name: "Update Lead Statuses", description: "Can update lead status information ", category: "Lead Status Management" },
+    // CP Sourcing Management
+    { id: "cp-sourcing:create", name: "Create CP Sourcing", description: "Can create new CP sourcing records", category: "CP Sourcing Management" },
+    { id: "cp-sourcing:read", name: "Read CP Sourcing", description: "Can view CP sourcing information", category: "CP Sourcing Management" },
+    { id: "cp-sourcing:update", name: "Update CP Sourcing", description: "Can update CP sourcing information", category: "CP Sourcing Management" },
+    { id: "cp-sourcing:delete", name: "Delete CP Sourcing", description: "Can delete CP sourcing records", category: "CP Sourcing Management" },
+    { id: "cp-sourcing:bulk-create", name: "Bulk Create CP Sourcing", description: "Can create multiple CP sourcing records", category: "CP Sourcing Management" },
+    { id: "cp-sourcing:bulk-update", name: "Bulk Update CP Sourcing", description: "Can update multiple CP sourcing records", category: "CP Sourcing Management" },
+    { id: "cp-sourcing:bulk-delete", name: "Bulk Delete CP Sourcing", description: "Can delete multiple CP sourcing records", category: "CP Sourcing Management" },
+    
+    // Lead Activities Management
+    { id: "lead-activities:read", name: "Read Lead Activities", description: "Can view lead activity information", category: "Lead Activities Management" },
+    { id: "lead-activities:bulk-update", name: "Bulk Update Lead Activities", description: "Can update multiple lead activities (Superadmin only)", category: "Lead Activities Management" },
+    { id: "lead-activities:bulk-delete", name: "Bulk Delete Lead Activities", description: "Can delete multiple lead activities (Superadmin only)", category: "Lead Activities Management" },
+    
+    // User Reporting Management
+    { id: "user-reporting:create", name: "Create User Reporting", description: "Can create user reporting structures", category: "User Reporting Management" },
+    { id: "user-reporting:read", name: "Read User Reporting", description: "Can view user reporting information", category: "User Reporting Management" },
+    { id: "user-reporting:update", name: "Update User Reporting", description: "Can update user reporting structures", category: "User Reporting Management" },
+    { id: "user-reporting:delete", name: "Delete User Reporting", description: "Can delete user reporting structures", category: "User Reporting Management" },
+    { id: "user-reporting:bulk-update", name: "Bulk Update User Reporting", description: "Can update multiple user reporting structures", category: "User Reporting Management" },
+    { id: "user-reporting:bulk-delete", name :"Bulk Delete User Reporting", description: "Can delete multiple user reporting structures", category: "User Reporting Management" },
+    
+    // Follow-up Management
+    { id: "followups:create", name: "Create Follow-ups", description: "Can create new follow-ups", category: "Follow-up Management" },
+    { id: "followups:read", name: "Read Follow-ups", description: "Can view follow-up information", category: "Follow-up Management" },
+    { id: "followups:update", name: "Update Follow-ups", description: "Can update follow-up information", category: "Follow-up Management" },
+    { id: "followups:delete", name: "Delete Follow-ups", description: "Can delete follow-ups", category: "Follow-up Management" },
+
+    // Attendance Management
+    { id: "attendance:create", name: "Create Attendance", description: "Can create new attendance records", category: "Attendance Management" },
+    { id: "attendance:read", name: "Read Attendance", description: "Can view attendance information", category: "Attendance Management" },
+    { id: "attendance:update", name: "Update Attendance", description: "Can update attendance information", category: "Attendance Management" },
+    { id: "attendance:delete", name: "Delete Attendance", description: "Can delete attendance records", category: "Attendance Management" },
+    { id: "attendance:read_all", name: "Read All Attendance", description: "Can view all attendance records", category: "Attendance Management" },
+
+    // Reporting
+    { id: "reporting:read", name: "Read Reporting", description: "Can access reporting and analytics", category: "Reporting" }
   ];
 
   const groupedPermissions = availablePermissions.reduce((acc, permission) => {

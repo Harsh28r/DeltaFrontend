@@ -2,6 +2,7 @@
 import React, { useMemo } from 'react';
 import { Card } from 'flowbite-react';
 import ChartWrapper from './ChartWrapper';
+import { getToolbarConfig } from '@/utils/chartUtils';
 
 interface StatusBreakdown {
   lead: number;
@@ -35,7 +36,17 @@ const StatusBreakdownChart: React.FC<Props> = React.memo(({ userData, statuses, 
     
     // Return options directly - data is already cleaned upstream
     return {
-      chart: { id: 'status-breakdown', type: 'bar', stacked: true, toolbar: { show: true } },
+      chart: { 
+        id: 'status-breakdown', 
+        type: 'bar', 
+        stacked: true, 
+        toolbar: getToolbarConfig(true),
+        zoom: {
+          type: 'x',
+          enabled: true,
+          autoScaleYaxis: true
+        }
+      },
       plotOptions: { bar: { horizontal: false, borderRadius: 4 } },
       xaxis: {
         categories: categories,

@@ -452,15 +452,21 @@ const LeadReportsPage = () => {
   }, []);
 
   // Filter and search users - memoized for performance
-  const filteredUsers = useMemo(() => 
-    reportData?.userPerformance.filter(user => {
-      const matchesSearch = 
-        user.userName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        user.userEmail.toLowerCase().includes(searchTerm.toLowerCase());
-      return matchesSearch;
-    }) || [],
-    [reportData, searchTerm]
-  );
+  const filteredUsers = useMemo(() => {
+    const usersList = reportData?.userPerformance ?? [];
+    const normalizedSearch = searchTerm.trim().toLowerCase();
+
+    if (normalizedSearch.length === 0) {
+      return usersList;
+    }
+
+    return usersList.filter((user) => {
+      const name = (user?.userName ?? "").toLowerCase();
+      const email = (user?.userEmail ?? "").toLowerCase();
+
+      return name.includes(normalizedSearch) || email.includes(normalizedSearch);
+    });
+  }, [reportData, searchTerm]);
 
   // Export to CSV - memoized
   const handleExportToCSV = useCallback(() => {

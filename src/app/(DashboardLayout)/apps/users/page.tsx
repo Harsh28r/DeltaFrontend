@@ -4,7 +4,7 @@ import { Button, Card, Table, Badge, Dropdown, Modal, Label, TextInput } from "f
 import { Icon } from "@iconify/react";
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { API_ENDPOINTS, API_BASE_URL, createRefreshEvent, subscribeToRefresh } from "@/lib/config";
+import { API_ENDPOINTS, API_BASE_URL, getApiBaseUrlRuntime, createRefreshEvent, subscribeToRefresh } from "@/lib/config";
 
 interface User {
   _id: string;
@@ -92,7 +92,20 @@ const UsersPage = () => {
       
       // Using the users/with-projects endpoint for user list
       console.log("Fetching users from /api/superadmin/users/with-projects...");
-      const response = await fetch(`${API_BASE_URL}/api/superadmin/users/with-projects`, {
+      // Use runtime function for client-side to ensure correct URL
+      // This prevents SSR/client-side mismatch errors
+      let apiUrl: string;
+      try {
+        apiUrl = typeof window !== 'undefined' ? getApiBaseUrlRuntime() : API_BASE_URL;
+        // Ensure we have a valid URL
+        if (!apiUrl || apiUrl === 'undefined') {
+          apiUrl = API_BASE_URL || 'https://api.realtechmktg.com';
+        }
+      } catch (error) {
+        console.warn('Error getting API URL, using fallback:', error);
+        apiUrl = API_BASE_URL || 'https://api.realtechmktg.com';
+      }
+      const response = await fetch(`${apiUrl}/api/superadmin/users/with-projects`, {
         method: "GET",
         headers: {
           "Content-Type": "application/json",
@@ -371,22 +384,37 @@ const UsersPage = () => {
   console.log("1 Existing User:", users[0]);
 
 
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = 
-      (user.name && user.name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (user.email && user.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (user.mobile && user.mobile.toLowerCase().includes(searchTerm.toLowerCase()));
-    const matchesRole = filterRole === "all" || user.currentRole.name === filterRole;
-    
+  const normalizedSearchTerm = searchTerm.trim().toLowerCase();
+
+  const filteredUsers = users.filter((user) => {
+    const name = user.name?.toLowerCase?.() ?? "";
+    const email = user.email?.toLowerCase?.() ?? "";
+    const mobile = user.mobile ? String(user.mobile).toLowerCase() : "";
+
+    const matchesSearch =
+      normalizedSearchTerm === "" ||
+      name.includes(normalizedSearchTerm) ||
+      email.includes(normalizedSearchTerm) ||
+      mobile.includes(normalizedSearchTerm);
+
+    const matchesRole =
+      filterRole === "all" || user.currentRole?.name === filterRole;
+
     // Check project filter against user's project assignments
+    const assignments = Array.isArray(user.projectAssignments)
+      ? user.projectAssignments
+      : [];
+
     let matchesProject = true;
-    
+
     if (filterProject === "unassigned") {
-      matchesProject = user.projectAssignments.length === 0;
+      matchesProject = assignments.length === 0;
     } else if (filterProject !== "all") {
-      matchesProject = user.projectAssignments.some(assignment => assignment.projectName === filterProject);
+      matchesProject = assignments.some(
+        (assignment) => assignment?.projectName === filterProject
+      );
     }
-    
+
     return matchesSearch && matchesRole && matchesProject;
   });
 
@@ -415,34 +443,41 @@ const UsersPage = () => {
     }
   };
 
-  const getRoleBadge = (roleName: string) => {
+  const getRoleBadge = (roleName?: string | null) => {
+    const normalizedRole = roleName?.toLowerCase?.();
+
     const roleColors = {
-      "superadmin": "failure",
-      "admin": "failure",
-      "tl": "warning",
-      "developer": "info",
-      "tester": "success",
-      "manager": "purple",
-      "user": "gray",
-      "hr": "indigo"
+      superadmin: "failure",
+      admin: "failure",
+      tl: "warning",
+      developer: "info",
+      tester: "success",
+      manager: "purple",
+      user: "gray",
+      hr: "indigo",
     } as const;
-    
-    return (
-      <Badge color={roleColors[roleName as keyof typeof roleColors] || "gray"}>
-        {roleName.toUpperCase()}
-      </Badge>
-    );
+
+    const badgeColor =
+      (normalizedRole && roleColors[normalizedRole as keyof typeof roleColors]) || "gray";
+
+    return <Badge color={badgeColor}>{(normalizedRole ?? "unknown").toUpperCase()}</Badge>;
   };
 
   const getUniqueRoles = () => {
-    const roles = [...new Set(users.map(user => user.currentRole.name))];
-    return roles.filter(role => role);
+    const roles = [
+      ...new Set(
+        users
+          .map((user) => user.currentRole?.name)
+          .filter((roleName): roleName is string => Boolean(roleName))
+      ),
+    ];
+    return roles;
   };
 
   const getUniqueProjects = () => {
     // Get projects from user's project assignments
     const allProjects = users.flatMap(user => 
-      user.projectAssignments.map(assignment => assignment.projectName)
+      (Array.isArray(user.projectAssignments) ? user.projectAssignments : []).map(assignment => assignment.projectName)
     );
     return [...new Set(allProjects)].filter(Boolean);
   };
@@ -541,8 +576,10 @@ const UsersPage = () => {
               onChange={(e) => setFilterRole(e.target.value)}
             >
               <option value="all">All Roles</option>
-              {getUniqueRoles().map(role => (
-                <option key={role} value={role}>{role.toUpperCase()}</option>
+              {getUniqueRoles().map((role) => (
+                <option key={role} value={role}>
+                  {role.toUpperCase()}
+                </option>
               ))}
             </select>
             
@@ -699,19 +736,28 @@ const UsersPage = () => {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <Card className="text-center p-3">
             <div className="text-lg font-bold text-indigo-600">
-              {users.reduce((total, user) => total + user.projectSummary.totalProjects, 0)}
+              {users.reduce(
+                (total, user) => total + (user.projectSummary?.totalProjects ?? 0),
+                0
+              )}
             </div>
             <div className="text-xs text-gray-600">Total Project Assignments</div>
           </Card>
           <Card className="text-center p-3">
             <div className="text-lg font-bold text-emerald-600">
-              {users.reduce((total, user) => total + user.projectSummary.activeProjects, 0)}
+              {users.reduce(
+                (total, user) => total + (user.projectSummary?.activeProjects ?? 0),
+                0
+              )}
             </div>
             <div className="text-xs text-gray-600">Active Projects</div>
           </Card>
           <Card className="text-center p-3">
             <div className="text-lg font-bold text-amber-600">
-              {users.reduce((total, user) => total + user.projectSummary.completedProjects, 0)}
+              {users.reduce(
+                (total, user) => total + (user.projectSummary?.completedProjects ?? 0),
+                0
+              )}
             </div>
             <div className="text-xs text-gray-600">Completed Projects</div>
           </Card>
@@ -768,17 +814,20 @@ const UsersPage = () => {
                   </Table.Cell>
             <Table.Cell className="min-w-[200px] px-4 py-3 text-gray-600 dark:text-gray-400">
                     {(() => {
-                const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
+                const assignments = Array.isArray(user.projectAssignments)
+                  ? user.projectAssignments
+                  : [];
+                const hasProjects = assignments.length > 0;
                 console.log(
-                  `Project assignment cell for ${user.name}: isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
-                    user.projectAssignments?.length || 0
+                  `Project assignment cell for ${user.name} : isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
+                    assignments.length || 0
                   }, hasProjects=${hasProjects}`
                 );
 
                 if (hasProjects) {
                         return (
                     <div className="space-y-2">
-                            {user.projectAssignments.map((assignment, index) => (
+                            {assignments.map((assignment, index) => (
                               <div key={index} className="space-y-1">
                                 <Badge color="success" className="text-xs">
                                   ✓ {assignment.projectName}
@@ -860,10 +909,13 @@ const UsersPage = () => {
                         <Icon icon="solar:info-circle-line-duotone" />
                       </Button>
                 {(() => {
-                  const hasProjects = user.projectAssignments && user.projectAssignments.length > 0;
+                  const assignments = Array.isArray(user.projectAssignments)
+                    ? user.projectAssignments
+                    : [];
+                  const hasProjects = assignments.length > 0;
                   console.log(
                     `User ${user.name} (${user._id}): isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
-                      user.projectAssignments?.length || 0
+                      assignments.length || 0
                     }, hasProjects=${hasProjects}`
                   );
                   return (
@@ -981,9 +1033,12 @@ const UsersPage = () => {
             <div>
               <Label value="Project Assignments" />
               <div className="mt-2 p-3 bg-gray-50 dark:bg-gray-700 rounded-lg">
-                {users.find(u => u._id === detailOpenUserId)?.projectAssignments?.length ? (
+                {(() => {
+                  const assignments = users.find((u) => u._id === detailOpenUserId)
+                    ?.projectAssignments;
+                  return Array.isArray(assignments) && assignments.length > 0 ? (
                   <div className="space-y-1">
-                    {users.find(u => u._id === detailOpenUserId)?.projectAssignments?.map((assignment, index) => (
+                    {assignments.map((assignment, index) => (
                       <div key={index} className="flex items-center gap-2">
                         <Badge color="success" className="text-xs">✓</Badge>
                         <span className="text-sm">{assignment.projectName}</span>
@@ -991,9 +1046,10 @@ const UsersPage = () => {
                       </div>
                     ))}
                   </div>
-                ) : (
-                  <p className="text-sm text-gray-500">No project assignments</p>
-                )}
+                  ) : (
+                    <p className="text-sm text-gray-500">No project assignments</p>
+                  );
+                })()}
               </div>
             </div>
             <div>

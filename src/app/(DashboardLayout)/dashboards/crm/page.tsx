@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import type { Metadata } from "next";
 import LeadAnalyticsChart from "../../apps/leads/fresh/LeadAnalyticsChart";
 import LeadStatusChart from "../../apps/leads/fresh/LeadStatusChart";
+import FollowUpDashboard from "../../apps/follow-ups/page";
 
 
 
@@ -450,7 +451,10 @@ const CrmDashboard = () => {
     const fetchLeaddata = async () => {
       setLoading(true);
       try {
-        const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
+        const leadsUrl = new URL(API_ENDPOINTS.LEAD_DATA());
+        leadsUrl.searchParams.set('all', 'true');
+
+        const response = await fetch(leadsUrl.toString(), {
           headers: { Authorization: `Bearer ${token}` },
         });
 
@@ -1253,6 +1257,7 @@ const CrmDashboard = () => {
 
 
       {/* Follow-up Dashboard */}
+      <FollowUpDashboard />
 
     </div>
   );

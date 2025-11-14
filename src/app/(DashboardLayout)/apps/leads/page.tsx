@@ -201,11 +201,19 @@ const LeadsPage = () => {
   const [filterDateTo, setFilterDateTo] = useState<string>("");
   const [datePreset, setDatePreset] = useState<string>("custom");
   const [filterLeadType, setFilterLeadType] = useState<string>("all"); // New state for lead type filter
+  const [filterMode, setFilterMode] = useState<'current' | 'history'>('current'); // New state for filter mode (current/history)
+  const [dashboardSourceName, setDashboardSourceName] = useState<string | null>(null);
+  const [dashboardStatusName, setDashboardStatusName] = useState<string | null>(null);
+  const [dashboardUserName, setDashboardUserName] = useState<string | null>(null);
+  const [fromDashboard, setFromDashboard] = useState<string | null>(null);
 
   // Initialize filters from URL query parameters if present
   useEffect(() => {
     const statusParam = searchParams.get('status');
     const sourceParam = searchParams.get('source');
+    const sourceNameParam = searchParams.get('sourceName');
+    const statusNameParam = searchParams.get('statusName');
+    const userNameParam = searchParams.get('userName');
     const monthParam = searchParams.get('month');
     const yearParam = searchParams.get('year');
     const startDateParam = searchParams.get('startDate');
@@ -213,9 +221,11 @@ const LeadsPage = () => {
     const leadTypeParam = searchParams.get('leadType');
     const projectIdParam = searchParams.get('projectId');
     const userIdParam = searchParams.get('userId');
+    const filterModeParam = searchParams.get('filterMode');
+    const fromDashboardParam = searchParams.get('fromDashboard');
 
     // Check if any analytics filters are being applied
-    const hasAnalyticsFilters = monthParam || yearParam || startDateParam || endDateParam || leadTypeParam || projectIdParam || userIdParam;
+    const hasAnalyticsFilters = monthParam || yearParam || startDateParam || endDateParam || leadTypeParam || projectIdParam || userIdParam || filterModeParam;
 
     if (statusParam) {
       setFilterStatus(statusParam);
@@ -251,6 +261,10 @@ const LeadsPage = () => {
     if (leadTypeParam) {
       setFilterLeadType(leadTypeParam);
     }
+    setDashboardSourceName(sourceNameParam);
+    setDashboardStatusName(statusNameParam);
+    setDashboardUserName(userNameParam);
+    setFromDashboard(fromDashboardParam);
 
     // Handle project ID parameter
     if (projectIdParam) {
@@ -260,6 +274,11 @@ const LeadsPage = () => {
     // Handle user ID parameter
     if (userIdParam) {
       setFilterUser(userIdParam);
+    }
+
+    // Handle filter mode parameter (current/history)
+    if (filterModeParam && (filterModeParam === 'current' || filterModeParam === 'history')) {
+      setFilterMode(filterModeParam as 'current' | 'history');
     }
 
     // Automatically refresh data when coming from analytics page
@@ -341,7 +360,7 @@ const LeadsPage = () => {
       // Fetch leads after a short delay
       setTimeout(() => {
         fetchLeads();
-        fetchLeaddata()
+        // Note: fetchLeaddata() removed - now using unified fetchAllLeads() with new API endpoint
 
       }, 2000);
       // Subscribe to all leads for real-time updates
@@ -355,6 +374,18 @@ const LeadsPage = () => {
       fetchLeads();
     }
   }, [currentPage, pageSize]);
+
+  // Refetch leads when API-supported filters change (real-time data)
+  // filterSource and filterLeadType are client-side only (not in API)
+  useEffect(() => {
+    if (token && !isLoading) {
+      setCurrentPage(1); // Reset to page 1 when filters change
+      const refreshTimer = setTimeout(() => {
+        fetchLeads();
+      }, 300);
+      return () => clearTimeout(refreshTimer);
+    }
+  }, [filterMode, filterStatus, filterDateFrom, filterDateTo, selectedProjectId, filterUser]);
 
 
   // Set userId when user data is available
@@ -704,35 +735,73 @@ const LeadsPage = () => {
     }
   };
 
-  const fetchLeaddata = async () => {
-    setIsLoading(true);
-    try {
-      const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setTotalLeads(transformLeadData(data.leads || []));
-
-      } else {
-        setAlertMessage({ type: 'error', message: `Failed to fetch fresh leads: ${response.statusText}` });
-      }
-    } catch (error) {
-      console.error("Error fetching fresh leads:", error);
-      setAlertMessage({ type: 'error', message: 'Network error while fetching fresh leads.' });
-    } finally {
-      setIsLoading(false);
+  const handleFilterSourceSelect = (value: string) => {
+    setFilterSource(value);
+    setFromDashboard(null);
+    if (value === "all") {
+      setDashboardSourceName(null);
+    } else {
+      const selectedSource = leadSources.find(source => source._id === value);
+      setDashboardSourceName(selectedSource?.name ?? null);
     }
   };
 
-  // Fetch ALL leads without pagination for stats and charts
+  const handleFilterStatusSelect = (value: string) => {
+    setFilterStatus(value);
+    setFromDashboard(null);
+    if (value === "all") {
+      setDashboardStatusName(null);
+    } else {
+      const selectedStatus = leadStatuses.find(status => status._id === value);
+      setDashboardStatusName(selectedStatus?.name ?? null);
+    }
+  };
+
+  const handleFilterUserSelect = (value: string) => {
+    setFilterUser(value);
+    setFromDashboard(null);
+    if (value === "all") {
+      setDashboardUserName(null);
+    } else if (value === "unassigned") {
+      setDashboardUserName("Unassigned");
+    } else {
+      const selectedUser = users.find(user => user._id === value);
+      setDashboardUserName(selectedUser?.name ?? null);
+    }
+  };
+
+  // fetchLeaddata() removed - now using unified fetchAllLeads() with new /api/leads/getLeadsData endpoint
+  // that supports both current and history filter modes
+
+  // Fetch ALL leads using ONLY the new /api/leads/getLeadsData endpoint
+  // All filters are passed to API - only search term is client-side
   const fetchAllLeads = async () => {
     try {
-      // Use all=true parameter as per backend fix
-      const baseUrl = API_ENDPOINTS.LEADS();
-      const url = new URL(baseUrl);
-      url.searchParams.set('all', 'true'); // Backend now supports this parameter
+      const url = new URL(`${API_BASE_URL}/api/leads/getLeadsData`);
+      
+      // Set filter mode
+      url.searchParams.set('filterMode', filterMode);
+      url.searchParams.set('all', 'true');
+      
+      // Pass ALL filters to API
+      if (filterStatus && filterStatus !== 'all') {
+        url.searchParams.set('statusId', filterStatus);
+      }
+      
+      if (filterDateFrom && filterDateTo) {
+        url.searchParams.set('startDate', filterDateFrom);
+        url.searchParams.set('endDate', filterDateTo);
+      }
+      
+      if (selectedProjectId && selectedProjectId !== 'all') {
+        url.searchParams.set('projectId', selectedProjectId);
+      }
+      
+      if (filterUser && filterUser !== 'all' && filterUser !== 'unassigned') {
+        url.searchParams.set('userId', filterUser);
+      }
+
+      console.log(`🚀 API CALL (${filterMode} mode):`, url.toString());
 
       const leadsResponse = await fetch(url.toString(), {
         headers: { Authorization: `Bearer ${token}` },
@@ -742,15 +811,24 @@ const LeadsPage = () => {
         const leadsData = await leadsResponse.json();
         const leadsArray = leadsData.leads || leadsData || [];
         const transformedLeads = transformLeadData(leadsArray);
-        setTotalLeads(transformedLeads); // Store all leads for stats/charts
-        console.log('✅ Fetched ALL leads for stats/charts:', transformedLeads.length);
-        } else {
-        console.error('❌ Failed to fetch all leads:', leadsResponse.status, leadsResponse.statusText);
-        setTotalLeads([]); // Clear on error
+        setTotalLeads(transformedLeads);
+        console.log(`✅ Got ${transformedLeads.length} leads (${filterMode} mode)`);
+      } else {
+        const errorText = await leadsResponse.text();
+        console.error('❌ API Error:', leadsResponse.status, errorText);
+        setAlertMessage({
+          type: 'error',
+          message: `Failed to fetch leads: ${leadsResponse.status}`
+        });
+        setTotalLeads([]);
       }
     } catch (error) {
-      console.error("❌ Error fetching all leads:", error);
-      setTotalLeads([]); // Clear on error
+      console.error("❌ Network Error:", error);
+      setAlertMessage({
+        type: 'error',
+        message: `Network error: ${error instanceof Error ? error.message : 'Failed to fetch leads'}`
+      });
+      setTotalLeads([]);
     }
   };
 
@@ -1758,9 +1836,9 @@ const LeadsPage = () => {
     }
 
     // Validate that selected leads exist in current leads (no ownership restriction)
-    const selectedLeadsData = leads.filter(lead => selectedLeads.includes(lead._id));
+    const selectedLeadsData = totalLeads.filter(lead => selectedLeads.includes(lead._id));
     const validLeadIds = selectedLeadsData.map(lead => lead._id);
-    const invalidLeadIds = selectedLeads.filter(id => !leads.some(lead => lead._id === id));
+    const invalidLeadIds = selectedLeads.filter(id => !totalLeads.some(lead => lead._id === id));
 
     // Check if any leads are already assigned to the target user AND project
     const alreadyAssignedLeads = selectedLeadsData.filter(lead =>
@@ -1777,10 +1855,10 @@ const LeadsPage = () => {
       invalidLeadIds,
       alreadyAssignedLeadIds,
       transferableLeadIds,
-      totalLeads: leads.length,
+      totalLeads: totalLeads.length,
       selectedCount: selectedLeadsData.length,
       targetUser: transferToUser,
-      allLeads: leads.map(l => ({ id: l._id, name: l.name, userId: l.user?._id, currentUser: user?.id }))
+      allLeads: totalLeads.map(l => ({ id: l._id, name: l.name, userId: l.user?._id, currentUser: user?.id }))
     });
 
     // If no valid leads found, show a more helpful error
@@ -1845,7 +1923,7 @@ const LeadsPage = () => {
     setIsTransferring(true);
     try {
       // Get the old project information from the first lead being transferred
-      const firstLead = leads.find(lead => finalLeadIds.includes(lead._id));
+      const firstLead = totalLeads.find(lead => finalLeadIds.includes(lead._id));
       const oldProjectId = firstLead?.project?._id;
 
       const requestBody = {
@@ -1924,7 +2002,7 @@ const LeadsPage = () => {
 
     try {
       // Debug: Show selected leads data
-      const selectedLeadsData = leads.filter(lead => leadIds.includes(lead._id));
+      const selectedLeadsData = totalLeads.filter(lead => leadIds.includes(lead._id));
       console.log('Selected leads data:', selectedLeadsData.map(lead => ({
         id: lead._id,
         name: lead.name,
@@ -1984,7 +2062,7 @@ const LeadsPage = () => {
       for (const [ownerId, ownerLeadIds] of Object.entries(leadsByOwner)) {
         try {
           // Get the old project information from the first lead being transferred
-          const firstLead = leads.find(lead => ownerLeadIds.includes(lead._id));
+          const firstLead = totalLeads.find(lead => ownerLeadIds.includes(lead._id));
           const oldProjectId = firstLead?.project?._id;
 
           const requestBody = {
@@ -2747,37 +2825,63 @@ const LeadsPage = () => {
     }
   };
 
-  // Filter function to be reused for both totalLeads and paginated leads
+  // Client-side filtering ONLY for:
+  // - Search term (name/email/phone)
+  // - Source filter (not in API)
+  // - Lead type filter (not in API)
+  // ALL other filters handled by API: status, user, project, dates
   const applyLeadFilters = (leadsList: Lead[]) => {
     return leadsList.filter(lead => {
-    const matchesSearch =
-      (lead.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
-      (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase());
-    const matchesSource = filterSource === "all" || lead.leadSource?._id === filterSource;
-    const matchesStatus = filterStatus === "all" || lead.currentStatus?._id === filterStatus;
-    const matchesUser = filterUser === "all" ||
-      (filterUser === "unassigned" && !lead.user?._id) ||
-      (filterUser !== "unassigned" && lead.user?._id === filterUser);
-    const matchesProject = !selectedProjectId || selectedProjectId === 'all' || lead.project?._id === selectedProjectId;
-    
+      // Search filter
+      const matchesSearch = !searchTerm || 
+        (lead.name?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (lead.email?.toLowerCase() || '').includes(searchTerm.toLowerCase()) ||
+        (lead.phone?.toLowerCase() || '').includes(searchTerm.toLowerCase());
+      
+      // Source filter (client-side - not in API, with dashboard fallback)
+      const matchesSource = (() => {
+        if (filterSource !== "all") {
+          return lead.leadSource?._id === filterSource;
+        }
+        if (dashboardSourceName) {
+          const normalized = dashboardSourceName.toLowerCase();
+          const leadSourceName = lead.leadSource?.name?.toLowerCase() || '';
+          const leadSourceText = typeof lead.source === 'string' ? lead.source.toLowerCase() : '';
+          return leadSourceName.includes(normalized) || leadSourceText.includes(normalized);
+        }
+        return true;
+      })();
 
-    // Date filtering
-    let matchesDate = true;
-    if (filterDateFrom || filterDateTo) {
-      const leadDate = new Date(lead.createdAt);
-      if (filterDateFrom) {
-        const fromDate = new Date(filterDateFrom);
-        fromDate.setHours(0, 0, 0, 0);
-        matchesDate = matchesDate && leadDate >= fromDate;
-      }
-      if (filterDateTo) {
-        const toDate = new Date(filterDateTo);
-        toDate.setHours(23, 59, 59, 999);
-        matchesDate = matchesDate && leadDate <= toDate;
-      }
-    }
-    
-      // Lead type filtering (total, digital, cp)
+      // Status filter (ensure fallback if API doesn't apply)
+      const matchesStatus = (() => {
+        if (filterStatus !== "all") {
+          return lead.currentStatus?._id === filterStatus;
+        }
+        if (dashboardStatusName) {
+          const normalizedStatus = dashboardStatusName.toLowerCase();
+          return (lead.currentStatus?.name?.toLowerCase() || '') === normalizedStatus;
+        }
+        return true;
+      })();
+
+      // User filter (handle unassigned + dashboard fallback)
+      const matchesUser = (() => {
+        if (filterUser === "unassigned") {
+          return !lead.user?._id;
+        }
+        if (filterUser !== "all") {
+          return lead.user?._id === filterUser;
+        }
+        if (dashboardUserName) {
+          if (dashboardUserName.toLowerCase() === 'unassigned') {
+            return !lead.user?._id;
+          }
+          return (lead.user?.name?.toLowerCase() || '') === dashboardUserName.toLowerCase();
+        }
+        return true;
+      })();
+      
+      // Lead type filter (client-side - not in API)
       let matchesLeadType = true;
       if (filterLeadType !== "all") {
         const isChannelPartnerSource = lead.leadSource?.name?.toLowerCase() === 'channel partner' || 
@@ -2785,23 +2889,16 @@ const LeadsPage = () => {
                                         lead.leadSource?.name?.toLowerCase().includes('cp');
         const hasCPSourcing = !!lead.cpSourcingId;
         const hasChannelPartner = !!lead.channelPartner;
-        
-        // A lead is considered a CP lead if it has CP sourcing, channel partner, or CP-related source
         const isCPLead = isChannelPartnerSource || hasCPSourcing || hasChannelPartner;
         
         if (filterLeadType === "digital") {
-          // Digital leads are those that are NOT CP leads
           matchesLeadType = !isCPLead;
         } else if (filterLeadType === "cp") {
-          // CP leads
           matchesLeadType = isCPLead;
-        } else if (filterLeadType === "total") {
-          // Total shows all leads
-          matchesLeadType = true;
         }
       }
       
-      return matchesSearch && matchesSource && matchesStatus && matchesUser && matchesProject && matchesDate && matchesLeadType;
+      return matchesSearch && matchesSource && matchesLeadType && matchesStatus && matchesUser;
     });
   };
 
@@ -2821,10 +2918,11 @@ const LeadsPage = () => {
   const currentPageLeadIds = paginatedLeads.map(l => l._id);
   const allCurrentSelected = currentPageLeadIds.length > 0 && currentPageLeadIds.every(id => selectedLeads.includes(id));
 
-  // Reset/clamp page when filters, leads, or page size change
+  // Reset page to 1 when client-side filters change
+  // (API filters trigger their own useEffect with page reset)
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterSource, filterStatus, filterUser, filterDateFrom, filterDateTo, filterLeadType, pageSize]);
+  }, [searchTerm, filterSource, filterLeadType, pageSize]);
 
   useEffect(() => {
     if (currentPage > totalPages) {
@@ -3020,6 +3118,9 @@ const LeadsPage = () => {
                 of {totalLeads.length} total
               </div>
             )}
+            <div className="text-xs text-gray-500 dark:text-gray-400 mt-2">
+              {filterMode === 'history' ? '🕐 History Mode' : '📊 Current Mode'}
+            </div>
           </div>
         </Card>
         <Card className="p-6">
@@ -3114,6 +3215,65 @@ const LeadsPage = () => {
         </div>
       </Card>
 
+      {/* History Mode Info Alert */}
+      {filterMode === 'history' && (
+        <Alert color="info">
+          <div className="flex items-start gap-3">
+            <Icon icon="solar:info-circle-line-duotone" className="text-lg mt-0.5" />
+            <div>
+              <p className="font-medium mb-2">🕐 History Mode Active</p>
+              <ul className="text-sm space-y-1 list-disc list-inside">
+                <li><strong>With Status + Dates:</strong> Shows leads that had the selected status during the date range</li>
+                <li><strong>With Status Only:</strong> Shows leads that <strong>ever</strong> had the selected status (any time in history)</li>
+                <li><strong>With Dates Only:</strong> Shows leads with <strong>any</strong> status changes during the date range</li>
+                <li><strong>No Filters:</strong> Shows all leads (no filtering applied)</li>
+              </ul>
+              <p className="text-xs mt-2 text-gray-600 dark:text-gray-400">
+                💡 <strong>Tip:</strong> Switch to "Current" mode to see leads based on their current status.
+              </p>
+            </div>
+          </div>
+        </Alert>
+      )}
+
+      {/* Date Range Validation Warning */}
+      {filterMode === 'history' && ((filterDateFrom && !filterDateTo) || (!filterDateFrom && filterDateTo)) && (
+        <Alert color="warning">
+          <div className="flex items-center gap-2">
+            <Icon icon="solar:danger-triangle-line-duotone" className="text-lg" />
+            <div>
+              <p className="font-medium">Incomplete Date Range</p>
+              <p className="text-sm">
+                Both "From Date" and "To Date" must be provided together. Please select both dates or clear them to see all historical data.
+              </p>
+            </div>
+          </div>
+        </Alert>
+      )}
+
+      {fromDashboard && (dashboardSourceName || dashboardStatusName || dashboardUserName) && (
+        <Alert color="info" onDismiss={() => setFromDashboard(null)}>
+          <div className="flex items-start gap-2">
+            <Icon icon="solar:chart-line-duotone" className="text-lg mt-0.5" />
+            <div>
+              <p className="font-medium">Filtered from CRM Dashboard</p>
+              <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+                Showing leads filtered by
+                {dashboardSourceName && (
+                  <> <strong>Source:</strong> {dashboardSourceName}</>
+                )}
+                {dashboardStatusName && (
+                  <> {dashboardSourceName ? ' •' : ''} <strong>Status:</strong> {dashboardStatusName}</>
+                )}
+                {dashboardUserName && (
+                  <> {(dashboardSourceName || dashboardStatusName) ? ' •' : ''} <strong>Assigned To:</strong> {dashboardUserName}</>
+                )}
+              </p>
+            </div>
+          </div>
+        </Alert>
+      )}
+
       {/* Active Filters from Analytics */}
       {(filterLeadType !== "all" || (searchParams.get('projectId') && selectedProjectId !== 'all') || 
         (searchParams.get('userId') && filterUser !== 'all')) && (filterDateFrom || filterDateTo) && (
@@ -3156,7 +3316,7 @@ const LeadsPage = () => {
 
       {/* Search and Filters */}
       <Card>
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-9 gap-3 lg:gap-4">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-10 gap-3 lg:gap-4">
           <div>
             <TextInput
               placeholder="Search leads..."
@@ -3165,6 +3325,20 @@ const LeadsPage = () => {
               icon={() => <Icon icon="solar:magnifer-line-duotone" className="text-gray-400" />}
               disabled={projects.length === 0}
             />
+          </div>
+          <div>
+            <Select
+              value={filterMode}
+              onChange={(e) => setFilterMode(e.target.value as 'current' | 'history')}
+              disabled={projects.length === 0}
+              className="font-medium"
+            >
+              <option value="current">📊 Current</option>
+              <option value="history">🕐 History</option>
+            </Select>
+            <p className="text-xs text-gray-500 mt-1">
+              {filterMode === 'current' ? 'Current status' : 'Historical data'}
+            </p>
           </div>
           <div>
             <Select
@@ -3184,7 +3358,7 @@ const LeadsPage = () => {
           <div>
             <Select
               value={filterSource}
-              onChange={(e) => setFilterSource(e.target.value)}
+              onChange={(e) => handleFilterSourceSelect(e.target.value)}
               disabled={projects.length === 0}
             >
               <option value="all">All Sources</option>
@@ -3198,7 +3372,7 @@ const LeadsPage = () => {
           <div>
             <Select
               value={filterStatus}
-              onChange={(e) => setFilterStatus(e.target.value)}
+              onChange={(e) => handleFilterStatusSelect(e.target.value)}
               disabled={projects.length === 0}
             >
               <option value="all">All Statuses</option>
@@ -3212,7 +3386,7 @@ const LeadsPage = () => {
           <div>
             <Select
               value={filterUser}
-              onChange={(e) => setFilterUser(e.target.value)}
+              onChange={(e) => handleFilterUserSelect(e.target.value)}
               disabled={projects.length === 0}
             >
               <option value="all">All Users</option>
@@ -3288,7 +3462,12 @@ const LeadsPage = () => {
                 setFilterDateTo("");
                 setDatePreset("custom");
                 setFilterLeadType("all");
+                setFilterMode("current"); // Reset to current mode
                 setSelectedProjectId('all');
+              setDashboardSourceName(null);
+              setDashboardStatusName(null);
+              setDashboardUserName(null);
+              setFromDashboard(null);
                 router.push('/apps/leads'); // Clear URL parameters as well
               }}
               disabled={projects.length === 0}

@@ -28,6 +28,7 @@ interface UserReportingData {
     _id: string;
     name: string;
     email: string;
+    
   };
   reportsTo: Array<{
     user: {
@@ -176,6 +177,17 @@ const UserReportingPage: React.FC = () => {
 
   // Details modal handlers
   const openDetails = (userId: string) => {
+    if (!userId) {
+      console.warn('Attempted to open details modal without a valid user ID');
+      return;
+    }
+
+    const userExists = users.some((u) => u._id === userId);
+    if (!userExists) {
+      console.warn('Details requested for user not in users list:', userId);
+      return;
+    }
+
     setDetailOpenUserId(userId);
     setDetailNotes(prev => ({
       ...prev,
@@ -195,6 +207,11 @@ const UserReportingPage: React.FC = () => {
 
   // Edit reporting
   const startEdit = (reporting: UserReportingData) => {
+    if (!reporting?.user?._id) {
+      console.warn('Cannot edit reporting without a user object:', reporting);
+      return;
+    }
+
     setEditingReporting(reporting);
     setTargetUser(reporting.user._id);
     
@@ -913,15 +930,18 @@ const UserReportingPage: React.FC = () => {
                 <Table.HeadCell>Actions</Table.HeadCell>
               </Table.Head>
               <Table.Body>
-                {existingReporting.map((reporting) => (
+                {existingReporting.map((reporting) => {
+                  const reportingUser = reporting?.user ?? null;
+                  const reportingUserId = reportingUser?._id ?? reporting?._id ?? 'unknown';
+                  return (
                   <Table.Row key={reporting._id} className="hover:bg-gray-50 dark:hover:bg-gray-700">
                     <Table.Cell>
                       <div>
                         <div className="font-medium text-gray-900 dark:text-white">
-                          {reporting.user.name}
+                          {reportingUser?.name ?? 'Unknown User'}
                         </div>
                         <div className="text-sm text-gray-500 dark:text-gray-400">
-                          {reporting.user.email}
+                          {reportingUser?.email ?? 'No email'}
                         </div>
                       </div>
                     </Table.Cell>
@@ -951,13 +971,17 @@ const UserReportingPage: React.FC = () => {
                       </div>
                     </Table.Cell>
                     <Table.Cell>
-                      <Badge color="gray" className="text-xs">
-                        Level {reporting.level}
-                      </Badge>
+                      {typeof reporting.level === 'number' ? (
+                        <Badge color="gray" className="text-xs">
+                          Level {reporting.level}
+                        </Badge>
+                      ) : (
+                        <span className="text-xs text-gray-500">-</span>
+                      )}
                     </Table.Cell>
                     <Table.Cell>
                       <div className="text-sm text-gray-500">
-                        {new Date(reporting.createdAt).toLocaleDateString()}
+                        {reporting.createdAt ? new Date(reporting.createdAt).toLocaleDateString() : '-'}
                       </div>
                     </Table.Cell>
                     <Table.Cell>
@@ -965,8 +989,9 @@ const UserReportingPage: React.FC = () => {
                         <Button 
                           size="xs" 
                           color="info" 
-                          onClick={() => openDetails(reporting.user._id)}
+                          onClick={() => reportingUserId !== 'unknown' && openDetails(reportingUserId)}
                           title="View Details"
+                          disabled={reportingUserId === 'unknown'}
                         >
                           <Icon icon="solar:info-circle-line-duotone" />
                         </Button>
@@ -981,8 +1006,9 @@ const UserReportingPage: React.FC = () => {
                         <Button 
                           size="xs" 
                           color="purple" 
-                          onClick={() => fetchHierarchy(reporting.user._id)}
+                          onClick={() => reportingUserId !== 'unknown' && fetchHierarchy(reportingUserId)}
                           title="View Hierarchy"
+                          disabled={reportingUserId === 'unknown'}
                         >
                           <Icon icon="solar:tree-line-duotone" />
                         </Button>
@@ -997,7 +1023,7 @@ const UserReportingPage: React.FC = () => {
                       </div>
                     </Table.Cell>
                   </Table.Row>
-                ))}
+                )})}
               </Table.Body>
             </Table>
           </div>

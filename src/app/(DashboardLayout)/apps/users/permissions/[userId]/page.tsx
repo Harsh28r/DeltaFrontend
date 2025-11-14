@@ -154,6 +154,27 @@ const PERMISSION_GROUPS: PermissionGroup[] = [
       PERMISSIONS.USER_REPORTING_BULK_UPDATE,
       PERMISSIONS.USER_REPORTING_BULK_DELETE,
     ]
+  },
+  {
+    name: 'Follow-ups',
+    description: 'Manage Follow-ups',
+    permissions: [
+      PERMISSIONS.FOLLOWUPS_CREATE,
+      PERMISSIONS.FOLLOWUPS_READ,
+      PERMISSIONS.FOLLOWUPS_UPDATE,
+      PERMISSIONS.FOLLOWUPS_DELETE,
+    ]
+  },
+  {
+    name: 'Attendance',
+    description: 'Manage employee attendance',
+    permissions: [
+      PERMISSIONS.ATTENDANCE_CREATE,
+      PERMISSIONS.ATTENDANCE_READ,
+      PERMISSIONS.ATTENDANCE_UPDATE,
+      PERMISSIONS.ATTENDANCE_DELETE,
+      PERMISSIONS.ATTENDANCE_READ_ALL,
+    ]
   }
 ];
 

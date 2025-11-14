@@ -17,6 +17,109 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 
 
+const DATE_TIME_LOCALE = "en-IN";
+
+const DATE_TIME_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+};
+
+const DATE_ONLY_OPTIONS: Intl.DateTimeFormatOptions = {
+  day: "2-digit",
+  month: "short",
+  year: "numeric",
+};
+
+const TIME_ONLY_OPTIONS: Intl.DateTimeFormatOptions = {
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: true,
+};
+
+const parseToDate = (value: string | Date | null | undefined): Date | null => {
+  if (!value) {
+    return null;
+  }
+
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
+  }
+
+  const trimmedValue = typeof value === "string" ? value.trim() : value;
+
+  if (typeof trimmedValue !== "string" || trimmedValue.length === 0) {
+    return null;
+  }
+
+  const directDate = new Date(trimmedValue);
+  if (!Number.isNaN(directDate.getTime())) {
+    return directDate;
+  }
+
+  const timeOnlyMatch = trimmedValue.match(/^(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (timeOnlyMatch) {
+    const now = new Date();
+    const hours = Number(timeOnlyMatch[1]);
+    const minutes = Number(timeOnlyMatch[2]);
+    const seconds = timeOnlyMatch[3] ? Number(timeOnlyMatch[3]) : 0;
+    now.setHours(hours, minutes, seconds, 0);
+    return now;
+  }
+
+  return null;
+};
+
+const formatDateTime = (value: string | Date | null | undefined, options: Intl.DateTimeFormatOptions = DATE_TIME_OPTIONS) => {
+  const date = parseToDate(value);
+  if (!date) {
+    return "N/A";
+  }
+  return date.toLocaleString(DATE_TIME_LOCALE, options);
+};
+
+const formatDate = (value: string | Date | null | undefined) => formatDateTime(value, DATE_ONLY_OPTIONS);
+
+const formatTime = (value: string | Date | null | undefined) => formatDateTime(value, TIME_ONLY_OPTIONS);
+
+const looksLikeDateTime = (value: string) => /[T\-\/]/.test(value);
+
+const formatDisplayValue = (value: any): string => {
+  if (value === null || value === undefined) {
+    return 'N/A';
+  }
+
+  if (Array.isArray(value)) {
+    const formatted = value
+      .map((item) => formatDisplayValue(item))
+      .filter((item) => item && item !== 'N/A');
+    return formatted.length > 0 ? formatted.join(', ') : 'N/A';
+  }
+
+  if (value instanceof Date) {
+    return formatDateTime(value);
+  }
+
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    if (!trimmedValue) {
+      return 'N/A';
+    }
+
+    if (looksLikeDateTime(trimmedValue) && parseToDate(trimmedValue)) {
+      return formatDateTime(trimmedValue);
+    }
+
+    return trimmedValue;
+  }
+
+  return String(value);
+};
+
+
 
 interface ChannelPartner {
   _id: string;
@@ -826,7 +929,7 @@ const LeadDetailPage = () => {
                     <div key={key} className="flex justify-between py-1">
                       <span className="font-medium text-gray-600 dark:text-gray-400">{key}:</span>
                       <span className="text-gray-900 dark:text-white max-w-[150px] truncate">
-                        {Array.isArray(value) ? value.join(', ') : String(value) || 'N/A'}
+                        {formatDisplayValue(value)}
                       </span>
                     </div>
                   ))}
@@ -1136,7 +1239,7 @@ const LeadDetailPage = () => {
                         return (
                           <div key={field.name}>
                             <strong>{field.name}:</strong> {
-                              Array.isArray(value) ? value.join(', ') : (value || 'N/A')
+                              formatDisplayValue(value)
                             }
                           </div>
                         );
@@ -1159,7 +1262,7 @@ const LeadDetailPage = () => {
                         <div key={key} className="flex justify-between py-1">
                           <span className="font-medium text-red-700 dark:text-red-300">{key}:</span>
                           <span className="text-red-900 dark:text-red-100 max-w-[150px] truncate">
-                            {Array.isArray(value) ? value.join(', ') : String(value) || 'N/A'}
+                            {formatDisplayValue(value)}
                           </span>
                         </div>
                       ))}
@@ -1214,7 +1317,7 @@ const LeadDetailPage = () => {
                         return (
                           <div key={field.name}>
                             <strong>{field.name}:</strong> {
-                              Array.isArray(value) ? value.join(', ') : (value || 'N/A')
+                              formatDisplayValue(value)
                             }
                           </div>
                         );
@@ -1237,7 +1340,7 @@ const LeadDetailPage = () => {
                         <div key={key} className="flex justify-between py-1">
                           <span className="font-medium text-green-700 dark:text-green-300">{key}:</span>
                           <span className="text-green-900 dark:text-green-100 max-w-[150px] truncate">
-                            {Array.isArray(value) ? value.join(', ') : String(value) || 'N/A'}
+                            {formatDisplayValue(value)}
                           </span>
                         </div>
                       ))}
@@ -2432,44 +2535,21 @@ const LeadDetailPage = () => {
                               <div className="flex items-center gap-2">
                                 <Icon icon="solar:calendar-line-duotone" className="text-gray-500 dark:text-gray-400" />
                                 <span className="text-gray-900 dark:text-white">
-                                  {new Date(lead.customData[field.name]).toLocaleDateString()}
+                                  {formatDate(lead.customData[field.name])}
                                 </span>
                               </div>
                             ) : field.type === 'datetime' && lead.customData?.[field.name] ? (
                               <div className="flex items-center gap-2">
                                 <Icon icon="solar:calendar-add-line-duotone" className="text-gray-500 dark:text-gray-400" />
                                 <span className="text-gray-900 dark:text-white">
-                                  {new Date(lead.customData[field.name]).toLocaleString('en-US', {
-                                    year: 'numeric',
-                                    month: 'short',
-                                    day: 'numeric',
-                                    hour: '2-digit',
-                                    minute: '2-digit',
-                                    hour12: true
-                                  })}
+                                  {formatDateTime(lead.customData[field.name])}
                                 </span>
                               </div>
                             ) : field.type === 'time' && lead.customData?.[field.name] ? (
                               <div className="flex items-center gap-2">
                                 <Icon icon="solar:clock-circle-line-duotone" className="text-gray-500 dark:text-gray-400" />
                                 <span className="text-gray-900 dark:text-white">
-                                  {(() => {
-                                    try {
-                                      // Handle time-only values or datetime values
-                                      const timeValue = lead.customData[field.name];
-                                      if (timeValue.includes('T') || timeValue.includes(':')) {
-                                        const date = new Date(timeValue.includes('T') ? timeValue : `2000-01-01T${timeValue}`);
-                                        return date.toLocaleTimeString('en-US', {
-                                          hour: '2-digit',
-                                          minute: '2-digit',
-                                          hour12: true
-                                        });
-                                      }
-                                      return timeValue;
-                                    } catch {
-                                      return lead.customData[field.name];
-                                    }
-                                  })()}
+                                  {formatTime(lead.customData[field.name])}
                                 </span>
                               </div>
                             ) : field.type === 'number' && lead.customData?.[field.name] ? (
@@ -2627,7 +2707,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white">
 
-                    {lead.createdAt ? new Date(lead.createdAt).toLocaleString() : 'N/A'}
+                    {formatDateTime(lead.createdAt)}
 
                   </p>
 
@@ -2639,7 +2719,7 @@ const LeadDetailPage = () => {
 
                   <p className="text-gray-900 dark:text-white">
 
-                    {lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
+                    {formatDateTime(lead.updatedAt)}
 
                   </p>
 
@@ -2731,7 +2811,7 @@ const LeadDetailPage = () => {
 
                           <span className="text-xs text-gray-500 dark:text-gray-400">
 
-                            {lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
+                            {formatDateTime(lead.updatedAt)}
 
                           </span>
 
@@ -2795,7 +2875,7 @@ const LeadDetailPage = () => {
 
                               <span className="text-xs text-gray-500 dark:text-gray-400">
 
-                                {historyItem.changedAt ? new Date(historyItem.changedAt).toLocaleString() : 'Unknown Date'}
+                                {historyItem.changedAt ? formatDateTime(historyItem.changedAt) : 'Unknown Date'}
 
                               </span>
 
@@ -2815,7 +2895,7 @@ const LeadDetailPage = () => {
 
                                       <span className="font-medium">{key}:</span>
 
-                                      <span className="text-right max-w-[200px] truncate">{String(value) || 'N/A'}</span>
+                                      <span className="text-right max-w-[200px] truncate">{formatDisplayValue(value)}</span>
 
                                     </div>
 
@@ -3129,7 +3209,7 @@ const LeadDetailPage = () => {
 
                           <span className="text-xs text-gray-500 dark:text-gray-400">
 
-                            {new Date(activity.timestamp).toLocaleString()}
+                            {formatDateTime(activity.timestamp)}
 
                           </span>
 
@@ -3166,13 +3246,13 @@ const LeadDetailPage = () => {
                           <div className="flex items-center gap-1">
 
                             <Icon icon="solar:clock-circle-line-duotone" className="w-3 h-3" />
-                            <span>{new Date(activity.timestamp).toLocaleDateString()}</span>
+                            <span>{formatDate(activity.timestamp)}</span>
                           </div>
 
                           <div className="flex items-center gap-1">
 
                             <Icon icon="solar:time-line-duotone" className="w-3 h-3" />
-                            <span>{new Date(activity.timestamp).toLocaleTimeString()}</span>
+                            <span>{formatTime(activity.timestamp)}</span>
                           </div>
 
                         </div>
@@ -4030,7 +4110,7 @@ const LeadDetailPage = () => {
                       {lead?.currentStatus?.name || 'No Status'}
                     </Badge>
                     <span className="text-sm text-gray-600 dark:text-gray-400">
-                      Last updated: {lead && lead.updatedAt ? new Date(lead.updatedAt).toLocaleString() : 'N/A'}
+                      Last updated: {formatDateTime(lead?.updatedAt)}
                     </span>
                   </div>
                 </div>

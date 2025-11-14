@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 import { Button, Card, Table, Badge, Modal, Alert } from 'flowbite-react';
 import { Icon } from '@iconify/react';
 import { useAuth } from '@/app/context/AuthContext';
-import { usePermissions } from '@/app/context/PermissionContext';
-import { useLeadPermissions, useUserPermissions, useProjectPermissions } from '@/hooks/use-permissions';
+import { usePermissions } from '@/app/context/PermissionContext'; 
+import { useLeadPermissions, useUserPermissions, useProjectPermissions, useFollowUpPermissions, useAttendancePermissions } from '@/hooks/use-permissions';
 import { PERMISSIONS } from '@/app/types/permissions';
 import PermissionStatus from '@/app/components/permissions/PermissionStatus';
 import UserPermissionManager from '@/app/components/permissions/UserPermissionManager';
@@ -17,6 +17,8 @@ const PermissionsPage = () => {
   const leadPermissions = useLeadPermissions();
   const userPermissionsHook = useUserPermissions();
   const projectPermissions = useProjectPermissions();
+  const followUpPermissions = useFollowUpPermissions();
+  const attendancePermissions = useAttendancePermissions();
 
   const permissionTests = [
     {
@@ -45,6 +47,25 @@ const PermissionsPage = () => {
         { name: 'Create Projects', permission: PERMISSIONS.PROJECTS_CREATE, hasPermission: projectPermissions.canCreateProjects },
         { name: 'Update Projects', permission: PERMISSIONS.PROJECTS_UPDATE, hasPermission: projectPermissions.canUpdateProjects },
         { name: 'Delete Projects', permission: PERMISSIONS.PROJECTS_DELETE, hasPermission: projectPermissions.canDeleteProjects },
+      ]
+    },
+    {
+      category: 'Follow-up Management',
+      permissions: [
+        { name: 'Create Follow-ups', permission: PERMISSIONS.FOLLOWUPS_CREATE, hasPermission: followUpPermissions.canCreateFollowUps },
+        { name: 'Read Follow-ups', permission: PERMISSIONS.FOLLOWUPS_READ, hasPermission: followUpPermissions.canReadFollowUps },
+        { name: 'Update Follow-ups', permission: PERMISSIONS.FOLLOWUPS_UPDATE, hasPermission: followUpPermissions.canUpdateFollowUps },
+        { name: 'Delete Follow-ups', permission: PERMISSIONS.FOLLOWUPS_DELETE, hasPermission: followUpPermissions.canDeleteFollowUps },
+      ]
+    },
+    {
+      category: 'Attendance Management',
+      permissions: [
+        { name: 'Create Attendance', permission: PERMISSIONS.ATTENDANCE_CREATE, hasPermission: attendancePermissions.canCreateAttendance },
+        { name: 'Read Own Attendance', permission: PERMISSIONS.ATTENDANCE_READ, hasPermission: attendancePermissions.canReadOwnAttendance },
+        { name: 'Update Attendance', permission: PERMISSIONS.ATTENDANCE_UPDATE, hasPermission: attendancePermissions.canUpdateAttendance },
+        { name: 'Delete Attendance', permission: PERMISSIONS.ATTENDANCE_DELETE, hasPermission: attendancePermissions.canDeleteAttendance },
+        { name: 'Read All Attendance', permission: PERMISSIONS.ATTENDANCE_READ_ALL, hasPermission: attendancePermissions.canReadAllAttendance },
       ]
     }
   ];

@@ -41,7 +41,6 @@ export const PermissionProvider: React.FC<PermissionProviderProps> = ({ children
       
       const apiUrl = API_ENDPOINTS.USER_PERMISSIONS(userId);
       console.log('🔗 Calling permissions API:', apiUrl);
-      console.log('🔗 Expected URL should be: http://localhost:5000/api/permissions/user/' + userId);
       
       const response = await fetch(apiUrl, {
         headers: {

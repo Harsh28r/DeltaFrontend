@@ -155,33 +155,30 @@ const CPSourcingDetailPage = () => {
     }
   };
 
-  const getImageUrl = (imagePath: string | undefined, index?: number) => {
+  const getImageUrl = (imagePath: string | undefined) => {
     if (!imagePath) {
-      return '';
+      return undefined;
     }
-    
-    // For selfie images, use the specific selfie API endpoint first
-    if (typeof index === 'number') {
-      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
+
+    // If it's already a full URL, we still prefer to proxy through our API to include auth headers
+    if (imagePath.startsWith('http://') || imagePath.startsWith('https://')) {
+      try {
+        const url = new URL(imagePath);
+        const s3Key = url.pathname.substring(1); // remove leading slash
+        return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(s3Key)}`;
+      } catch (error) {
+        console.warn('Failed to parse selfie URL:', imagePath, error);
+        return imagePath;
+      }
     }
-    
-    // If it's already a full URL, return as is
-    if (imagePath.startsWith('http://') || imagePath.startsWith('https://') || imagePath.startsWith('file://')) {
-      return imagePath;
+
+    // If it's a relative path (including ones with folders), proxy via API to ensure auth
+    if (imagePath.includes('/')) {
+      return `${API_BASE_URL}/api/cp-sourcing/selfie/${encodeURIComponent(imagePath)}`;
     }
-    
-    // If it's a relative path, prepend the API base URL
-    if (imagePath.startsWith('/')) {
-      return `${API_BASE_URL}${imagePath}`;
-    }
-    
-    // For any other image path (including uploads), use the selfie API endpoint if we have an index
-    if (imagePath && typeof index === 'number') {
-      return `${API_BASE_URL}/api/cp-sourcing/${sourcingId}/selfie/${index}`;
-    }
-    
-    // Default fallback - assume it's a relative path
-    return `${API_BASE_URL}/${imagePath}`;
+
+    // Legacy local filenames
+    return `${API_BASE_URL}/api/cp-sourcing/selfie/${imagePath}`;
   };
 
   // Component to handle image display with fallback
@@ -196,19 +193,22 @@ const CPSourcingDetailPage = () => {
     const [imageSrc, setImageSrc] = useState<string | undefined>(src);
     const [isLoading, setIsLoading] = useState(false);
     const [loadStartTime, setLoadStartTime] = useState<number | null>(null);
+    const [isPreviewOpen, setIsPreviewOpen] = useState(false);
 
     // Handle authenticated image loading
     const loadAuthenticatedImage = async (url: string) => {
+      // Don't attempt to load if no token is available
+      if (!token) {
+        console.warn('[Image Tracking] No token available for authenticated image:', { url, alt });
+        setImageError(true);
+        setIsLoading(false);
+        return;
+      }
+
       try {
         setIsLoading(true);
         const startTime = Date.now();
         setLoadStartTime(startTime);
-        
-        console.log('[Image Tracking] Loading authenticated image:', {
-          url,
-          alt,
-          timestamp: new Date().toISOString()
-        });
         
         const response = await fetch(url, {
           method: 'GET',
@@ -219,49 +219,42 @@ const CPSourcingDetailPage = () => {
         });
 
         const loadTime = Date.now() - startTime;
-        console.log('[Image Tracking] Image response received:', {
-          url,
-          status: response.status,
-          statusText: response.statusText,
-          loadTime: `${loadTime}ms`,
-          contentType: response.headers.get('content-type'),
-          contentLength: response.headers.get('content-length')
-        });
 
         if (response.ok) {
           const blob = await response.blob();
           const objectUrl = URL.createObjectURL(blob);
-          const totalTime = Date.now() - startTime;
-          
-          console.log('[Image Tracking] Image loaded successfully:', {
+          setImageSrc(objectUrl);
+        } else if (response.status === 404) {
+          // 404 is expected when images don't exist - handle gracefully without logging
+          setImageError(true);
+        } else if (response.status === 401) {
+          // 401 means unauthorized - log this as it's an authentication issue
+          console.warn('[Image Tracking] Unauthorized access to image:', {
             url,
             alt,
-            blobSize: `${(blob.size / 1024).toFixed(2)} KB`,
-            blobType: blob.type,
-            loadTime: `${totalTime}ms`,
-            objectUrl: objectUrl.substring(0, 50) + '...'
+            status: response.status,
+            loadTime: `${loadTime}ms`
           });
-          
-          setImageSrc(objectUrl);
+          setImageError(true);
         } else {
-          const errorTime = Date.now() - startTime;
+          // Other errors (500, etc.) - log as unexpected
           console.warn('[Image Tracking] Failed to load authenticated image:', {
             url,
             alt,
             status: response.status,
             statusText: response.statusText,
-            loadTime: `${errorTime}ms`
+            loadTime: `${loadTime}ms`
           });
           setImageError(true);
         }
       } catch (error) {
+        // Network errors or other exceptions
         const errorTime = loadStartTime ? Date.now() - loadStartTime : 0;
         console.warn('[Image Tracking] Error loading authenticated image:', {
           url,
           alt,
           error: error instanceof Error ? error.message : 'Unknown error',
-          loadTime: `${errorTime}ms`,
-          stack: error instanceof Error ? error.stack : undefined
+          loadTime: `${errorTime}ms`
         });
         setImageError(true);
       } finally {
@@ -275,10 +268,6 @@ const CPSourcingDetailPage = () => {
       if (src && src.includes('/api/cp-sourcing/') && src.includes('/selfie/')) {
         loadAuthenticatedImage(src);
       } else {
-        console.log('[Image Tracking] Using direct image URL:', {
-          url: src,
-          alt
-        });
         setImageSrc(src);
       }
     }, [src, token]);
@@ -287,7 +276,6 @@ const CPSourcingDetailPage = () => {
     React.useEffect(() => {
       return () => {
         if (imageSrc && imageSrc.startsWith('blob:')) {
-          console.log('[Image Tracking] Cleaning up blob URL:', imageSrc.substring(0, 50));
           URL.revokeObjectURL(imageSrc);
         }
       };
@@ -310,35 +298,64 @@ const CPSourcingDetailPage = () => {
     }
 
     return (
-      <img
-        src={imageSrc}
-        alt={alt}
-        className={className}
-        crossOrigin="anonymous"
-        onLoad={() => {
-          setImageLoaded(true);
-          console.log('[Image Tracking] Image rendered successfully on client:', {
-            url: imageSrc,
-            alt,
-            timestamp: new Date().toISOString()
-          });
-        }}
-        onError={(e) => {
-          console.warn('[Image Tracking] Failed to render image:', {
-            url: imageSrc,
-            originalSrc: src,
-            alt,
-            error: e.type,
-            timestamp: new Date().toISOString()
-          });
-          setImageError(true);
-        }}
-        style={{ 
-          objectFit: 'cover',
-          borderRadius: '50%'
-        }}
-        referrerPolicy="strict-origin-when-cross-origin"
-      />
+      <>
+        <button
+          type="button"
+          className="relative"
+          onClick={() => setIsPreviewOpen(true)}
+          title="View full image"
+        >
+          <img
+            src={imageSrc}
+            alt={alt}
+            className={`${className} cursor-zoom-in`}
+            crossOrigin="anonymous"
+            onLoad={() => {
+              setImageLoaded(true);
+            }}
+            onError={(e) => {
+              // Only log if it's not a blob URL (which we already handled in loadAuthenticatedImage)
+              if (!imageSrc?.startsWith('blob:')) {
+                console.warn('[Image Tracking] Failed to render image:', {
+                  url: imageSrc,
+                  originalSrc: src,
+                  alt,
+                  error: e.type
+                });
+              }
+              setImageError(true);
+            }}
+            style={{ 
+              objectFit: 'cover',
+              borderRadius: '50%'
+            }}
+            referrerPolicy="strict-origin-when-cross-origin"
+          />
+        </button>
+
+        <Modal
+          show={isPreviewOpen}
+          size="xl"
+          onClose={() => setIsPreviewOpen(false)}
+        >
+          <Modal.Header>{alt}</Modal.Header>
+          <Modal.Body>
+            <div className="flex justify-center">
+              <img
+                src={imageSrc}
+                alt={alt}
+                className="max-h-[70vh] rounded-lg object-contain"
+                referrerPolicy="strict-origin-when-cross-origin"
+              />
+            </div>
+          </Modal.Body>
+          <Modal.Footer>
+            <Button color="gray" onClick={() => setIsPreviewOpen(false)}>
+              Close
+            </Button>
+          </Modal.Footer>
+        </Modal>
+      </>
     );
   };
 
@@ -501,7 +518,7 @@ const CPSourcingDetailPage = () => {
                       <Table.Cell>
                         <div className="flex flex-col items-center gap-2">
                           <ImageDisplay
-                            src={getImageUrl(item.selfie, index)}
+                            src={getImageUrl(item.selfie)}
                             alt={`Selfie ${index + 1}`}
                             className="w-16 h-16 rounded-lg object-cover border border-gray-300"
                             fallbackIcon="lucide:camera"
@@ -532,7 +549,7 @@ const CPSourcingDetailPage = () => {
               </div>
               <div className="text-center">
                 <ImageDisplay
-                  src={getImageUrl(latestSourcing.selfie, sourcing.sourcingHistory.length - 1)}
+                  src={getImageUrl(latestSourcing.selfie)}
                   alt="Latest Selfie"
                   className="w-full h-48 object-cover rounded-lg border border-gray-300"
                   fallbackIcon="lucide:camera"

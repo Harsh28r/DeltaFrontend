@@ -81,8 +81,8 @@ const FilteredLeadsComponent = () => {
     const [leads, setLeads] = useState<Lead[]>([]);
     const [isLoading, setIsLoading] = useState(true);
     const [alertMessage, setAlertMessage] = useState<{ type: 'success' | 'error' | 'info', message: string } | null>(null);
-    const [siteVisitStatusId, setSiteVisitStatusId] = useState<string | null>(null);
-    const [bookingStatusId, setBookingStatusId] = useState<string | null>(null);
+    const [siteVisitStatusIds, setSiteVisitStatusIds] = useState<string[]>([]);
+    const [bookingStatusIds, setBookingStatusIds] = useState<string[]>([]);
 
 
 
@@ -99,10 +99,15 @@ const FilteredLeadsComponent = () => {
                 });
                 if (statusResponse.ok) {
                     const statuses: LeadStatus[] = await statusResponse.json();
-                    const siteVisitStatus = statuses.find(s => s.is_site_visit_done);
-                    const bookingStatus = statuses.find(s => s.is_final_status);
-                    if (siteVisitStatus) setSiteVisitStatusId(siteVisitStatus._id);
-                    if (bookingStatus) setBookingStatusId(bookingStatus._id);
+                    const siteVisitStatuses = statuses.filter(s => s.is_site_visit_done);
+                    const finalStatuses = statuses.filter(s => s.is_final_status);
+
+                    if (siteVisitStatuses.length) {
+                        setSiteVisitStatusIds(siteVisitStatuses.map(status => status._id));
+                    }
+                    if (finalStatuses.length) {
+                        setBookingStatusIds(finalStatuses.map(status => status._id));
+                    }
                 } else {
                     setAlertMessage({ type: 'error', message: 'Failed to fetch lead statuses.' });
                 }
@@ -116,7 +121,42 @@ const FilteredLeadsComponent = () => {
 
 
             try {
-                const response = await fetch(API_ENDPOINTS.LEAD_DATA(), {
+                const url = new URL(API_ENDPOINTS.LEAD_DATA());
+
+                const statusIdParam = searchParams.get('statusId');
+                const projectIdParam = searchParams.get('projectId');
+                const userIdParam = searchParams.get('userId');
+                const startDateParam = searchParams.get('startDate');
+                const endDateParam = searchParams.get('endDate');
+                const leadTypeParam = searchParams.get('leadType');
+
+                url.searchParams.set('all', 'true');
+
+                if (statusIdParam && statusIdParam !== 'all') {
+                    url.searchParams.set('statusId', statusIdParam);
+                }
+
+                if (projectIdParam && projectIdParam !== 'all') {
+                    url.searchParams.set('projectId', projectIdParam);
+                }
+
+                if (userIdParam && userIdParam !== 'all') {
+                    url.searchParams.set('userId', userIdParam);
+                }
+
+                if (startDateParam) {
+                    url.searchParams.set('startDate', startDateParam);
+                }
+
+                if (endDateParam) {
+                    url.searchParams.set('endDate', endDateParam);
+                }
+
+                if (leadTypeParam && leadTypeParam !== 'all') {
+                    url.searchParams.set('leadType', leadTypeParam);
+                }
+
+                const response = await fetch(url.toString(), {
                     headers: { Authorization: `Bearer ${token}` },
                 });
 
@@ -163,21 +203,43 @@ const FilteredLeadsComponent = () => {
         }));
     };
 
-
-
     const filteredLeads = useMemo(() => {
+        const normalizeId = (value: any): string | null => {
+            if (!value) return null;
+            if (typeof value === 'string') return value;
+            if (typeof value === 'object') {
+                if (typeof value._id === 'string') return value._id;
+                if (value instanceof Date) return value.toISOString();
+                if (typeof value.toString === 'function') {
+                    const str = value.toString();
+                    return str === '[object Object]' ? null : str;
+                }
+            }
+            return null;
+        };
+
+        const extractTimestamp = (value: any): number | null => {
+            if (!value) return null;
+            const date = value instanceof Date ? value : new Date(value);
+            const time = date.getTime();
+            return Number.isNaN(time) ? null : time;
+        };
+
         const statusId = searchParams.get('statusId');
         const projectId = searchParams.get('projectId');
         const userId = searchParams.get('userId');
         const filter = searchParams.get('filter');
+        const statusIdsParam = searchParams.get('statusIds');
 
-        // Handle date range from analytics page
+        const effectiveSiteVisitIds = statusIdsParam
+            ? statusIdsParam.split(',').map(id => id.trim()).filter(Boolean)
+            : siteVisitStatusIds;
+
         const startDateParam = searchParams.get('startDate');
         const endDateParam = searchParams.get('endDate');
         let startDate = startDateParam ? new Date(startDateParam).toISOString() : null;
         let endDate = endDateParam ? new Date(endDateParam).toISOString() : null;
 
-        // Handle month/year from other pages
         if (!startDate && !endDate) {
             const year = Number(searchParams.get('year'));
             const month = Number(searchParams.get('month'));
@@ -186,69 +248,131 @@ const FilteredLeadsComponent = () => {
                 endDate = new Date(year, month, 0, 23, 59, 59).toISOString();
             }
         }
-        console.log('startdate', startDate)
 
-        if (filter && startDate && endDate) {
-            const filtered = leads.filter(lead => {
+            const startTimestamp = startDate ? extractTimestamp(startDate) : null;
+        const endTimestamp = endDate ? extractTimestamp(endDate) : null;
+        const hasDateRange = startTimestamp !== null || endTimestamp !== null;
+
+        const isWithinRange = (timestamp: number | null): boolean => {
+            if (timestamp === null) return false;
+            if (startTimestamp !== null && timestamp < startTimestamp) return false;
+            if (endTimestamp !== null && timestamp > endTimestamp) return false;
+            return true;
+        };
+
+        const enrichedLeads = leads.map(lead => {
+            const statusHistory = Array.isArray(lead.statusHistory) ? lead.statusHistory : [];
+
+            const finalStatusEvents = bookingStatusIds.length
+                ? statusHistory.filter((historyItem: any) => {
+                    const historyStatusId = normalizeId(historyItem?.status);
+                    return historyStatusId ? bookingStatusIds.includes(historyStatusId) : false;
+                })
+                : [];
+
+            const siteVisitEvents = effectiveSiteVisitIds.length
+                ? statusHistory.filter((historyItem: any) => {
+                    const historyStatusId = normalizeId(historyItem?.status);
+                    return historyStatusId ? effectiveSiteVisitIds.includes(historyStatusId) : false;
+                })
+                : [];
+
+            const latestBookingAt = finalStatusEvents.reduce<number | null>((latest, event: any) => {
+                const eventTimestamp = extractTimestamp(event?.changedAt);
+                if (eventTimestamp === null) return latest;
+                return latest === null || eventTimestamp > latest ? eventTimestamp : latest;
+            }, null);
+
+            const latestSiteVisitAt = siteVisitEvents.reduce<number | null>((latest, event: any) => {
+                const eventTimestamp = extractTimestamp(event?.changedAt);
+                if (eventTimestamp === null) return latest;
+                return latest === null || eventTimestamp > latest ? eventTimestamp : latest;
+            }, null);
+
+            const currentStatusId = normalizeId(lead.currentStatus?._id ?? lead.currentStatus);
+            const fallbackUpdatedAt = extractTimestamp(lead.updatedAt);
+            const hasFinalStatus = bookingStatusIds.length
+                ? (currentStatusId ? bookingStatusIds.includes(currentStatusId) : false)
+                : false;
+            const hasSiteVisitStatus = effectiveSiteVisitIds.length
+                ? (currentStatusId ? effectiveSiteVisitIds.includes(currentStatusId) : false)
+                : false;
+            const hasSiteVisitFlag =
+                lead.customData?.is_site_visit_done === true ||
+                lead.customData?.is_site_visit_done === 'true' ||
+                lead.customData?.siteVisitDone === true ||
+                lead.customData?.siteVisitDone === 'true' ||
+                lead.customData?.site_visit_done === true ||
+                lead.customData?.site_visit_done === 'true';
+
+            const bookingTimestamp = latestBookingAt ?? (hasFinalStatus && fallbackUpdatedAt ? fallbackUpdatedAt : null);
+            const siteVisitEligible = siteVisitEvents.length > 0 || hasSiteVisitStatus || hasSiteVisitFlag;
+            const siteVisitTimestamp = latestSiteVisitAt ?? (siteVisitEligible && fallbackUpdatedAt ? fallbackUpdatedAt : null);
+
+            return {
+                ...lead,
+                latestBookingAt: bookingTimestamp,
+                latestSiteVisitAt: siteVisitTimestamp,
+                hasFinalStatus,
+                hasSiteVisitHistory: siteVisitEvents.length > 0,
+                hasSiteVisitStatus,
+                hasSiteVisitFlag,
+                siteVisitEligible,
+            };
+        });
+
+        if (filter) {
+            const filtered = enrichedLeads.filter(lead => {
                 const projectMatch = !projectId || lead.project?._id === projectId;
                 if (!projectMatch) return false;
 
-                let targetStatusIds: string[] = [];
-                if (filter === 'siteVisits' && siteVisitStatusId) {
-                    targetStatusIds = [siteVisitStatusId];
-                } else if (filter === 'bookings' && bookingStatusId) {
-                    targetStatusIds = [bookingStatusId];
-                } else if (filter === 'projectImpact') {
-                    if (siteVisitStatusId) targetStatusIds.push(siteVisitStatusId);
-                    if (bookingStatusId) targetStatusIds.push(bookingStatusId);
+                if (filter === 'bookings') {
+                    if (!lead.hasFinalStatus) return false;
+                    if (hasDateRange) {
+                        if (!lead.latestBookingAt) return false;
+                        return isWithinRange(lead.latestBookingAt);
+                    }
+                    return true;
                 }
 
-                // For "bookings", only check currentStatus and its history entry for the date.
-                if (filter === 'bookings' && bookingStatusId) {
-                    const isCurrentlyBooked = lead.currentStatus?._id === bookingStatusId;
-
-                    if (!isCurrentlyBooked) return false;
+                if (filter === 'siteVisits') {
+                    if (!lead.siteVisitEligible) return false;
+                    if (hasDateRange) {
+                        if (!lead.latestSiteVisitAt) return false;
+                        return isWithinRange(lead.latestSiteVisitAt);
+                    }
+                    return true;
                 }
 
-
-                if (!(lead.updatedAt >= startDate) || !(lead.updatedAt <= endDate)) {
-                    console.log('faled in date');
-                    
-                    return false;
+                if (filter === 'projectImpact') {
+                    const hasRelevantHistory = lead.hasSiteVisitHistory || lead.hasSiteVisitStatus || lead.hasSiteVisitFlag;
+                    if (!hasRelevantHistory) return false;
+                    if (hasDateRange) {
+                        if (!lead.latestSiteVisitAt) return false;
+                        return isWithinRange(lead.latestSiteVisitAt);
+                    }
+                    return true;
                 }
 
-
-                // For "siteVisits" and "projectImpact", check both creation and history.
-                const isCreatedWithStatus = lead.currentStatus?._id && targetStatusIds.includes(lead.currentStatus._id)
-                
-                if (isCreatedWithStatus) return true;
-
-                const hasStatusInHistory = lead.statusHistory.some((historyItem: any) => {
-                    return targetStatusIds.includes(historyItem.status?._id)
-                });
-                return hasStatusInHistory;
+                return true;
             });
             return transformLeadData(filtered);
         }
 
-        // Fallback to original filtering logic if filter is not present
-        if (!statusId && !projectId && !userId && !startDate) {
-            return transformLeadData(leads);
+        if (!statusId && !projectId && !userId && !hasDateRange && !filter) {
+            return transformLeadData(enrichedLeads);
         }
 
-        const filtered = leads.filter(lead => {
+        const filtered = enrichedLeads.filter(lead => {
             const statusMatch = !statusId || lead.currentStatus?._id === statusId;
             const projectMatch = !projectId || lead.project?._id === projectId;
             const userMatch = !userId || lead.user?._id === userId;
-
-
-
 
             return statusMatch && projectMatch && userMatch;
         });
 
         return transformLeadData(filtered);
-    }, [leads, searchParams, siteVisitStatusId, bookingStatusId]);
+    }, [leads, searchParams, siteVisitStatusIds, bookingStatusIds]);
 
 
 
