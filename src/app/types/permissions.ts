@@ -157,7 +157,8 @@ export const PERMISSIONS = {
   ATTENDANCE_DELETE : 'attendance:delete',
   ATTENDANCE_READ_ALL : 'attendance:read_all',
 
-
+  // Contact permissions
+  VIEW_FULL_CONTACT: 'view_full_contact:read',
 
 } as const;
 

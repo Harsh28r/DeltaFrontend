@@ -6,6 +6,7 @@ import { Badge, Button } from "flowbite-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
 import NotificationsModal from "./NotificationsModal";
+import NotificationDetailModal from "./NotificationDetailModal";
 
 // Notification types
 interface NotificationData {
@@ -66,6 +67,8 @@ const NotificationsModule = () => {
   const [loading, setLoading] = useState(false);
   const [expanded, setExpanded] = useState(false);
   const [modalOpen, setModalOpen] = useState(false);
+  const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Fetch notifications
   const fetchNotifications = async () => {
@@ -95,8 +98,11 @@ const NotificationsModule = () => {
   };
 
   // Mark notification as read
-  const markNotificationAsRead = async (notificationId: string) => {
-    if (!token) return;
+  const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+    if (!token) {
+      console.error('No token available');
+      return;
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
@@ -121,10 +127,13 @@ const NotificationsModule = () => {
           });
         }
       } else {
-        console.error('Failed to mark notification as read:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to mark notification as read:', response.status, errorData);
+        throw new Error(`Failed to mark notification as read: ${response.status}`);
       }
     } catch (err) {
       console.error('Error marking notification as read:', err);
+      throw err;
     }
   };
 
@@ -134,6 +143,7 @@ const NotificationsModule = () => {
       case 'lead_status_change': return 'solar:chart-line-duotone';
       case 'lead_assigned': return 'solar:user-plus-line-duotone';
       case 'lead_created': return 'solar:add-circle-line-duotone';
+      case 'lead_transferred': return 'solar:transfer-vertical-line-duotone';
       case 'project_update': return 'solar:buildings-line-duotone';
       default: return 'solar:bell-line-duotone';
     }
@@ -206,7 +216,11 @@ const NotificationsModule = () => {
                     ? 'bg-gray-50 dark:bg-gray-800 border-l-gray-300 dark:border-l-gray-600' 
                     : 'bg-blue-50 dark:bg-blue-900 border-l-blue-500 dark:border-l-blue-400'
                 }`}
-                onClick={() => !notification.read && markNotificationAsRead(notification._id)}
+                onClick={() => {
+                  setSelectedNotification(notification);
+                  setDetailModalOpen(true);
+                  // Mark as read is handled in NotificationDetailModal
+                }}
               >
                 <div className="flex items-start space-x-2">
                   <div className={`p-1.5 rounded-full ${
@@ -283,6 +297,17 @@ const NotificationsModule = () => {
       <NotificationsModal 
         isOpen={modalOpen} 
         onClose={() => setModalOpen(false)} 
+      />
+
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={detailModalOpen}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setSelectedNotification(null);
+        }}
+        onMarkAsRead={markNotificationAsRead}
       />
     </div>
   );
