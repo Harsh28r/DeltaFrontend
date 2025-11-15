@@ -5,6 +5,7 @@ import { Icon } from "@iconify/react";
 import { Badge, Button, Modal } from "flowbite-react";
 import { useAuth } from "@/app/context/AuthContext";
 import { API_BASE_URL } from "@/lib/config";
+import NotificationDetailModal from "./NotificationDetailModal";
 
 // Notification types
 interface NotificationData {
@@ -69,6 +70,8 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
   const [notifications, setNotifications] = useState<NotificationResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [selectedNotification, setSelectedNotification] = useState<NotificationData | null>(null);
+  const [detailModalOpen, setDetailModalOpen] = useState(false);
 
   // Fetch notifications
   const fetchNotifications = async (page = 1, limit = 20) => {
@@ -99,8 +102,11 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
   };
 
   // Mark notification as read
-  const markNotificationAsRead = async (notificationId: string) => {
-    if (!token) return;
+  const markNotificationAsRead = async (notificationId: string): Promise<void> => {
+    if (!token) {
+      console.error('No token available');
+      return;
+    }
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/notifications/${notificationId}/read`, {
@@ -125,10 +131,13 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
           });
         }
       } else {
-        console.error('Failed to mark notification as read:', response.status);
+        const errorData = await response.json().catch(() => ({}));
+        console.error('Failed to mark notification as read:', response.status, errorData);
+        throw new Error(`Failed to mark notification as read: ${response.status}`);
       }
     } catch (err) {
       console.error('Error marking notification as read:', err);
+      throw err;
     }
   };
 
@@ -170,6 +179,7 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
       case 'lead_status_change': return 'solar:chart-line-duotone';
       case 'lead_assigned': return 'solar:user-plus-line-duotone';
       case 'lead_created': return 'solar:add-circle-line-duotone';
+      case 'lead_transferred': return 'solar:transfer-vertical-line-duotone';
       case 'project_update': return 'solar:buildings-line-duotone';
       default: return 'solar:bell-line-duotone';
     }
@@ -203,6 +213,11 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
     }
   }, [isOpen, token, user]);
 
+  // Helper to check if notification is unread
+  const isUnread = (notification: NotificationData) => {
+    return !notification.read;
+  };
+
   const unreadCount = notifications?.notifications.filter(n => !n.read).length || 0;
 
   return (
@@ -231,22 +246,26 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
               <div
                 key={notification._id}
                 className={`p-4 rounded-lg border-l-4 transition-all duration-200 hover:shadow-md cursor-pointer ${
-                  notification.read 
+                  !isUnread(notification)
                     ? 'bg-gray-50 dark:bg-gray-800 border-l-gray-300 dark:border-l-gray-600' 
                     : 'bg-blue-50 dark:bg-blue-900 border-l-blue-500 dark:border-l-blue-400'
                 }`}
-                onClick={() => !notification.read && markNotificationAsRead(notification._id)}
+                onClick={() => {
+                  setSelectedNotification(notification);
+                  setDetailModalOpen(true);
+                  // Mark as read is handled in NotificationDetailModal
+                }}
               >
                 <div className="flex items-start space-x-3">
                   <div className={`p-2 rounded-full ${
-                    notification.read 
+                    !isUnread(notification)
                       ? 'bg-gray-200 dark:bg-gray-700' 
                       : 'bg-blue-100 dark:bg-blue-800'
                   }`}>
                     <Icon 
                       icon={getNotificationIcon(notification.type)} 
                       className={`text-lg ${
-                        notification.read 
+                        !isUnread(notification)
                           ? 'text-gray-600 dark:text-gray-400' 
                           : 'text-blue-600 dark:text-blue-400'
                       }`} 
@@ -255,7 +274,7 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                       <h4 className={`text-sm font-semibold ${
-                        notification.read 
+                        !isUnread(notification)
                           ? 'text-gray-700 dark:text-gray-300' 
                           : 'text-gray-900 dark:text-white'
                       }`}>
@@ -267,12 +286,12 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
                       >
                         {notification.priority}
                       </Badge>
-                      {!notification.read && (
+                      {isUnread(notification) && (
                         <div className="w-2 h-2 bg-blue-500 rounded-full"></div>
                       )}
                     </div>
                     <p className={`text-sm ${
-                      notification.read 
+                      !isUnread(notification)
                         ? 'text-gray-600 dark:text-gray-400' 
                         : 'text-gray-700 dark:text-gray-300'
                     }`}>
@@ -371,6 +390,17 @@ const NotificationsModal = ({ isOpen, onClose }: NotificationsModalProps) => {
           </Button>
         </div>
       </Modal.Footer>
+
+      {/* Notification Detail Modal */}
+      <NotificationDetailModal
+        notification={selectedNotification}
+        isOpen={detailModalOpen}
+        onClose={() => {
+          setDetailModalOpen(false);
+          setSelectedNotification(null);
+        }}
+        onMarkAsRead={markNotificationAsRead}
+      />
     </Modal>
   );
 };

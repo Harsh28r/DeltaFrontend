@@ -70,6 +70,7 @@ const AddRolePage = () => {
     { id: "leads:bulk", name: "Bulk Leads Operations", description: "Can perform bulk operations on leads", category: "Leads Management" },
     { id: "leads:transfer", name: "Transfer Leads", description: "Can transfer leads between users", category: "Leads Management" },
     { id: "leads:bulk-delete", name: "Bulk Delete Leads", description: "Can delete multiple leads", category: "Leads Management" },
+    { id: "view_full_contact:read", name: "View Full Contact", description: "Can view full contact information", category: "Leads Management" },
     
     // Lead Sources Management
     { id: "leadssource:create", name: "Create Lead Sources", description: "Can create new lead sources (Superadmin only)", category: "Lead Sources Management" },
