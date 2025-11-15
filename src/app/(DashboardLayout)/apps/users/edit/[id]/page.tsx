@@ -104,12 +104,11 @@ const EditUserPage = () => {
     mobile: "",
     companyName: "",
     roleName: "",
-    projectId: "",
-    projectName: ""
+    selectedProjectIds: [] as string[]
   });
 
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [projectAssignments, setProjectAssignments] = useState<{[key: string]: {projectId: string, projectName: string}}>({});
+  const [userProjectAssignments, setUserProjectAssignments] = useState<string[]>([]);
 
   const userId = params.id as string;
 
@@ -125,17 +124,13 @@ const EditUserPage = () => {
 
   // Update form data when project assignments are available
   useEffect(() => {
-    if (user && Object.keys(projectAssignments).length > 0) {
-      // If user doesn't have project info but we have it in assignments, update form
-      if (!user.projectId && projectAssignments[user._id]) {
-        setFormData(prev => ({
-          ...prev,
-          projectId: projectAssignments[user._id].projectId,
-          projectName: projectAssignments[user._id].projectName
-        }));
-      }
+    if (user && userProjectAssignments.length > 0) {
+      setFormData(prev => ({
+        ...prev,
+        selectedProjectIds: userProjectAssignments
+      }));
     }
-  }, [user, projectAssignments]);
+  }, [user, userProjectAssignments]);
 
   const fetchUserHistory = async () => {
     try {
@@ -192,8 +187,7 @@ const EditUserPage = () => {
         mobile: data.user.mobile || "",
         companyName: data.user.companyName || "",
         roleName: data.user.currentRole.name || "",
-        projectId: data.timeline?.events?.find((e: any) => e.type === 'project_assignment')?.details?.projectId || "",
-        projectName: data.timeline?.events?.find((e: any) => e.type === 'project_assignment')?.details?.projectName || ""
+        selectedProjectIds: [] as string[]
       };
       
       console.log("Setting form data:", formDataToSet);
@@ -223,25 +217,13 @@ const EditUserPage = () => {
         console.log("Fetched user data:", userData);
         setUser(userData);
         
-        // Get project info from user data or project assignments
-        let projectId = userData.projectId || "";
-        let projectName = userData.projectName || "";
-        
-        // If no project info in user data, try to get from project assignments
-        if (!projectId && projectAssignments[userId]) {
-          projectId = projectAssignments[userId].projectId;
-          projectName = projectAssignments[userId].projectName;
-          console.log("Using project assignment data:", { projectId, projectName });
-        }
-        
         const formDataToSet = {
           name: userData.name || "",
           email: userData.email || "",
           mobile: userData.mobile || "",
           companyName: userData.companyName || "",
           roleName: userData.roleName || "",
-          projectId: projectId,
-          projectName: projectName
+          selectedProjectIds: [] as string[]
         };
         
         console.log("Setting form data:", formDataToSet);
@@ -316,26 +298,20 @@ const EditUserPage = () => {
         const projectsData = await projectsResponse.json();
         const projects = projectsData.projects || projectsData;
         
-        // Extract member assignments from each project
-        const assignmentMap: {[key: string]: {projectId: string, projectName: string}} = {};
+        // Extract all project assignments for the current user
+        const userProjects: string[] = [];
         
         projects.forEach((project: any) => {
           if (project.members && Array.isArray(project.members)) {
-            project.members.forEach((member: any) => {
-              if (member._id) {
-                assignmentMap[member._id] = {
-                  projectId: project._id,
-                  projectName: project.name
-                };
-              }
-            });
+            const isMember = project.members.some((member: any) => member._id === userId);
+            if (isMember) {
+              userProjects.push(project._id);
+            }
           }
         });
         
-        setProjectAssignments(assignmentMap);
-        console.log("Project assignments extracted:", assignmentMap);
-        console.log("Current user ID:", userId);
-        console.log("User's project assignment:", assignmentMap[userId]);
+        setUserProjectAssignments(userProjects);
+        console.log("User's project assignments:", userProjects);
       } else {
         console.error("Failed to fetch projects:", projectsResponse.status, projectsResponse.statusText);
       }
@@ -394,18 +370,21 @@ const EditUserPage = () => {
       const data = await response.json();
 
       if (response.ok) {
-        // If project assignment changed, handle project assignment
-        if (formData.projectId && formData.projectId !== user?.projectId) {
+        // Update project assignments if they changed
+        const currentProjects = userProjectAssignments.sort().join(',');
+        const newProjects = formData.selectedProjectIds.sort().join(',');
+        
+        if (currentProjects !== newProjects) {
           try {
             const assignPayload = {
-              projectId: formData.projectId,
-              userId: userId
+              userId: userId,
+              projects: formData.selectedProjectIds.map(projectId => ({ projectId }))
             };
             
-            console.log("Assigning user to project:", assignPayload);
+            console.log("Updating user project assignments:", assignPayload);
             
-            const assignResponse = await fetch(API_ENDPOINTS.ASSIGN_PROJECT_MEMBER, {
-              method: "POST",
+            const assignResponse = await fetch(API_ENDPOINTS.UPDATE_USER_PROJECTS, {
+              method: "PUT",
               headers: {
                 "Content-Type": "application/json",
                 Authorization: `Bearer ${token}`,
@@ -416,15 +395,15 @@ const EditUserPage = () => {
             const assignData = await assignResponse.json();
             
             if (assignResponse.ok) {
-              alert("User updated and assigned to project successfully!");
+              alert(`User updated and assigned to ${formData.selectedProjectIds.length} project(s) successfully!`);
               // Trigger refresh event for other pages
               createRefreshEvent();
             } else {
-              alert(`User updated but failed to assign to project: ${assignData.message || assignData.error || 'Unknown error'}`);
+              alert(`User updated but failed to update project assignments: ${assignData.message || assignData.error || 'Unknown error'}`);
             }
           } catch (error) {
-            console.error("Error assigning project:", error);
-            alert("User updated but failed to assign to project. Please try again.");
+            console.error("Error updating project assignments:", error);
+            alert("User updated but failed to update project assignments. Please try again.");
           }
         } else {
           alert("User updated successfully!");
@@ -445,7 +424,7 @@ const EditUserPage = () => {
     }
   };
 
-  const handleInputChange = (field: string, value: string) => {
+  const handleInputChange = (field: string, value: string | string[]) => {
     setFormData(prev => ({ ...prev, [field]: value }));
     // Clear error when user starts typing
     if (errors[field]) {
@@ -507,9 +486,11 @@ const EditUserPage = () => {
               </span>
             </div>
             <div>
-              <span className="text-gray-600 dark:text-gray-400">Current Project:</span>
+              <span className="text-gray-600 dark:text-gray-400">Current Projects:</span>
               <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                {user.projectName || projectAssignments[user._id]?.projectName || "Not assigned"}
+                {userProjectAssignments.length > 0 
+                  ? `${userProjectAssignments.length} project(s) assigned`
+                  : "Not assigned"}
               </span>
             </div>
             <div>
@@ -519,9 +500,11 @@ const EditUserPage = () => {
               </span>
             </div>
             <div>
-              <span className="text-gray-600 dark:text-gray-400">Form Project:</span>
+              <span className="text-gray-600 dark:text-gray-400">Selected Projects:</span>
               <span className="ml-2 font-medium text-gray-900 dark:text-white">
-                {formData.projectName || "Not set"}
+                {formData.selectedProjectIds.length > 0 
+                  ? `${formData.selectedProjectIds.length} project(s) selected`
+                  : "None selected"}
               </span>
             </div>
           </div>
@@ -614,26 +597,43 @@ const EditUserPage = () => {
           {/* Project Assignment */}
           <div>
             <div className="mb-2 block">
-              <Label htmlFor="projectId" value="Project Assignment" />
+              <Label value="Project Assignment" />
             </div>
-            <Select
-              id="projectId"
-              disabled={true}
-              value={formData.projectId}
-              onChange={(e) => {
-                const selectedProject = projects.find(p => p._id === e.target.value);
-                handleInputChange("projectId", e.target.value);
-                handleInputChange("projectName", selectedProject?.name || "");
-                
-              }}
-            >
-              <option value="">No Project Assigned</option>
-              {projects.map((project) => (
-                <option key={project._id} value={project._id}>
-                  {project.name}
-                </option>
-              ))}
-            </Select>
+            <div className="space-y-2 max-h-60 overflow-y-auto border border-gray-300 dark:border-gray-600 rounded-lg p-4">
+              {projects.length === 0 ? (
+                <p className="text-sm text-gray-500 dark:text-gray-400">No projects available</p>
+              ) : (
+                projects.map(project => (
+                  <div key={project._id} className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id={`project-${project._id}`}
+                      value={project._id}
+                      checked={formData.selectedProjectIds.includes(project._id)}
+                      onChange={(e) => {
+                        if (e.target.checked) {
+                          handleInputChange("selectedProjectIds", [...formData.selectedProjectIds, project._id]);
+                        } else {
+                          handleInputChange("selectedProjectIds", formData.selectedProjectIds.filter(id => id !== project._id));
+                        }
+                      }}
+                      className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary dark:bg-gray-700 dark:border-gray-600"
+                    />
+                    <Label htmlFor={`project-${project._id}`} className="text-sm cursor-pointer flex-1">
+                      {project.name}
+                    </Label>
+                  </div>
+                ))
+              )}
+            </div>
+            {formData.selectedProjectIds.length > 0 && (
+              <p className="text-sm text-green-600 dark:text-green-400 mt-2">
+                {formData.selectedProjectIds.length} project(s) selected
+              </p>
+            )}
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-2">
+              Select one or more projects to assign this user to
+            </p>
           </div>
 
           {/* Submit Buttons */}
