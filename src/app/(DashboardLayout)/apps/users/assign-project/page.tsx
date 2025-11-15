@@ -329,10 +329,10 @@ const AssignProjectPage = () => {
   };
 
   const filteredUsers = users.filter(user =>
-    user.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.currentRole.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    (user.mobile && user.mobile.includes(searchTerm)) ||
+    user.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    user.currentRole?.name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    (user.mobile && user.mobile?.includes(searchTerm)) ||
     (user.companyName && user.companyName.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
