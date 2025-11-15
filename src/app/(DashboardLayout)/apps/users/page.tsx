@@ -52,6 +52,7 @@ const UsersPage = () => {
 
   const [existingRoles, setExistingRoles] = useState<Array<{name: string, level: number}>>([]);
   const [projects, setProjects] = useState<Array<{_id: string, name: string}>>([]);
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<string>>(new Set());
   
   // Details modal state
   const [detailOpenUserId, setDetailOpenUserId] = useState<string | null>(null);
@@ -372,7 +373,8 @@ const UsersPage = () => {
       });
       const data = await response.json();
       if (response.ok) {
-        setExistingRoles(data.roles || []);
+        console.log("Existing roles:", data);
+        setExistingRoles(data || []);
       } else {
         console.error("Failed to fetch existing roles:", data.message);
       }
@@ -605,21 +607,21 @@ const UsersPage = () => {
             <div className="flex items-center gap-2">
               <input
                 type="checkbox"
+                checked={selectedUserIds.size > 0 && selectedUserIds.size === users.length}
                 className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                 onChange={(e) => {
-                  const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
-                  checkboxes.forEach(checkbox => {
-                    checkbox.checked = e.target.checked;
-                  });
+                  // Update selected user IDs state
+                  if (e.target.checked) {
+                    setSelectedUserIds(new Set(users.map(u => u._id)));
+                  } else {
+                    setSelectedUserIds(new Set());
+                  }
                 }}
               />
               <span className="text-sm text-gray-600">Select All</span>
             </div>
             <span className="text-sm text-gray-500">
-              {(() => {
-                const checkedBoxes = document.querySelectorAll('input[name^="user-"]:checked') as NodeListOf<HTMLInputElement>;
-                return `${checkedBoxes.length} user(s) selected`;
-              })()}
+              {selectedUserIds.size} user(s) selected
             </span>
           </div>
           <div>
@@ -629,25 +631,23 @@ const UsersPage = () => {
                 const newRole = e.target.value;
                 if (!newRole) return;
                 
-                const checkedBoxes = document.querySelectorAll('input[name^="user-"]:checked') as NodeListOf<HTMLInputElement>;
-                if (checkedBoxes.length === 0) {
+                if (selectedUserIds.size === 0) {
                   alert("Please select users first");
                   return;
                 }
                 
-                if (window.confirm(`Change role to ${newRole.toUpperCase()} for ${checkedBoxes.length} selected user(s)?`)) {
-                  const selectedUserIds = Array.from(checkedBoxes).map(cb => cb.name.replace('user-', ''));
-                  
+                const selectedIds = Array.from(selectedUserIds);
+                if (window.confirm(`Change role to ${newRole.toUpperCase()} for ${selectedIds.length} selected user(s)?`)) {
                   try {
                     // Prepare bulk payload
                     const bulkPayload = {
                       projectId: "", // Will be set from first user or can be made configurable
-                      userIds: selectedUserIds,
+                      userIds: selectedIds,
                       newRoleName: newRole
                     };
                     
                     // Get project ID from first selected user
-                    const firstUser = users.find(u => u._id === selectedUserIds[0]);
+                    const firstUser = users.find(u => u._id === selectedIds[0]);
                     if (firstUser && firstUser.projectAssignments.length > 0) {
                       bulkPayload.projectId = firstUser.projectAssignments[0].projectId;
                     }
@@ -667,20 +667,22 @@ const UsersPage = () => {
                     if (response.ok) {
                       // Update local state
                       setUsers(users.map(u => 
-                        selectedUserIds.includes(u._id) ? { 
+                        selectedIds.includes(u._id) ? { 
                           ...u, 
                           currentRole: { ...u.currentRole, name: newRole }
                         } : u
                       ));
                       
-                      // Uncheck all checkboxes
-                      checkedBoxes.forEach(cb => cb.checked = false);
+                      // Uncheck all checkboxes and clear selection
+                      const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
+                      checkboxes.forEach(cb => cb.checked = false);
+                      setSelectedUserIds(new Set());
                       
                       // Show success message
                       if (data.successCount !== undefined) {
                         alert(`Bulk role change completed!\nSuccess: ${data.successCount}\nFailed: ${data.failCount || 0}`);
                       } else {
-                        alert(`Bulk role change completed for ${selectedUserIds.length} users!`);
+                        alert(`Bulk role change completed for ${selectedIds.length} users!`);
                       }
                       
                       // Refresh the data
@@ -699,9 +701,24 @@ const UsersPage = () => {
               }}
             >
               <option value="">Change Role to...</option>
-              {existingRoles.map(role => (
-                <option key={role.name} value={role.name}>{role.name.toUpperCase()}</option>
-              ))}
+              {(() => {
+                // Get current roles of selected users
+                const selectedUsersCurrentRoles = new Set(
+                  users
+                    .filter(u => selectedUserIds.has(u._id))
+                    .map(u => u.currentRole?.name)
+                    .filter(Boolean)
+                );
+                
+                // Filter out selected users' current roles, or show all if none selected
+                const availableRoles = selectedUserIds.size === 0
+                  ? existingRoles
+                  : existingRoles.filter(role => !selectedUsersCurrentRoles.has(role.name));
+                
+                return availableRoles.map(role => (
+                  <option key={role.name} value={role.name}>{role.name.toUpperCase()}</option>
+                ));
+              })()}
             </select>
           </div>
         </div>
@@ -772,12 +789,15 @@ const UsersPage = () => {
         <Table.HeadCell className="w-12 px-4 py-3">
                 <input
                   type="checkbox"
+                  checked={selectedUserIds.size > 0 && selectedUserIds.size === users.length}
                   className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
                   onChange={(e) => {
-                    const checkboxes = document.querySelectorAll('input[name^="user-"]') as NodeListOf<HTMLInputElement>;
-              checkboxes.forEach((checkbox) => {
-                      checkbox.checked = e.target.checked;
-                    });
+                    // Update selected user IDs state
+                    if (e.target.checked) {
+                      setSelectedUserIds(new Set(users.map(u => u._id)));
+                    } else {
+                      setSelectedUserIds(new Set());
+                    }
                   }}
                 />
               </Table.HeadCell>
@@ -800,7 +820,19 @@ const UsersPage = () => {
                     <input
                       type="checkbox"
                       name={`user-${user._id}`}
+                      checked={selectedUserIds.has(user._id)}
                       className="w-4 h-4 text-primary bg-gray-100 border-gray-300 rounded focus:ring-2 focus:ring-primary focus:border-transparent"
+                      onChange={(e) => {
+                        setSelectedUserIds(prev => {
+                          const next = new Set(prev);
+                          if (e.target.checked) {
+                            next.add(user._id);
+                          } else {
+                            next.delete(user._id);
+                          }
+                          return next;
+                        });
+                      }}
                     />
                   </Table.Cell>
             <Table.Cell className="min-w-[150px] px-4 py-3 font-medium text-gray-900 dark:text-white">
@@ -818,11 +850,7 @@ const UsersPage = () => {
                   ? user.projectAssignments
                   : [];
                 const hasProjects = assignments.length > 0;
-                console.log(
-                  `Project assignment cell for ${user.name} : isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
-                    assignments.length || 0
-                  }, hasProjects=${hasProjects}`
-                );
+             
 
                 if (hasProjects) {
                         return (
@@ -913,11 +941,7 @@ const UsersPage = () => {
                     ? user.projectAssignments
                     : [];
                   const hasProjects = assignments.length > 0;
-                  console.log(
-                    `User ${user.name} (${user._id}): isAssignedToProject=${user.isAssignedToProject}, projectAssignments.length=${
-                      assignments.length || 0
-                    }, hasProjects=${hasProjects}`
-                  );
+                  
                   return (
                     !hasProjects && (
                       <div className="flex items-center gap-2">
